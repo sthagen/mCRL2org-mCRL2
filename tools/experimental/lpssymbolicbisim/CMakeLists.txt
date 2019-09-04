@@ -1,9 +1,11 @@
 add_mcrl2_tool(lpssymbolicbisim
   SOURCES
     lpssymbolicbisim.cpp
+    ../pbessymbolicbisim/simplifier.cpp
   DEPENDS
     mcrl2_atermpp
     mcrl2_lps
     mcrl2_lts
     mcrl2_process
+    mcrl2_smt
 )

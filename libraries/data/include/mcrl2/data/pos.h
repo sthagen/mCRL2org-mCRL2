@@ -88,7 +88,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == c1();
+          return atermpp::down_cast<function_symbol>(e) == c1();
         }
         return false;
       }
@@ -120,7 +120,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == cdub();
+          return atermpp::down_cast<function_symbol>(e) == cdub();
         }
         return false;
       }
@@ -143,11 +143,7 @@ namespace mcrl2 {
       inline
       bool is_cdub_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_cdub_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_cdub_function_symbol(atermpp::down_cast<application>(e).head());
       }
       /// \brief Give all system defined constructors for pos
       /// \return All system defined constructors for pos
@@ -188,7 +184,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == maximum();
+          return atermpp::down_cast<function_symbol>(e) == maximum();
         }
         return false;
       }
@@ -211,11 +207,7 @@ namespace mcrl2 {
       inline
       bool is_maximum_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_maximum_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_maximum_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier min
@@ -245,7 +237,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == minimum();
+          return atermpp::down_cast<function_symbol>(e) == minimum();
         }
         return false;
       }
@@ -268,11 +260,7 @@ namespace mcrl2 {
       inline
       bool is_minimum_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_minimum_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_minimum_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier succ
@@ -302,7 +290,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == succ();
+          return atermpp::down_cast<function_symbol>(e) == succ();
         }
         return false;
       }
@@ -324,11 +312,7 @@ namespace mcrl2 {
       inline
       bool is_succ_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_succ_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_succ_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@pospred
@@ -358,7 +342,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == pos_predecessor();
+          return atermpp::down_cast<function_symbol>(e) == pos_predecessor();
         }
         return false;
       }
@@ -380,11 +364,7 @@ namespace mcrl2 {
       inline
       bool is_pos_predecessor_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_pos_predecessor_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_pos_predecessor_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier +
@@ -414,7 +394,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == plus();
+          return atermpp::down_cast<function_symbol>(e) == plus();
         }
         return false;
       }
@@ -437,11 +417,7 @@ namespace mcrl2 {
       inline
       bool is_plus_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_plus_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_plus_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@addc
@@ -471,7 +447,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == add_with_carry();
+          return atermpp::down_cast<function_symbol>(e) == add_with_carry();
         }
         return false;
       }
@@ -495,11 +471,7 @@ namespace mcrl2 {
       inline
       bool is_add_with_carry_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_add_with_carry_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_add_with_carry_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier *
@@ -529,7 +501,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == times();
+          return atermpp::down_cast<function_symbol>(e) == times();
         }
         return false;
       }
@@ -552,11 +524,7 @@ namespace mcrl2 {
       inline
       bool is_times_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_times_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_times_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@powerlog2
@@ -586,7 +554,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == powerlog2_pos();
+          return atermpp::down_cast<function_symbol>(e) == powerlog2_pos();
         }
         return false;
       }
@@ -608,11 +576,7 @@ namespace mcrl2 {
       inline
       bool is_powerlog2_pos_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_powerlog2_pos_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_powerlog2_pos_function_symbol(atermpp::down_cast<application>(e).head());
       }
       /// \brief Give all system defined mappings for pos
       /// \return All system defined mappings for pos
@@ -636,7 +600,7 @@ namespace mcrl2 {
       /// \pre right is defined for e
       /// \return The argument of e that corresponds to right
       inline
-      data_expression right(const data_expression& e)
+      const data_expression& right(const data_expression& e)
       {
         assert(is_cdub_application(e) || is_maximum_application(e) || is_minimum_application(e) || is_plus_application(e) || is_times_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -648,7 +612,7 @@ namespace mcrl2 {
       /// \pre arg1 is defined for e
       /// \return The argument of e that corresponds to arg1
       inline
-      data_expression arg1(const data_expression& e)
+      const data_expression& arg1(const data_expression& e)
       {
         assert(is_add_with_carry_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -660,7 +624,7 @@ namespace mcrl2 {
       /// \pre arg2 is defined for e
       /// \return The argument of e that corresponds to arg2
       inline
-      data_expression arg2(const data_expression& e)
+      const data_expression& arg2(const data_expression& e)
       {
         assert(is_add_with_carry_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -672,7 +636,7 @@ namespace mcrl2 {
       /// \pre arg3 is defined for e
       /// \return The argument of e that corresponds to arg3
       inline
-      data_expression arg3(const data_expression& e)
+      const data_expression& arg3(const data_expression& e)
       {
         assert(is_add_with_carry_application(e));
         return atermpp::down_cast<const application >(e)[2];
@@ -684,7 +648,7 @@ namespace mcrl2 {
       /// \pre arg is defined for e
       /// \return The argument of e that corresponds to arg
       inline
-      data_expression arg(const data_expression& e)
+      const data_expression& arg(const data_expression& e)
       {
         assert(is_succ_application(e) || is_pos_predecessor_application(e) || is_powerlog2_pos_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -696,7 +660,7 @@ namespace mcrl2 {
       /// \pre left is defined for e
       /// \return The argument of e that corresponds to left
       inline
-      data_expression left(const data_expression& e)
+      const data_expression& left(const data_expression& e)
       {
         assert(is_cdub_application(e) || is_maximum_application(e) || is_minimum_application(e) || is_plus_application(e) || is_times_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -717,7 +681,9 @@ namespace mcrl2 {
         data_equation_vector result;
         result.push_back(data_equation(variable_list({vb, vp}), equal_to(c1(), cdub(vb, vp)), sort_bool::false_()));
         result.push_back(data_equation(variable_list({vb, vp}), equal_to(cdub(vb, vp), c1()), sort_bool::false_()));
-        result.push_back(data_equation(variable_list({vb, vc, vp, vq}), equal_to(cdub(vb, vp), cdub(vc, vq)), sort_bool::and_(equal_to(vb, vc), equal_to(vp, vq))));
+        result.push_back(data_equation(variable_list({vb, vp, vq}), equal_to(cdub(vb, vp), cdub(vb, vq)), equal_to(vp, vq)));
+        result.push_back(data_equation(variable_list({vp, vq}), equal_to(cdub(sort_bool::false_(), vp), cdub(sort_bool::true_(), vq)), sort_bool::false_()));
+        result.push_back(data_equation(variable_list({vp, vq}), equal_to(cdub(sort_bool::true_(), vp), cdub(sort_bool::false_(), vq)), sort_bool::false_()));
         result.push_back(data_equation(variable_list({vp}), equal_to(succ(vp), c1()), sort_bool::false_()));
         result.push_back(data_equation(variable_list({vq}), equal_to(c1(), succ(vq)), sort_bool::false_()));
         result.push_back(data_equation(variable_list({vc, vp, vq}), equal_to(succ(vp), cdub(vc, vq)), equal_to(vp, pos_predecessor(cdub(vc, vq)))));

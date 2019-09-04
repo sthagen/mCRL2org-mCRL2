@@ -14,7 +14,6 @@
 
 #include "mcrl2/core/detail/default_values.h"
 #include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/detail/precedence.h"
 #include "mcrl2/core/detail/soundness_checks.h"
 #include "mcrl2/core/index_traits.h"
 #include "mcrl2/data/data_specification.h"
@@ -31,8 +30,6 @@ namespace pbes_system
 {
 
 typedef std::pair<core::identifier_string, data::data_expression_list> propositional_variable_key_type;
-
-using namespace core::detail::precedences;
 
 //--- start generated classes ---//
 /// \brief A pbes expression
@@ -180,22 +177,6 @@ class propositional_variable_instantiation: public pbes_expression
         ))
     {}
 
-    /// \brief Type of the parameters.
-    typedef data::data_expression parameter_type;
-
-    /// \brief Constructor.
-    /// \param s A string
-    propositional_variable_instantiation(std::string const& s)
-    {
-      std::pair<std::string, data::data_expression_list> p = data::detail::parse_variable(s);
-      core::identifier_string name(p.first);
-      data::data_expression_list parameters = p.second;
-      copy_term(atermpp::aterm_appl(core::detail::function_symbol_PropVarInst(),
-        name,
-        parameters,
-        atermpp::aterm_int(core::index_traits<propositional_variable_instantiation, propositional_variable_key_type, 2>::insert(std::make_pair(name, parameters)))
-      ));
-    }
 //--- end user section propositional_variable_instantiation ---//
 };
 
@@ -646,6 +627,8 @@ std::set<pbes_system::propositional_variable_instantiation> find_propositional_v
 std::set<core::identifier_string> find_identifiers(const pbes_system::pbes_expression& x);
 std::set<data::variable> find_free_variables(const pbes_system::pbes_expression& x);
 bool search_variable(const pbes_system::pbes_expression& x, const data::variable& v);
+pbes_system::pbes_expression normalize_sorts(const pbes_system::pbes_expression& x, const data::sort_specification& sortspec);
+pbes_system::pbes_expression translate_user_notation(const pbes_system::pbes_expression& x);
 
 /// \return Returns the value true
 inline
@@ -755,53 +738,6 @@ inline bool is_universal_or(const pbes_expression& t)
 inline bool is_data(const pbes_expression& t)
 {
   return data::is_data_expression(t);
-}
-
-inline int left_precedence(const forall&) { return 21; }
-inline int left_precedence(const exists&) { return 21; }
-inline int left_precedence(const imp&)    { return 22; }
-inline int left_precedence(const or_&)    { return 23; }
-inline int left_precedence(const and_&)   { return 24; }
-inline int left_precedence(const not_&)   { return 25; }
-inline int left_precedence(const pbes_expression& x)
-{
-  if      (is_forall(x)) { return left_precedence(static_cast<const forall&>(x)); }
-  else if (is_exists(x)) { return left_precedence(static_cast<const exists&>(x)); }
-  else if (is_imp(x))    { return left_precedence(static_cast<const imp&>(x)); }
-  else if (is_or(x))     { return left_precedence(static_cast<const or_&>(x)); }
-  else if (is_and(x))    { return left_precedence(static_cast<const and_&>(x)); }
-  else if (is_not(x))    { return left_precedence(static_cast<const not_&>(x)); }
-  return core::detail::precedences::max_precedence;
-}
-
-inline int right_precedence(const forall& x) { return (std::max)(left_precedence(x), left_precedence(static_cast<const forall&>(x).body())); }
-inline int right_precedence(const exists& x) { return (std::max)(left_precedence(x), left_precedence(static_cast<const exists&>(x).body())); }
-inline int right_precedence(const pbes_expression& x)
-{
-  if      (is_forall(x)) { return right_precedence(static_cast<const forall&>(x)); }
-  else if (is_exists(x)) { return right_precedence(static_cast<const exists&>(x)); }
-  else return left_precedence(x);
-}
-
-/// \brief Returns true if the operations have the same precedence, but are different
-template <typename T1, typename T2>
-bool is_same_different_precedence(const T1&, const T2&)
-{
-  return false;
-}
-
-/// \brief Returns true if the operations have the same precedence, but are different
-inline
-bool is_same_different_precedence(const and_&, const pbes_expression& x)
-{
-  return is_or(x);
-}
-
-/// \brief Returns true if the operations have the same precedence, but are different
-inline
-bool is_same_different_precedence(const or_&, const pbes_expression& x)
-{
-  return is_and(x);
 }
 
 /// \brief The namespace for accessor functions on pbes expressions.

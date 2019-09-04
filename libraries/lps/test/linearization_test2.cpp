@@ -9,6 +9,7 @@
 /// \file linearization_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE linearization_test
 #include <boost/test/included/unit_test_framework.hpp>
 
 #ifndef MCRL2_SKIP_LONG_TESTS
@@ -43,6 +44,7 @@ void run_linearisation_test_case(const std::string& spec, const bool expect_succ
 {
   // Set various rewrite strategies
   rewrite_strategy_vector rewrite_strategies = data::detail::get_test_rewrite_strategies(false);
+  std::clog << "Tested specification:\n" << spec << "\n------------------------------------\n";
 
   for (rewrite_strategy_vector::const_iterator i = rewrite_strategies.begin(); i != rewrite_strategies.end(); ++i)
   {
@@ -497,9 +499,4 @@ BOOST_AUTO_TEST_CASE(skip_linearization_test)
 }
 
 #endif // ndef MCRL2_SKIP_LONG_TESTS
-
-boost::unit_test::test_suite* init_unit_test_suite(int, char*[])
-{
-  return nullptr;
-}
 

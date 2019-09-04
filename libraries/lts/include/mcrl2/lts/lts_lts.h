@@ -86,10 +86,20 @@ class state_label_lts : public atermpp::term_list< lps::state >
     {
     }
 
-    /** \brief An operator to concatenate two state labels. */
+    /** \brief An operator to concatenate two state labels.
+        \details Is optimal whenever |l| is smaller than the left operand, i.e. |l| < |this|.
+     */
     state_label_lts operator+(const state_label_lts& l) const
     {
-      return state_label_lts(static_cast<super>(*this)+static_cast<super>(l));
+      // The order of the state labels should not matter. For efficiency the elements of l are inserted in front of the aterm_list.
+      state_label_lts result(*this);
+
+      for (const lps::state& el : l)
+      {
+        result.push_front(el);
+      }
+
+      return result;
     }
 };
 
@@ -149,7 +159,8 @@ class action_label_lts: public mcrl2::lps::multi_action
     action_label_lts& operator=(const action_label_lts& )=default;
 
     /** \brief Constructor. */
-    explicit action_label_lts(const mcrl2::lps::multi_action& a):mcrl2::lps::multi_action(a)
+    explicit action_label_lts(const mcrl2::lps::multi_action& a)
+     : mcrl2::lps::multi_action(a)
     {
     }
 
@@ -200,9 +211,58 @@ inline std::string pp(const action_label_lts& l)
 inline action_label_lts parse_lts_action(
   const std::string& multi_action_string,
   const data::data_specification& data_spec,
-  const process::action_label_list& act_decls)
+  lps::multi_action_type_checker& typechecker)
 {
-  return action_label_lts(lps::parse_multi_action(multi_action_string, act_decls, data_spec));
+  std::string l(multi_action_string); 
+  lps::multi_action al;
+  // Find an @ symbol in the action, in which case it is timed.
+  size_t position_of_at=l.find_first_of('@');
+  std::string time_expression_string;
+  if (position_of_at!=std::string::npos)
+  {
+    // The at symbol is found. It is a timed action. 
+    time_expression_string=l.substr(position_of_at+1,l.size());
+    l=l.substr(0,position_of_at-1);
+  }
+  try
+  {
+    al=lps::parse_multi_action(l, typechecker, data_spec);
+  }
+  catch (mcrl2::runtime_error& e)
+  {
+    throw mcrl2::runtime_error("Parse error in action label " + multi_action_string + ".\n" + e.what());
+  }
+  
+  if (time_expression_string.size()>0)
+  {
+    try
+    {
+      data::data_expression time=parse_data_expression(time_expression_string,data::variable_list(),data_spec);
+      // Translate the sort of time to a real.
+      if (time.sort()==data::sort_pos::pos())
+      {
+        time = data::sort_nat::cnat(time);
+      }
+      if (time.sort()==data::sort_nat::nat())
+      {
+        time = data::sort_int::cint(time);
+      }
+      if (time.sort()==data::sort_int::int_())
+      {
+        time = data::sort_real::creal(time, data::sort_pos::c1());
+      }
+      if (time.sort()!=data::sort_real::real_())
+      {  
+        throw mcrl2::runtime_error("The time is not of sort Pos, Nat, Int or Real\n");
+      }
+      return action_label_lts(lps::multi_action(al.actions(),time));
+    }
+    catch (mcrl2::runtime_error& e)
+    {
+      throw mcrl2::runtime_error("Parse error in the time expression " + multi_action_string + ".\n" + e.what());
+    }
+  }
+  return action_label_lts(al);
 }
 
 namespace detail

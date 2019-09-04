@@ -16,7 +16,7 @@
 #include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/data/standard_utility.h"
 #include "mcrl2/data/replace.h"
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/data/fourier_motzkin.h"
 
 #include "mcrl2/lps/find.h"
@@ -168,7 +168,8 @@ static data_expression replace_linear_inequalities_with_reals_by_variables(
     global_variable_counter++;
     condition=sort_bool::and_(condition,equal_to(v,ta));
     vars.push_front(v);
-    return v;
+
+    return workaround::return_std_move(v);
   }
 
   data_expression_vector new_args;
@@ -222,8 +223,8 @@ static void move_real_parameters_out_of_actions(stochastic_specification& s,
      else
      {
        mutable_indexed_substitution<> empty_sigma;
-       std::deque<enumerator_list_element_with_substitution<> >
-               enumerator_deque(1, enumerator_list_element_with_substitution<>(replaced_variables,sort_bool::true_()));
+       data::enumerator_queue<enumerator_list_element_with_substitution<>>
+               enumerator_deque(enumerator_list_element_with_substitution<>(replaced_variables,sort_bool::true_()));
        for (enumerator_algorithm_with_iterator<>::iterator tl = enumerator.begin(empty_sigma, enumerator_deque); tl!= enumerator.end(); ++tl)
        {
          mutable_map_substitution<> sigma;

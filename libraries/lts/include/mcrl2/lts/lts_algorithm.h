@@ -21,7 +21,6 @@
 
 #include <string>
 #include <vector>
-#include <set>
 #include <stack>
 #include <algorithm>
 #include <iostream>
@@ -34,7 +33,7 @@
 #include "mcrl2/lts/lts_utilities.h"
 #include "mcrl2/lts/detail/liblts_bisim.h"
 #include "mcrl2/lts/detail/liblts_bisim_gjkw.h"
-#include "mcrl2/lts/detail/liblts_bisim_tb.h"
+#include "mcrl2/lts/detail/liblts_bisim_dnj.h"
 #include "mcrl2/lts/detail/liblts_weak_bisim.h"
 #include "mcrl2/lts/detail/liblts_add_an_action_loop.h"
 #include "mcrl2/lts/detail/liblts_scc.h"
@@ -52,14 +51,6 @@ namespace mcrl2
 {
 namespace lts
 {
-
-/* Auxiliary function */
-template<typename T>
-static bool lts_named_cmp(std::string N[], T a, T b)
-{
-  return N[a] < N[b];
-}
-
 
 /** \brief Applies a reduction algorithm to this LTS.
  * \param[in] l A labelled transition system that must be reduced.
@@ -99,54 +90,54 @@ bool destructive_compare(LTS_TYPE& l1,
       return false;
     case lts_eq_bisim:
     {
-      if (generate_counter_examples) 
+      if (generate_counter_examples)
       {
         mCRL2log(mcrl2::log::warning) << "The default bisimulation comparison algorithm cannot generate counter examples. Therefore the slower gv algorithm is used instead.\n";
         return detail::destructive_bisimulation_compare(l1,l2, false,false,generate_counter_examples);
       }
-      return detail::destructive_bisimulation_compare_gjkw(l1,l2, false,false,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_dnj(l1,l2, false,false,generate_counter_examples);
     }
     case lts_eq_bisim_gv:
     {
       return detail::destructive_bisimulation_compare(l1,l2, false,false,generate_counter_examples);
     }
-    case lts_eq_bisim_tb:
+    case lts_eq_bisim_gjkw:
     {
-      return detail::destructive_bisimulation_compare_tb(l1,l2, false,false,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_gjkw(l1,l2, false,false,generate_counter_examples);
     }
     case lts_eq_branching_bisim:
     {
-      if (generate_counter_examples) 
+      if (generate_counter_examples)
       {
         mCRL2log(mcrl2::log::warning) << "The default branching bisimulation comparison algorithm cannot generate counter examples. Therefore the slower gv algorithm is used instead.\n";
         return detail::destructive_bisimulation_compare(l1,l2, true,false,generate_counter_examples);
       }
-      return detail::destructive_bisimulation_compare_gjkw(l1,l2, true,false,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_dnj(l1,l2, true,false,generate_counter_examples);
     }
     case lts_eq_branching_bisim_gv:
     {
       return detail::destructive_bisimulation_compare(l1,l2, true,false,generate_counter_examples);
     }
-    case lts_eq_branching_bisim_tb:
+    case lts_eq_branching_bisim_gjkw:
     {
-      return detail::destructive_bisimulation_compare_tb(l1,l2, true,false,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_gjkw(l1,l2, true,false,generate_counter_examples);
     }
     case lts_eq_divergence_preserving_branching_bisim:
     {
-      if (generate_counter_examples) 
+      if (generate_counter_examples)
       {
-        mCRL2log(mcrl2::log::warning) << "The default divergence preserving branching bisimulation comparison algorithm cannot generate counter examples. Therefore the slower gv algorithm is used instead.\n";
+        mCRL2log(mcrl2::log::warning) << "The default divergence-preserving branching bisimulation comparison algorithm cannot generate counter examples. Therefore the slower gv algorithm is used instead.\n";
         return detail::destructive_bisimulation_compare(l1,l2, true,true,generate_counter_examples);
       }
-      return detail::destructive_bisimulation_compare_gjkw(l1,l2, true,true,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_dnj(l1,l2, true,true,generate_counter_examples);
     }
     case lts_eq_divergence_preserving_branching_bisim_gv:
     {
       return detail::destructive_bisimulation_compare(l1,l2, true,true,generate_counter_examples);
     }
-    case lts_eq_divergence_preserving_branching_bisim_tb:
+    case lts_eq_divergence_preserving_branching_bisim_gjkw:
     {
-      return detail::destructive_bisimulation_compare_tb(l1,l2, true,true,generate_counter_examples);
+      return detail::destructive_bisimulation_compare_gjkw(l1,l2, true,true,generate_counter_examples);
     }
     case lts_eq_weak_bisim:
     {
@@ -193,7 +184,7 @@ bool destructive_compare(LTS_TYPE& l1,
       rsp.partitioning_algorithm();
 
       return rsp.in_same_class(l1.initial_state(),init_l2);
-    }    
+    }
     case lts_eq_trace:
     {
       // Determinise first LTS
@@ -254,8 +245,11 @@ bool compare(const LTS_TYPE& l1,
  * \param[in] l2 The second LTS to be compared.
  * \param[in] pre The preorder with respect to which the LTSs will be
  * compared.
- * \param[in] generate_counter_example Indicates whether a file containing a counter example is 
- *            generated when the comparison fails. 
+ * \param[in] generate_counter_example Indicates whether a file containing a counter example is
+ *            generated when the comparison fails.
+ * \param[in] strategy Choose breadth-first or depth-first for exploration strategy
+ *            of the antichain algorithms.
+ * \param[in] preprocess Whether to allow preprocessing of the given LTSs.
  * \retval true if LTS \a l1 is smaller than LTS \a l2 according to
  * preorder \a pre.
  * \retval false otherwise.
@@ -270,15 +264,20 @@ template <class LTS_TYPE >
 bool destructive_compare(LTS_TYPE& l1,
                          LTS_TYPE& l2,
                          const lts_preorder pre,
-                         const bool generate_counter_example);
+                         const bool generate_counter_example,
+                         const lps::exploration_strategy strategy = lps::es_breadth,
+                         const bool preprocess = true);
 
 /** \brief Checks whether this LTS is smaller than another LTS according
  * to a preorder.
  * \param[in] l1 The first LTS to be compared.
  * \param[in] l2 The second LTS to be compared.
  * \param[in] pre The preorder with respect to which the LTSs will be compared.
- * \param[in] generate_counter_example Indicates whether a file containing a counter example is 
- *            generated when the comparison fails. 
+ * \param[in] generate_counter_example Indicates whether a file containing a counter example is
+ *            generated when the comparison fails.
+ * \param[in] strategy Choose breadth-first or depth-first for exploration strategy
+ *            of the antichain algorithms.
+ * \param[in] preprocess Whether to allow preprocessing of the given LTSs.
  * \retval true if this LTS is smaller than LTS \a l according to
  * preorder \a pre.
  * \retval false otherwise.
@@ -287,7 +286,9 @@ template <class  LTS_TYPE >
 bool compare(const LTS_TYPE&  l1,
              const  LTS_TYPE& l2,
              const lts_preorder pre,
-             const bool generate_counter_example);
+             const bool generate_counter_example,
+             const lps::exploration_strategy strategy = lps::es_breadth,
+             const bool preprocess = true);
 
 /** \brief Determinises this LTS. */
 template <class LTS_TYPE>
@@ -308,11 +309,11 @@ template <class SL, class AL, class BASE>
 bool reachability_check(lts < SL, AL, BASE>& l, bool remove_unreachable = false)
 {
   // First calculate which states can be reached, and store this in the array visited.
-  const outgoing_transitions_per_state_t out_trans=transitions_per_outgoing_state(l.get_transitions());
+  const outgoing_transitions_per_state_t out_trans(l.get_transitions(),l.num_states(),true);
 
   std::vector < bool > visited(l.num_states(),false);
   std::stack<std::size_t> todo;
-  
+
   visited[l.initial_state()]=true;
   todo.push(l.initial_state());
 
@@ -320,14 +321,15 @@ bool reachability_check(lts < SL, AL, BASE>& l, bool remove_unreachable = false)
   {
     std::size_t state_to_consider=todo.top();
     todo.pop();
-    for (outgoing_transitions_per_state_t::const_iterator i=out_trans.lower_bound(state_to_consider);
-         i!=out_trans.upper_bound(state_to_consider); ++i)
+    // for (const outgoing_pair_t& p: out_trans[state_to_consider])
+    for (detail::state_type i=out_trans.lowerbound(state_to_consider); i<out_trans.upperbound(state_to_consider); ++i)
     {
-      assert(visited[from(i)] && from(i)<l.num_states() && to(i)<l.num_states());
-      if (!visited[to(i)])
+      const outgoing_pair_t& p=out_trans.get_transitions()[i];
+      assert(visited[state_to_consider] && state_to_consider<l.num_states() && to(p)<l.num_states());
+      if (!visited[to(p)])
       {
-        visited[to(i)]=true;
-        todo.push(to(i));
+        visited[to(p)]=true;
+        todo.push(to(p));
       }
     }
   }
@@ -343,8 +345,8 @@ bool reachability_check(lts < SL, AL, BASE>& l, bool remove_unreachable = false)
     // Remove all unreachable states, transitions from such states and labels
     // that are only used in these transitions.
 
-    std::map < std::size_t , std::size_t > state_map;
-    std::map < std::size_t , std::size_t > label_map;
+    std::vector < detail::state_type > state_map(l.num_states());
+    std::vector < detail::state_type > label_map(l.num_action_labels());
 
     lts < SL, AL, BASE> new_lts=l; // In this way set data specification and action declarations in the new lts.
     new_lts.clear();
@@ -379,7 +381,7 @@ bool reachability_check(lts < SL, AL, BASE>& l, bool remove_unreachable = false)
     std::size_t new_nlabels = 0;
     for (std::size_t i=0; i<l.num_action_labels(); i++)
     {
-      if (label_map.count(i)>0)   // Label i is used.
+      if (label_map[i]>0)   // Label i is used.
       {
         label_map[i] = new_nlabels;
         new_lts.add_action(l.action_label(i));
@@ -416,32 +418,33 @@ template <class SL, class AL, class PROBABILISTIC_STATE, class BASE>
 bool reachability_check(probabilistic_lts < SL, AL, PROBABILISTIC_STATE, BASE>&  l, bool remove_unreachable = false)
 {
   // First calculate which states can be reached, and store this in the array visited.
-  const outgoing_transitions_per_state_t out_trans=transitions_per_outgoing_state(l.get_transitions());
+  const outgoing_transitions_per_state_t out_trans(l.get_transitions(),l.num_states(),true);
 
   std::vector < bool > visited(l.num_states(),false);
   std::stack<std::size_t> todo;
-  
+
   for(const typename PROBABILISTIC_STATE::state_probability_pair& s: l.initial_probabilistic_state())
   {
     visited[s.state()]=true;
     todo.push(s.state());
-  } 
+  }
 
   while (!todo.empty())
   {
     std::size_t state_to_consider=todo.top();
     todo.pop();
-    for (outgoing_transitions_per_state_t::const_iterator i=out_trans.lower_bound(state_to_consider);
-         i!=out_trans.upper_bound(state_to_consider); ++i)
+    // for (const outgoing_pair_t& p: out_trans[state_to_consider])
+    for (detail::state_type i=out_trans.lowerbound(state_to_consider); i<out_trans.upperbound(state_to_consider); ++i)
     {
-      assert(visited[from(i)] && from(i)<l.num_states() && to(i)<l.num_probabilistic_states());
+      const outgoing_pair_t& p=out_trans.get_transitions()[i];
+      assert(visited[state_to_consider] && state_to_consider<l.num_states() && to(p)<l.num_probabilistic_states());
       // Walk through the the states in this probabilistic state.
-      for(const typename PROBABILISTIC_STATE::state_probability_pair& p: l.probabilistic_state(to(i)))
+      for(const typename PROBABILISTIC_STATE::state_probability_pair& pr: l.probabilistic_state(to(p)))
       {
-        if (!visited[p.state()])
+        if (!visited[pr.state()])
         {
-          visited[p.state()]=true;
-          todo.push(p.state());
+          visited[pr.state()]=true;
+          todo.push(pr.state());
         }
       }
     }
@@ -458,8 +461,8 @@ bool reachability_check(probabilistic_lts < SL, AL, PROBABILISTIC_STATE, BASE>& 
     // Remove all unreachable states, transitions from such states and labels
     // that are only used in these transitions.
 
-    std::map < std::size_t , std::size_t > state_map;
-    std::map < std::size_t , std::size_t > label_map;
+    std::vector < detail::state_type > state_map(l.num_states());
+    std::vector < detail::state_type > label_map(l.num_action_labels());
 
     probabilistic_lts < SL, AL, PROBABILISTIC_STATE, BASE> new_lts=l; // In this way set data specification and action declarations in the new lts.
     new_lts.clear();
@@ -494,7 +497,7 @@ bool reachability_check(probabilistic_lts < SL, AL, PROBABILISTIC_STATE, BASE>& 
     std::size_t new_nlabels = 0;
     for (std::size_t i=0; i<l.num_action_labels(); i++)
     {
-      if (label_map.count(i)>0)   // Label i is used.
+      if (label_map[i]>0)   // Label i is used.
       {
         label_map[i] = new_nlabels;
         new_lts.add_action(l.action_label(i));
@@ -554,7 +557,7 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
       return;
     case lts_eq_bisim:
     {
-      detail::bisimulation_reduce_gjkw(l,false,false);
+      detail::bisimulation_reduce_dnj(l,false,false);
       return;
     }
     case lts_eq_bisim_gv:
@@ -562,9 +565,9 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
       detail::bisimulation_reduce(l,false,false);
       return;
     }
-    case lts_eq_bisim_tb:
+    case lts_eq_bisim_gjkw:
     {
-      detail::bisimulation_reduce_tb(l,false,false);
+      detail::bisimulation_reduce_gjkw(l,false,false);
       return;
     }
     case lts_eq_bisim_sigref:
@@ -575,7 +578,7 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
     }
     case lts_eq_branching_bisim:
     {
-      detail::bisimulation_reduce_gjkw(l,true,false);
+      detail::bisimulation_reduce_dnj(l,true,false);
       return;
     }
     case lts_eq_branching_bisim_gv:
@@ -583,9 +586,9 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
       detail::bisimulation_reduce(l,true,false);
       return;
     }
-    case lts_eq_branching_bisim_tb:
+    case lts_eq_branching_bisim_gjkw:
     {
-      detail::bisimulation_reduce_tb(l,true,false);
+      detail::bisimulation_reduce_gjkw(l,true,false);
       return;
     }
     case lts_eq_branching_bisim_sigref:
@@ -596,7 +599,7 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
     }
     case lts_eq_divergence_preserving_branching_bisim:
     {
-      detail::bisimulation_reduce_gjkw(l,true,true);
+      detail::bisimulation_reduce_dnj(l,true,true);
       return;
     }
     case lts_eq_divergence_preserving_branching_bisim_gv:
@@ -604,9 +607,9 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
       detail::bisimulation_reduce(l,true,true);
       return;
     }
-    case lts_eq_divergence_preserving_branching_bisim_tb:
+    case lts_eq_divergence_preserving_branching_bisim_gjkw:
     {
-      detail::bisimulation_reduce_tb(l,true,true);
+      detail::bisimulation_reduce_gjkw(l,true,true);
       return;
     }
     case lts_eq_divergence_preserving_branching_bisim_sigref:
@@ -711,8 +714,8 @@ void reduce(LTS_TYPE& l,lts_equivalence eq)
 
       reachability_check(l,true);
 
-      return;      
-    }        
+      return;
+    }
     case lts_eq_trace:
       detail::bisimulation_reduce(l,false);
       determinise(l);
@@ -760,15 +763,15 @@ bool compare(const LTS_TYPE& l1, const LTS_TYPE& l2, const lts_equivalence eq, c
 }
 
 template <class LTS_TYPE>
-bool compare(const LTS_TYPE& l1, const LTS_TYPE& l2, const lts_preorder pre, const bool generate_counter_example)
+bool compare(const LTS_TYPE& l1, const LTS_TYPE& l2, const lts_preorder pre, const bool generate_counter_example, const lps::exploration_strategy strategy, const bool preprocess)
 {
   LTS_TYPE l1_copy(l1);
   LTS_TYPE l2_copy(l2);
-  return destructive_compare(l1_copy,l2_copy,pre,generate_counter_example);
+  return destructive_compare(l1_copy, l2_copy, pre, generate_counter_example, strategy, preprocess);
 }
 
 template <class LTS_TYPE>
-bool destructive_compare(LTS_TYPE& l1, LTS_TYPE& l2, const lts_preorder pre, const bool generate_counter_example)
+bool destructive_compare(LTS_TYPE& l1, LTS_TYPE& l2, const lts_preorder pre, const bool generate_counter_example, const lps::exploration_strategy strategy, const bool preprocess)
 {
   switch (pre)
   {
@@ -803,11 +806,11 @@ bool destructive_compare(LTS_TYPE& l1, LTS_TYPE& l2, const lts_preorder pre, con
       l2.clear();
 
       // Run the partitioning algorithm on this prepropcessed LTS
-      detail::ready_sim_partitioner<LTS_TYPE> rsp(l1);      
+      detail::ready_sim_partitioner<LTS_TYPE> rsp(l1);
       rsp.partitioning_algorithm();
 
       return rsp.in_preorder(l1.initial_state(),init_l2);
-    }    
+    }
     case lts_pre_trace:
     {
       // Preprocessing: reduce modulo strong bisimulation equivalence.
@@ -827,7 +830,7 @@ bool destructive_compare(LTS_TYPE& l1, LTS_TYPE& l2, const lts_preorder pre, con
       detail::bisimulation_reduce(l2,false);
 
       // Trace preorder now corresponds to simulation preorder
-      return destructive_compare(l1,l2,lts_pre_sim,generate_counter_example);
+      return destructive_compare(l1, l2, lts_pre_sim, generate_counter_example, strategy);
     }
     case lts_pre_weak_trace:
     {
@@ -840,52 +843,52 @@ bool destructive_compare(LTS_TYPE& l1, LTS_TYPE& l2, const lts_preorder pre, con
       detail::tau_star_reduce(l2);
 
       // Weak trace preorder now corresponds to strong trace preorder
-      return destructive_compare(l1,l2,lts_pre_trace,generate_counter_example);
+      return destructive_compare(l1, l2, lts_pre_trace, generate_counter_example, strategy);
     }
     case lts_pre_trace_anti_chain:
     {
       if (generate_counter_example)
       {
         detail::counter_example_constructor cec("counter_example_trace_preorder.trc");
-        return destructive_refinement_checker(l1, l2, trace, false, cec);
+        return destructive_refinement_checker(l1, l2, trace, false, strategy, preprocess, cec);
       }
-      return destructive_refinement_checker(l1, l2, trace, false);
+      return destructive_refinement_checker(l1, l2, trace, false, strategy, preprocess);
     }
     case lts_pre_weak_trace_anti_chain:
     {
       if (generate_counter_example)
       {
         detail::counter_example_constructor cec("counter_example_weak_trace_preorder.trc");
-        return destructive_refinement_checker(l1, l2, trace, true, cec);
+        return destructive_refinement_checker(l1, l2, trace, true, strategy, preprocess, cec);
       }
-      return destructive_refinement_checker(l1, l2, trace, true);
+      return destructive_refinement_checker(l1, l2, trace, true, strategy, preprocess);
     }
     case lts_pre_failures_refinement:
     {
       if (generate_counter_example)
       {
         detail::counter_example_constructor cec("counter_example_failures_refinement.trc");
-        return destructive_refinement_checker(l1, l2, failures, false, cec);
+        return destructive_refinement_checker(l1, l2, failures, false, strategy, preprocess, cec);
       }
-      return destructive_refinement_checker(l1, l2, failures, false);
+      return destructive_refinement_checker(l1, l2, failures, false, strategy, preprocess);
     }
     case lts_pre_weak_failures_refinement:
     {
       if (generate_counter_example)
       {
         detail::counter_example_constructor cec("counter_example_weak_failures_refinement.trc");
-        return destructive_refinement_checker(l1, l2, failures, true, cec);
+        return destructive_refinement_checker(l1, l2, failures, true, strategy, preprocess, cec);
       }
-      return destructive_refinement_checker(l1, l2, failures, true);
+      return destructive_refinement_checker(l1, l2, failures, true, strategy, preprocess);
     }
     case lts_pre_failures_divergence_refinement:
     {
       if (generate_counter_example)
       {
         detail::counter_example_constructor cec("counter_example_failures_divergence_refinement.trc");
-        return destructive_refinement_checker(l1, l2, failures_divergence, true,cec);
+        return destructive_refinement_checker(l1, l2, failures_divergence, true, strategy, preprocess, cec);
       }
-      return destructive_refinement_checker(l1, l2, failures_divergence, true);
+      return destructive_refinement_checker(l1, l2, failures_divergence, true, strategy, preprocess);
     }
     default:
       mCRL2log(log::error) << "Comparison for this preorder is not available\n";
@@ -904,8 +907,8 @@ bool is_deterministic(const LTS_TYPE& l)
   {
     outgoing_transitions_per_state_action_t::const_iterator i_next=i;
     i_next++;
-    if (i_next!=trans_lut.end() && 
-                  from(i)==from(i_next) && 
+    if (i_next!=trans_lut.end() &&
+                  from(i)==from(i_next) &&
                   label(i)==label(i_next) &&
                   to(i)!=to(i_next))
     {
@@ -919,26 +922,32 @@ bool is_deterministic(const LTS_TYPE& l)
 
 namespace detail
 {
-inline
-void get_trans(std::multimap < transition::size_type, std::pair < transition::size_type, transition::size_type > > &begin,
-                      tree_set_store& tss,
-                      std::size_t d,
-                      std::vector<transition> &d_trans)
+
+template <class LTS_TYPE>
+void get_trans(const outgoing_transitions_per_state_t& begin,
+               tree_set_store& tss,
+               std::size_t d,
+               std::vector<transition>& d_trans,
+               LTS_TYPE& aut)
 {
   if (!tss.is_set_empty(d))
   {
     if (tss.is_set_empty(tss.get_set_child_right(d)))
     {
-      for (std::multimap < transition::size_type, std::pair < transition::size_type, transition::size_type > > :: const_iterator
-           j=begin.lower_bound(tss.get_set_child_left(d)); j!=begin.upper_bound(tss.get_set_child_left(d)); ++j)
+      // for (outgoing_transitions_per_state_t:: const_iterator
+      //     j=begin.lower_bound(tss.get_set_child_left(d)); j!=begin.upper_bound(tss.get_set_child_left(d)); ++j)
+      const state_type from=tss.get_set_child_left(d);
+      // for(const outgoing_pair_t& p: begin[from])
+      for (detail::state_type i=begin.lowerbound(from); i<begin.upperbound(from); ++i)
       {
-        d_trans.push_back(transition(j->first,j->second.first,j->second.second));
+        const outgoing_pair_t& p=begin.get_transitions()[i];
+        d_trans.push_back(transition(from, aut.apply_hidden_label_map(label(p)), to(p)));
       }
     }
     else
     {
-      get_trans(begin,tss,tss.get_set_child_left(d),d_trans);
-      get_trans(begin,tss,tss.get_set_child_right(d),d_trans);
+      get_trans(begin,tss,tss.get_set_child_left(d),d_trans,aut);
+      get_trans(begin,tss,tss.get_set_child_right(d),d_trans,aut);
     }
   }
 }
@@ -958,8 +967,9 @@ void determinise(LTS_TYPE& l)
   std::ptrdiff_t d_id = tss.set_set_tag(tss.create_set(d_states));
   d_states.clear();
 
-  std::multimap < transition::size_type, std::pair < transition::size_type, transition::size_type > >
-  begin=transitions_per_outgoing_state(l.get_transitions(),l.hidden_label_map());
+  // std::multimap < transition::size_type, std::pair < transition::size_type, transition::size_type > >
+  // const outgoing_transitions_per_state_t begin(l.get_transitions(),l.hidden_label_map(),l.num_states(),true);
+  const outgoing_transitions_per_state_t begin(l.get_transitions(),l.num_states(),true);
 
   l.clear_transitions();
   l.clear_state_labels();
@@ -973,7 +983,7 @@ void determinise(LTS_TYPE& l)
   {
     // collect the outgoing transitions of every state of DLTS state d_id in
     // the vector d_transs
-    detail::get_trans(begin,tss,tss.get_set(d_id),d_transs);
+    detail::get_trans(begin,tss,tss.get_set(d_id),d_transs,l);
 
     // sort d_transs by label and (if labels are equal) by destination
     const detail::compare_transitions_lts compare(l.hidden_label_map());

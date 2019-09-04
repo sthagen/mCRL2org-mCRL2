@@ -6,10 +6,9 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file mcrl2/data/detail/rewrite/jitty_jittyc.h
 
-#ifndef __REWR_JITTY_JITTYC_COMMON_H
-#define __REWR_JITTY_JITTYC_COMMON_H
+#ifndef MCRL2_DATA_DETAIL_REWRITE_JITTY_JITTYC_H
+#define MCRL2_DATA_DETAIL_REWRITE_JITTY_JITTYC_H
 
 #include "mcrl2/data/detail/rewrite.h"
 #include "mcrl2/data/data_specification.h"
@@ -141,8 +140,7 @@ inline std::size_t recursive_number_of_args(const data_expression& t)
   assert(is_application(t));
   
   const application& ta = atermpp::down_cast<application>(t);
-  const std::size_t result=ta.size()+recursive_number_of_args(ta.head());
-  return result;
+  return ta.size()+recursive_number_of_args(ta.head());
 }
 
 // Return the head symbol, nested within applications.

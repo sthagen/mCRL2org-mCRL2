@@ -39,41 +39,12 @@ setup:
 .. admonition:: Windows
    :class: platform-specific win
 
-   - The following components of *Windows SDK 7.0 SP1*:
-
-     - Compilers
-     - Headers
-     - Win32 development tools
-
-     Alternatively, one can install *Microsoft Visual C++ Express 2010* or a
-     more recent or complete version of Visual Studio.
-   - |cmake|_ or higher.
-
-   We will assume that there is a command prompt available that performs the
-   necessary configuration to make the ``nmake`` executable available in the
-   path. This command prompt can be found as a batch file in
-   ``C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\bin`` for Windows
-   SDK 7.0 SP1. In the start menu, look for either of the following:
-
-    - 32bit: Visual Studio 2008 Command Prompt
-    - 64bit: Visual Studio 2008 x64 Win64 Command Prompt
+   Visual Studio 2017 with C++ development
 
 .. admonition:: Mac OS X
    :class: platform-specific mac
 
-   - *XCode* must be installed. It can be found on the OS X installation DVDs.
-     Consult the following table for the required version.
-
-     +-----------------+-----------------+
-     | OS X version    |  XCode version  |
-     +=================+=================+
-     | 10.5            | 3.1             |
-     +-----------------+-----------------+
-     | 10.6            | 3.2.5           |
-     +-----------------+-----------------+
-     | 10.7            | 4.2.1           |
-     +-----------------+-----------------+
-
+   - *XCode* must be installed. It can be obtained from Apple's developer website. 
 
    - |cmakeosx|_ or higher.
 
@@ -91,7 +62,7 @@ setup:
 Boost
 -----
 
-.. |boost| replace:: *Boost 1.36*
+.. |boost| replace:: *Boost 1.48.0*
 .. _boost: http://www.boost.org
 
 The mCRL2 sources use libraries from the |boost|_ collection (or a more recent
@@ -101,11 +72,8 @@ link to any boost libraries.
 .. admonition:: Windows
    :class: platform-specific win
 
-   To install a binary version of *Boost*, follow the steps below.
-
-   - Download *BoostPro* from https://dl.bintray.com/boostorg/release/1.67.0/binaries/
-   - Install file after downloading.
-   - Install all header files.
+   To install a binary version of *Boost*, download *Boost* from https://www.boost.org,
+   unzip and then :doc:`compile the Boost libraries yourself <boost>`.
 
 .. _osx-boost:
 
@@ -145,28 +113,27 @@ link to any boost libraries.
 
 .. _build_prerequisites_qt:
 
-QT
+Qt
 --
 
-.. |qt| replace:: *QT 5*
-.. _qt: https://qt.io
-
-The mCRL2 toolset requires |qt|_ for compilation of the graphical tools
+The mCRL2 toolset requires Qt for compilation of the graphical tools
 (:ref:`tool-diagraphica`, :ref:`tool-ltsgraph`, :ref:`tool-ltsview`,
-:ref:`tool-lpsxsim`, :ref:`tool-mcrl2-gui`, :ref:`tool-mcrl2xi`).
+:ref:`tool-lpsxsim`, :ref:`tool-mcrl2-gui`, :ref:`tool-mcrl2xi`). 
+Qt version 5.12.0 does not work properly and results in non functioning graphical
+tools. Qt version 5.12.1 appears to work fine. Qt 5.13.0 appears to support dark mode on MacOs Mojave
+properly, whereas earlier versions of Qt do not properly adapt the color schemes
+leading to unreadable (white on white) text in some tools. 
 
 .. admonition:: Windows
    :class: platform-specific win
-
+   
+   For Windows the minimum Qt version supported is 5.9.
    Download and install Qt from https://www.qt.io/download-qt-installer.
-
-   When installed correctly, and the binary directory for Qt has been added to
-   your ``PATH``, CMake should be able to automatically find your
-   installation.
 
 .. admonition:: Mac OS X
    :class: platform-specific mac
 
+   For MacOS the minimum Qt version supported is 5.10.
    QT can be installed using MacPorts by doing the following:
 
    - First go to http://www.macports.org/.
@@ -186,8 +153,9 @@ The mCRL2 toolset requires |qt|_ for compilation of the graphical tools
 .. admonition:: Linux
    :class: platform-specific linux
 
+   For Linux the minimum Qt version supported is 5.9.
    Binary development versions are available in the package manager in most
-   distributions (for instance the ``libqt5-dev`` PPA package in Ubuntu).
+   distributions (for instance the ``qtbase5-dev`` package in Ubuntu).
 
    On Linux it is also required to install OpenGL related development packages.
    The exact package to be installed depends on your distribution. For Ubuntu

@@ -1,11 +1,13 @@
 set(MCRL2_TOOLS
-  besconvert
-  complps2pbes
+  besconvert  
+  lpscleave
+  lpscombine
   lpsrealelm
+  lpsstategraph
   lpssymbolicbisim
-  mcrl2ide
   pbesabsinthe
   pbespareqelm
+  pbespor
   pbessymbolicbisim
   symbolic_exploration
 )

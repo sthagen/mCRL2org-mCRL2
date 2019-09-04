@@ -16,9 +16,12 @@ add_mcrl2_library(data
     detail/rewrite/with_prover.cpp
     detail/rewrite/jitty.cpp
     detail/rewrite/rewrite.cpp
+    detail/rewrite/strategy.cpp
     ${COMPILING_REWRITER_SRC}
   DEPENDS
     mcrl2_core
     mcrl2_utilities
     ${COMPILING_REWRITER_DEPS}
 )
+
+add_subdirectory(example)

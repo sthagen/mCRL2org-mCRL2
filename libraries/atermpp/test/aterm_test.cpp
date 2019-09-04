@@ -9,10 +9,11 @@
 /// \file aterm_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE aterm_test
 #include <iostream>
 #include <string>
 #include <sstream>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_io.h"
 #include "mcrl2/atermpp/aterm_int.h"
@@ -27,7 +28,7 @@ void test_aterm()
   atermpp::aterm a = read_term_from_string("f(x)");
   atermpp::aterm label = read_term_from_string("label");
 
-  atermpp::aterm d = aterm_int(10);
+  atermpp::aterm_int d = aterm_int(10);
   BOOST_CHECK(aterm_int(d).value() == 10);
 
   atermpp::aterm e = atermpp::aterm();
@@ -74,7 +75,6 @@ void test_aterm_io(const std::string& input_string)
 
 void test_aterm_io()
 {
-  test_aterm_io("17");
   test_aterm_io("a_somewhat_longer_constant_name_with_some_blah_blah_at_the_end_to_make_it_longer");
   test_aterm_io("f(g,h)");
   test_aterm_io("[]");
@@ -83,11 +83,9 @@ void test_aterm_io()
   test_aterm_io("f([a,f(x),[]],2,[g,g(34566)])"); 
 }
 
-int test_main(int argc, char* argv[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_aterm();
   test_aterm_string(); 
   test_aterm_io();
-
-  return 0;
 }

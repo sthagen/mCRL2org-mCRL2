@@ -20,7 +20,6 @@
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/detail/rewrite.h"
 #include "mcrl2/data/expression_traits.h"
-#include "mcrl2/data/replace.h"
 #include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
 #include "mcrl2/utilities/exception.h"
 
@@ -55,7 +54,7 @@ class basic_rewriter
 
     /// \brief Constructor.
     /// \param[in] r A rewriter
-    basic_rewriter(const std::shared_ptr<detail::Rewriter>& r) :
+    explicit basic_rewriter(const std::shared_ptr<detail::Rewriter>& r) :
       m_rewriter(r)
     {}
 
@@ -68,7 +67,7 @@ class basic_rewriter
     /// \brief Constructor.
     /// \param[in] d A data specification
     /// \param[in] s A rewriter strategy.
-    basic_rewriter(const data_specification& d, const strategy s = jitty) :
+    explicit basic_rewriter(const data_specification& d, const strategy s = jitty) :
       m_rewriter(detail::createRewriter(d, used_data_equation_selector(d), static_cast< rewrite_strategy >(s)))
     { }
 
@@ -87,19 +86,37 @@ class basic_rewriter
 
 class rewriter: public basic_rewriter<data_expression>
 {
+  protected:
+    // cache the empty substitution, since it is expensive to construct
+    static substitution_type& empty_substitution()
+    {
+      static substitution_type result;
+      assert(result.empty());    // This static substitution should always become empty again after use.
+      return result;
+    }
+
+    /// \brief Default specification used if no specification is specified at construction
+    static const data_specification& default_specification()
+    {
+      static data_specification specification;
+      return specification;
+    }
+
+#ifdef MCRL2_COUNT_DATA_REWRITE_CALLS
+    mutable std::size_t rewrite_calls = 0;
+#endif
+
   public:
     typedef basic_rewriter<data_expression>::substitution_type substitution_type;
 
     /// \brief Constructor.
     /// \param[in] r a rewriter.
-    rewriter(const rewriter& r) :
-      basic_rewriter<data_expression>(r)
-    { }
+    rewriter(const rewriter& r) = default;
 
     /// \brief Constructor.
     /// \param[in] d A data specification
     /// \param[in] s A rewriter strategy.
-    rewriter(const data_specification& d = rewriter::default_specification(), const strategy s = jitty) :
+    explicit rewriter(const data_specification& d = rewriter::default_specification(), const strategy s = jitty) :
       basic_rewriter<data_expression>(d, s)
     { }
 
@@ -113,28 +130,12 @@ class rewriter: public basic_rewriter<data_expression>
     {
     }
 
-    /// \brief Default specification used if no specification is specified at construction
-    static data_specification& default_specification()
-    {
-      static data_specification specification;
-      return specification;
-    }
-
     /// \brief Rewrites a data expression.
     /// \param[in] d A data expression
     /// \return The normal form of d.
     data_expression operator()(const data_expression& d) const
     {
-      substitution_type sigma;
-#ifdef MCRL2_PRINT_REWRITE_STEPS
-      mCRL2log(log::debug) << "REWRITE: " << d;
-#endif
-      data_expression result(m_rewriter->rewrite(d,sigma));
-
-#ifdef MCRL2_PRINT_REWRITE_STEPS
-      mCRL2log(log::debug) << " ------------> " << result << std::endl;
-#endif
-      return result;
+      return (*this)(d, empty_substitution());
     }
 
     /// \brief Rewrites the data expression d, and on the fly applies a substitution function
@@ -145,22 +146,13 @@ class rewriter: public basic_rewriter<data_expression>
     template <typename SubstitutionFunction>
     data_expression operator()(const data_expression& d, const SubstitutionFunction& sigma) const
     {
-# ifdef MCRL2_PRINT_REWRITE_STEPS
-      mCRL2log(log::debug) << "REWRITE " << d << "\n";
-#endif
       substitution_type sigma_with_iterator;
-      std::set < variable > free_variables=data::find_free_variables(d);
+      std::set<variable> free_variables = data::find_free_variables(d);
       for(const variable& free_variable: free_variables)
       {
-        sigma_with_iterator[free_variable]=sigma(free_variable);
+        sigma_with_iterator[free_variable] = sigma(free_variable);
       }
-
-      data_expression result(m_rewriter->rewrite(d,sigma_with_iterator));
-
-# ifdef MCRL2_PRINT_REWRITE_STEPS
-      mCRL2log(log::debug) << " ------------> " << result << std::endl;
-#endif
-      return result;
+      return (*this)(d, sigma_with_iterator);
     }
 
     /// \brief Rewrites the data expression d, and on the fly applies a substitution function
@@ -173,6 +165,9 @@ class rewriter: public basic_rewriter<data_expression>
 
     data_expression operator()(const data_expression& d, substitution_type& sigma) const
     {
+#ifdef MCRL2_COUNT_DATA_REWRITE_CALLS
+      rewrite_calls++;
+#endif
 # ifdef MCRL2_PRINT_REWRITE_STEPS
       mCRL2log(log::debug) << "REWRITE " << d << "\n";
       data_expression result(m_rewriter->rewrite(d,sigma));
@@ -180,6 +175,13 @@ class rewriter: public basic_rewriter<data_expression>
       return result;
 #else
       return m_rewriter->rewrite(d,sigma);
+#endif
+    }
+
+    ~rewriter()
+    {
+#ifdef MCRL2_COUNT_DATA_REWRITE_CALLS
+      std::cout << "number of data rewrite calls: " << rewrite_calls << std::endl;
 #endif
     }
 };

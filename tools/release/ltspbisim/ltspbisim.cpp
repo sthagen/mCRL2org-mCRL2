@@ -138,12 +138,12 @@ class ltsconvert_tool : public input_output_tool
 
         switch (tool_options.equivalence)
         {
-          case lts_probabilistic_eq_pbisim_grv:
+          case lts_probabilistic_bisim_grv:
           {
             mcrl2::lts::detail::probabilistic_bisimulation_reduce_grv(l,timer());
             break;
           }
-          case lts_probabilistic_eq_pbisim_bem:
+          case lts_probabilistic_bisim_bem:
           {
             mcrl2::lts::detail::probabilistic_bisimulation_reduce_bem(l,timer());
             break;
@@ -186,24 +186,28 @@ class ltsconvert_tool : public input_output_tool
         }
         case lts_aut:
         {
-          LTS_TYPE l_out;
+          probabilistic_lts_aut_t l_out;
           lts_convert(l,l_out,spec.data(),spec.action_labels(),spec.process().process_parameters(),!tool_options.lpsfile.empty());
           l_out.save(tool_options.outfilename);
           return true;
         }
         case lts_lts:
         {
-          mCRL2log(warning) << "Conversion on an .lts file has not yet been implemented.";
+          probabilistic_lts_lts_t l_out;
+          lts_convert(l,l_out,spec.data(),spec.action_labels(),spec.process().process_parameters(),!tool_options.lpsfile.empty());
+          l_out.save(tool_options.outfilename);
           break;
         }
         case lts_fsm:
         {
-          mCRL2log(warning) << "Conversion on an .fsm file has not yet been implemented.";
+          probabilistic_lts_fsm_t l_out;
+          lts_convert(l,l_out,spec.data(),spec.action_labels(),spec.process().process_parameters(),!tool_options.lpsfile.empty());
+          l_out.save(tool_options.outfilename);
           break;
         }
         case lts_dot:
         {
-          mCRL2log(warning) << "Conversion on an .dot file has not yet been implemented.";
+          mCRL2log(warning) << "Probabilistic bisimulation on a .dot file has not been implemented.";
           break;
         }
 
@@ -255,8 +259,8 @@ class ltsconvert_tool : public input_output_tool
     
       desc.add_option("equivalence",make_enum_argument<lts_probabilistic_equivalence>("NAME")
                       .add_value(lts_probabilistic_eq_none, true)
-                      .add_value(lts_probabilistic_eq_pbisim_grv)
-                      .add_value(lts_probabilistic_eq_pbisim_bem),
+                      .add_value(lts_probabilistic_bisim_grv)
+                      .add_value(lts_probabilistic_bisim_bem),
                       "generate an equivalent LTS, preserving equivalence NAME:"
                       , 'e');
     }
@@ -330,12 +334,12 @@ class ltsconvert_tool : public input_output_tool
 
     if (tool_options.determinise && (tool_options.equivalence != lts_probabilistic_eq_none))
     {
-      throw parser.error("cannot use option -D/--determinise together with LTS reduction options\n");
+      parser.error("cannot use option -D/--determinise together with LTS reduction options\n");
     }
 
     if (2 < parser.arguments.size())
     {
-      throw parser.error("too many file arguments");
+      parser.error("too many file arguments");
     }
     else
     {

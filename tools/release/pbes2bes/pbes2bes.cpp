@@ -40,7 +40,6 @@
 #include "mcrl2/utilities/execution_timer.h"
 
 //Data Framework
-#include "mcrl2/data/enumerator.h"
 #include "mcrl2/data/selection.h"
 #include "mcrl2/data/data_equation.h"
 
@@ -57,6 +56,7 @@
 #include "mcrl2/bes/boolean_equation_system.h"
 #include "mcrl2/bes/bes2pbes.h"
 #include "mcrl2/bes/io.h"
+#include "mcrl2/bes/pbesinst_conversion.h"
 #include "mcrl2/bes/remove_level.h"
 
 using namespace std;
@@ -138,7 +138,7 @@ class pbes2bes_tool: public rewriter_tool<pbes_input_tool<bes_output_tool<input_
 
       if (m_maximal_todo_size==atermpp::npos && !m_approximate_true)
       {
-        throw parser.error("Setting approximate-false only makes sense when setting todo-max. ");
+        parser.error("Setting approximate-false only makes sense when setting todo-max. ");
       }
     }
 
@@ -196,7 +196,7 @@ class pbes2bes_tool: public rewriter_tool<pbes_input_tool<bes_output_tool<input_
 
       normalize(p);
       mcrl2::pbes_system::detail::instantiate_global_variables(p);
-  
+
       // data rewriter
       std::set < function_symbol > eqn_symbol_set=mcrl2::pbes_system::find_function_symbols(p.equations());
       std::set < function_symbol > init_symbol_set=mcrl2::pbes_system::find_function_symbols(p.initial_state());

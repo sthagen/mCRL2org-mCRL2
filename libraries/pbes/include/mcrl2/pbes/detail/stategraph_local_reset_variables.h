@@ -50,7 +50,8 @@ class local_reset_variables_algorithm: public stategraph_local_algorithm
     typedef stategraph_local_algorithm super;
 
   protected:
-    const pbes& m_original_pbes;
+    const pbes m_original_pbes; // TODO: make this a const reference again
+    pbes m_transformed_pbes; // will contain the result of the computation
 
     // if true, the resulting PBES is simplified
     bool m_simplify;
@@ -98,12 +99,20 @@ class local_reset_variables_algorithm: public stategraph_local_algorithm
       }
     }
 
+    data::data_expression_list reset_variable_parameters(const propositional_variable_instantiation& x,
+                                                         const stategraph_equation& eq_X, std::size_t i);
+
   public:
 
     // expands a propositional variable instantiation using the control flow graph
     // x = Y(e)
     // Y(e) = PVI(phi_X, i)
-    pbes_expression reset_variable(const propositional_variable_instantiation& x, const stategraph_equation& eq_X, std::size_t i);
+    pbes_expression reset_variable(const propositional_variable_instantiation& x, const stategraph_equation& eq_X, std::size_t i)
+    {
+      const predicate_variable& Ye = eq_X.predicate_variables()[i];
+      data::data_expression_list e = reset_variable_parameters(x, eq_X, i);
+      return propositional_variable_instantiation(Ye.name(), e);
+    }
 
     // Applies resetting of variables to the original PBES p.
     void reset_variables_to_original(pbes& p)
@@ -137,17 +146,20 @@ class local_reset_variables_algorithm: public stategraph_local_algorithm
     /// \brief Runs the stategraph algorithm
     /// \param simplify If true, simplify the resulting PBES
     /// \param apply_to_original_pbes Apply resetting variables to the original PBES instead of the STATEGRAPH one
-    pbes run()
+    void run() override
     {
       super::run();
-      pbes result = m_original_pbes;
+      m_transformed_pbes = m_original_pbes;
       compute_occurring_data_parameters();
 
       start_timer("reset_variables_to_original");
-      reset_variables_to_original(result);
+      reset_variables_to_original(m_transformed_pbes);
       finish_timer("reset_variables_to_original");
+    }
 
-      return result;
+    const pbes& result() const
+    {
+      return m_transformed_pbes;
     }
 };
 
@@ -256,7 +268,7 @@ pbes_expression local_reset_variables(local_reset_variables_algorithm& algorithm
   return f.top();
 }
 
-pbes_expression local_reset_variables_algorithm::reset_variable(const propositional_variable_instantiation& x, const stategraph_equation& eq_X, std::size_t i)
+data::data_expression_list local_reset_variables_algorithm::reset_variable_parameters(const propositional_variable_instantiation& x, const stategraph_equation& eq_X, std::size_t i)
 {
   using utilities::detail::contains;
 
@@ -268,7 +280,7 @@ pbes_expression local_reset_variables_algorithm::reset_variable(const propositio
   const core::identifier_string& X = eq_X.variable().name();
   const core::identifier_string& Y = Ye.name();
   const stategraph_equation& eq_Y = *find_equation(m_pbes, Y);
-  auto const& e = x.parameters();
+  const data::data_expression_list& e = x.parameters();
   std::vector<data::data_expression> e1(e.begin(), e.end());
   const std::vector<data::variable>& d_Y = eq_Y.parameters();
   assert(d_Y.size() == Ye.parameters().size());
@@ -353,7 +365,7 @@ pbes_expression local_reset_variables_algorithm::reset_variable(const propositio
       }
     }
   }
-  return propositional_variable_instantiation(Y, data::data_expression_list(e1.begin(), e1.end()));
+  return data::data_expression_list(e1.begin(), e1.end());
 }
 
 

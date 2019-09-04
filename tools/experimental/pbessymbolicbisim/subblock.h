@@ -15,6 +15,7 @@
 
 #include "mcrl2/utilities/hash_utility.h"
 
+#include "eliminate_real_if.h"
 #include "utilities.h"
 
 namespace mcrl2
@@ -32,8 +33,9 @@ class subblock
   typedef pbes_system::detail::ppg_equation equation_type_t;
 
 protected:
+  // pointer to a const equation_type_t object
   // invariant: m_equation.variable() == m_var
-  equation_type_t m_equation;
+  equation_type_t const* m_equation;
 
   pbes_system::propositional_variable m_var;
   data_expression m_char_func;
@@ -43,12 +45,13 @@ protected:
 
 public:
 
-  subblock()
-  : subblock(data_manipulators())
+  subblock(const data_manipulators& dm)
+  : m_equation(nullptr)
+  , m_dm(dm)
   {}
 
-  explicit subblock(const data_manipulators& dm)
-  : m_char_func(sort_bool::false_())
+  explicit subblock(const equation_type_t& eq, const data_manipulators& dm)
+  : m_equation(&eq)
   , m_dm(dm)
   {}
 
@@ -57,7 +60,7 @@ public:
   {}
 
   subblock(const equation_type_t& eq, const data_expression& char_func, const data_manipulators& dm, split_cache<subblock>* cache)
-  : m_equation(eq)
+  : m_equation(&eq)
   , m_var(eq.variable())
   , m_char_func(char_func)
   , m_dm(dm)
@@ -74,9 +77,9 @@ public:
     return m_char_func;
   }
 
-  equation_type_t equation() const
+  const equation_type_t& equation() const
   {
-    return m_equation;
+    return *m_equation;
   }
 
   bool has_transition(const std::list<subblock>& others) const
@@ -91,7 +94,7 @@ public:
     {
       return find_result->second;
     }
-    bool result = std::any_of(m_equation.summands().cbegin(), m_equation.summands().cend(), [&](const pbes_system::detail::ppg_summand& summ)
+    bool result = std::any_of(equation().summands().cbegin(), equation().summands().cend(), [&](const pbes_system::detail::ppg_summand& summ)
       {
         return summ.new_state().name() == other.m_var.name() &&
           m_dm.is_satisfiable(m_var.parameters() + summ.quantification_domain(),
@@ -99,7 +102,7 @@ public:
               make_application(m_char_func, m_var.parameters()),
               sort_bool::and_(
                 summ.condition(),
-                m_dm.rewr(make_application(other.m_char_func, summ.new_state().parameters()))
+                make_application(other.m_char_func, summ.new_state().parameters())
               )
             ))
           );
@@ -110,7 +113,7 @@ public:
 
   bool is_empty()
   {
-    return m_char_func == sort_bool::false_();
+    return m_char_func == sort_bool::false_() || m_char_func == data_expression();
   }
 
   std::pair<subblock,subblock> split(const std::list<subblock>& others, const std::vector<subblock>& /*subblock_list*/) const
@@ -127,7 +130,7 @@ public:
       return std::make_pair(*this, subblock(m_dm));
     }
     data_expression transition_exists = sort_bool::false_();
-    for(const summand_type_t& cl: m_equation.summands())
+    for(const summand_type_t& cl: equation().summands())
     {
       // matching_subblocks expresses whether the summand cl
       // can be used to take a transition from this subblock to
@@ -154,44 +157,45 @@ public:
     transition_exists = one_point_rule_rewrite(quantifiers_inside_rewrite(transition_exists));
     if(m_dm.contains_reals)
     {
+      transition_exists = eliminate_real_if(transition_exists);
       transition_exists = replace_data_expressions(transition_exists, fourier_motzkin_sigma(m_dm.rewr), true);
     }
     transition_exists = one_point_rule_rewrite(m_dm.rewr(transition_exists));
     data_expression block2_body = m_dm.rewr(
         sort_bool::and_(
-          make_application(m_char_func, m_equation.variable().parameters()),
+          make_application(m_char_func, equation().variable().parameters()),
           sort_bool::not_(transition_exists)
         ));
-    if(!m_dm.is_satisfiable(m_equation.variable().parameters(), block2_body))
+    if(!m_dm.is_satisfiable(equation().variable().parameters(), block2_body))
     {
       // There are no (X,v) without transitions in this block
       // Therefore, we cannot split
       return std::make_pair(*this, subblock(m_dm));
     }
     data_expression block2 =
-      make_abstraction(lambda_binder(), m_equation.variable().parameters(),
+      make_abstraction(lambda_binder(), equation().variable().parameters(),
         block2_body
       );
-    block2 = m_dm.simpl->at(m_equation.variable())->apply(block2);
+    block2 = m_dm.simpl->at(equation().variable())->apply(block2);
     data_expression block1 =
-      make_abstraction(lambda_binder(), m_equation.variable().parameters(),
+      make_abstraction(lambda_binder(), equation().variable().parameters(),
         sort_bool::and_(
-          make_application(m_char_func, m_equation.variable().parameters()),
+          make_application(m_char_func, equation().variable().parameters()),
           transition_exists
         )
       );
 
-    block1 = m_dm.simpl->at(m_equation.variable())->apply(block1);
-    if(block1 == make_abstraction(lambda_binder(), m_equation.variable().parameters(), sort_bool::false_()))
+    block1 = m_dm.simpl->at(equation().variable())->apply(block1);
+    if(block1 == make_abstraction(lambda_binder(), equation().variable().parameters(), sort_bool::false_()))
     {
       throw mcrl2::runtime_error("Found an empty block1. This is most likely caused by a bug.");
     }
-    if(block2 == make_abstraction(lambda_binder(), m_equation.variable().parameters(), sort_bool::false_()))
+    if(block2 == make_abstraction(lambda_binder(), equation().variable().parameters(), sort_bool::false_()))
     {
       throw mcrl2::runtime_error("Found an empty block2. This is most likely caused by a bug.");
     }
-    subblock pos_block(m_equation, block1, m_dm, m_cache);
-    subblock neg_block(m_equation, block2, m_dm, m_cache);
+    subblock pos_block(equation(), block1, m_dm, m_cache);
+    subblock neg_block(equation(), block2, m_dm, m_cache);
 
     // TODO temporarily disabled this, since it depends on whether we are using
     // optimisations.
@@ -217,7 +221,7 @@ public:
 
   bool contains_state(const pbes_system::propositional_variable_instantiation& state) const
   {
-    return m_var.name() == state.name() && m_dm.rewr(application(m_char_func, state.parameters())) == sort_bool::true_();
+    return m_var.name() == state.name() && (state.parameters().empty() || m_dm.rewr(application(m_char_func, state.parameters())) == sort_bool::true_());
   }
 
   bool operator==(const subblock& other) const

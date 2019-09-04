@@ -9,9 +9,8 @@ exists before continuing with the following steps. There are three ways to
 configure CMake:
 
 *Graphically*
-  A graphical user interface is available on all platforms, either as
-  ``CMakeSetup.exe`` in Windows (should be in the start menu), or as
-  ``cmake-gui`` in Linux (you may have to install it separately, it is, e.g., currently
+  A graphical user interface ``cmake-gui`` is available on all platforms 
+  (in Linux you may have to install it separately, it is, e.g., currently
   in the ``cmake-qt-gui`` package in the PPA for Ubuntu installations).
   Use of this user interface is mostly self-explanatory.
 
@@ -39,6 +38,15 @@ configure CMake:
   issue the command::
 
     cmake <mcrl2>/src -DCMAKE_INSTALL_PREFIX=<installdir>
+	
+.. admonition:: Windows
+   :class: platform-specific win
+
+   When configuring on Windows, the 64-bit generator of Visual Studio 2017 is 
+   needed. In case of CMake version 3.13 or lower, in cmake-gui select the 
+   generator ``Visual Studio 15 2017 Win64``. In case of CMake version 3.14 or
+   higher, in cmake-gui select the generator ``Visual Studio 15 2017`` and 
+   select ``x64`` as the "Optional platform for generator".
 
 All three methods allow you to change the value of CMake configuration
 variables. Below, we describe the meaning of these variables. Note that in the
@@ -94,9 +102,6 @@ graphical user interfaces, some advanced settings are initially hidden.
   ------------------ ---------------------------------------------------------
   ``MinSizeRel``     Same as ``Release``, but instructs the compiler to
                      optimise for size.
-  ------------------ ---------------------------------------------------------
-  ``Maintainer``     Same as ``Debug``, except that code coverage tests are
-                     generated (and executed when running tests).
   ================== =========================================================
 
 ``CMAKE_INSTALL_PREFIX``
@@ -173,7 +178,7 @@ graphical user interfaces, some advanced settings are initially hidden.
   ======= ======================================================================
   ``ON``  Compile graphical tools (:ref:`tool-diagraphica`,
           :ref:`tool-ltsgraph`, :ref:`tool-ltsview`, :ref:`tool-mcrl2-gui`,
-          :ref:`tool-lpsxsim`).
+          :ref:`tool-lpsxsim`, :ref:`tool-mcrl2ide`).
   ------- ----------------------------------------------------------------------
   ``OFF`` Do not compile graphical tools.
   ======= ======================================================================
@@ -195,3 +200,23 @@ graphical user interfaces, some advanced settings are initially hidden.
   This variable specifies the location where Ctags can be found. Ctags is a
   program that generates an index (or tag) file of names found in source and
   header files of various programming languages.
+
+``Qt5_DIR``
+  This variable specifies the location where Qt can be found.
+
+  .. admonition:: Windows
+     :class: platform-specific win
+
+     It should be set to ``<path_to_Qt_dir>\<Qt_version>\msvc2017_64\lib\cmake\Qt5``.
+
+  .. admonition:: Mac OS X
+     :class: platform-specific mac
+
+     On Mac, this variable should have the value
+     ``<Qt_dir>/qtbase/lib/cmake/Qt5``, ``<Qt_dir>`` is the path to the directory
+     where Qt was installed.
+
+  .. admonition:: Linux
+     :class: platform-specific linux
+
+     On Linux, the right path is generally automatically detected.

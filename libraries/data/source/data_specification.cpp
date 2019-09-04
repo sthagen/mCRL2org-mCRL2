@@ -9,10 +9,24 @@
 /// \file mcrl2/data/data_specification.h
 /// \brief The class data_specification.
 
+#include "mcrl2/core/load_aterm.h"
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/detail/data_utility.h"
+#include "mcrl2/data/detail/io.h"
 #include "mcrl2/data/replace.h"
 #include "mcrl2/data/substitutions/sort_expression_assignment.h"
+
+// Predefined datatypes
+#include "mcrl2/data/bag.h"
+#include "mcrl2/data/bool.h"
+#include "mcrl2/data/function_update.h"
+#include "mcrl2/data/list.h"
+#include "mcrl2/data/int.h"
+#include "mcrl2/data/nat.h"
+#include "mcrl2/data/pos.h"
+#include "mcrl2/data/real.h"
+#include "mcrl2/data/set.h"
+#include "mcrl2/data/standard.h"
 
 namespace mcrl2
 {
@@ -233,8 +247,8 @@ void sort_specification::check_for_alias_loop(
 }
 
 
-// This function returns the normal form of e, under the two maps map1 and map2.
-// This normal form is obtained by repeatedly applying map1 and map2, until this
+// This function returns the normal form of e, under the the map map1.
+// This normal form is obtained by repeatedly applying map1, until this
 // is not possible anymore. It is assumed that this procedure terminates. There is
 // no check for loops.
 static sort_expression find_normal_form(
@@ -305,26 +319,117 @@ static sort_expression find_normal_form(
 #ifndef NDEBUG
     sorts_already_seen.insert(result_sort);
 #endif
-   return find_normal_form(i1->second,map1,sorts_already_seen);
+    return find_normal_form(i1->second,map1,sorts_already_seen);
   }
   return result_sort;
+}
+
+void sort_specification::add_predefined_basic_sorts()
+{
+    add_system_defined_sort(sort_bool::bool_());
+    add_system_defined_sort(sort_pos::pos());
+}
+
+void sort_specification::import_system_defined_sort(const sort_expression& sort)
+{
+
+  if (is_untyped_sort(sort) || is_untyped_possible_sorts(sort))
+  {
+    mCRL2log(mcrl2::log::debug) << "Erroneous attempt to insert an untyped sort into the a sort specification\n";
+    return;
+  }
+  // Add an element, and stop if it was already added.
+  if (!m_sorts_in_context.insert(sort).second)
+  {
+    return;
+  }
+
+  sorts_are_not_necessarily_normalised_anymore();
+  // add the sorts on which this sorts depends.
+  if (sort == sort_real::real_())
+  {
+    // Int is required as the rewrite rules of Real rely on it.
+    import_system_defined_sort(sort_int::int_());
+  }
+  else if (sort == sort_int::int_())
+  {
+    // See above, Int requires Nat.
+    import_system_defined_sort(sort_nat::nat());
+  }
+  else if (sort == sort_nat::nat())
+  {
+    // Nat requires NatPair.
+    import_system_defined_sort(sort_nat::natpair());
+  }
+  else if (is_function_sort(sort))
+  {
+    const function_sort& fsort=atermpp::down_cast<function_sort>(sort);
+    import_system_defined_sorts(fsort.domain());
+    import_system_defined_sort(fsort.codomain());
+  }
+  else if (is_container_sort(sort))
+  {
+    const sort_expression element_sort(container_sort(sort).element_sort());
+    // Import the element sort (which may be a complex sort also).
+    import_system_defined_sort(element_sort);
+    if (sort_list::is_list(sort))
+    {
+      import_system_defined_sort(sort_nat::nat()); // Required for lists.
+    }
+    else if (sort_set::is_set(sort))
+    {
+      import_system_defined_sort(sort_fset::fset(element_sort));
+    }
+    else if (sort_fset::is_fset(sort))
+    {
+      // Import the functions from element_sort->Bool.
+      sort_expression_list element_sorts;
+      element_sorts.push_front(element_sort);
+      import_system_defined_sort(function_sort(element_sorts,sort_bool::bool_()));
+    }
+    else if (sort_bag::is_bag(sort))
+    {
+      // Add the sorts Nat and set_(element_sort) to the specification.
+      import_system_defined_sort(sort_nat::nat()); // Required for bags.
+      import_system_defined_sort(sort_set::set_(element_sort));
+      import_system_defined_sort(sort_fbag::fbag(element_sort));
+    }
+    else if (sort_fbag::is_fbag(sort))
+    {
+      import_system_defined_sort(sort_nat::nat()); // Required for bags.
+
+      // Add the function sort element_sort->Nat to the specification
+      sort_expression_list element_sorts ;
+      element_sorts.push_front(element_sort);
+      import_system_defined_sort(function_sort(element_sorts,sort_nat::nat()));
+    }
+  }
+  else if (is_structured_sort(sort))
+  {
+    structured_sort s_sort(sort);
+    function_symbol_vector f(s_sort.constructor_functions(sort));
+    for(const function_symbol& f: s_sort.constructor_functions(sort))
+    {
+      import_system_defined_sort(f.sort());
+    }
+  }
 }
 
 // The function below recalculates m_normalised_aliases, such that
 // it forms a confluent terminating rewriting system using which
 // sorts can be normalised.
 // This algorithm is described in the document: algorithm-for-sort-equivalence.tex in
-// the developers library of the mCRL2 toolset. 
+// the developers library of the mCRL2 toolset.
 void sort_specification::reconstruct_m_normalised_aliases() const
 {
   // First reset the normalised aliases and the mappings and constructors that have been
   // inherited to basic sort aliases during a previous round of sort normalisation.
   m_normalised_aliases.clear();
 
-  // This is the first step of the algorithm. 
+  // This is the first step of the algorithm.
   // Check for loops in the aliases. The type checker should already have done this,
   // but we check it again here. If there is a loop m_normalised_aliases will not be
-  // built. 
+  // built.
     for(const alias& a: m_user_defined_aliases)
     {
       std::set < sort_expression > sorts_already_seen; // Empty set.
@@ -334,12 +439,12 @@ void sort_specification::reconstruct_m_normalised_aliases() const
     }
     catch (mcrl2::runtime_error &)
     {
-      mCRL2log(log::debug) << "Encountered an alias loop in the alias for " << a.name() <<". The normalised aliases are not constructed\n"; 
+      mCRL2log(log::debug) << "Encountered an alias loop in the alias for " << a.name() <<". The normalised aliases are not constructed\n";
       return;
     }
   }
 
-  // This is the second step of the algorithm. 
+  // This is the second step of the algorithm.
   // Copy m_normalised_aliases. All aliases are stored from left to right,
   // except structured sorts, which are stored from right to left. The reason is
   // that structured sorts can be recursive, and therefore, they cannot be
@@ -368,7 +473,7 @@ void sort_specification::reconstruct_m_normalised_aliases() const
     const sort_expression rhs=it->second;
     sort_aliases_to_be_investigated.erase(it);
 
-    for(const std::pair< sort_expression, sort_expression >&p: resulting_normalized_sort_aliases)
+    for(const std::pair< sort_expression, sort_expression >& p: resulting_normalized_sort_aliases)
     {
       const sort_expression s1=data::replace_sort_expressions(lhs,sort_expression_assignment(p.first,p.second), true);
 
@@ -390,7 +495,7 @@ void sort_specification::reconstruct_m_normalised_aliases() const
           // Check whether the inserted sort rewrite rule is already in sort_aliases_to_be_investigated.
           if (std::find_if(sort_aliases_to_be_investigated.lower_bound(normalised_lhs),
                         sort_aliases_to_be_investigated.upper_bound(normalised_lhs),
-                        [&rhs](const std::pair<sort_expression,sort_expression>& x){ return x.second==rhs; }) 
+                        [&rhs](const std::pair<sort_expression,sort_expression>& x){ return x.second==rhs; })
                    == sort_aliases_to_be_investigated.upper_bound(normalised_lhs)) // Not found.
           {
             sort_aliases_to_be_investigated.insert(
@@ -417,7 +522,7 @@ void sort_specification::reconstruct_m_normalised_aliases() const
             // Check whether the inserted sort rewrite rule is already in sort_aliases_to_be_investigated.
             if (std::find_if(sort_aliases_to_be_investigated.lower_bound(normalised_lhs),
                           sort_aliases_to_be_investigated.upper_bound(normalised_lhs),
-                          [&rhs](const std::pair<sort_expression,sort_expression>& x){ return x.second==rhs; }) 
+                          [&rhs](const std::pair<sort_expression,sort_expression>& x){ return x.second==rhs; })
                      == sort_aliases_to_be_investigated.upper_bound(normalised_lhs)) // Not found.
             {
               sort_aliases_to_be_investigated.insert(
@@ -429,9 +534,10 @@ void sort_specification::reconstruct_m_normalised_aliases() const
     }
     assert(lhs!=rhs);
     const sort_expression normalised_lhs = find_normal_form(lhs,resulting_normalized_sort_aliases);
-    if (normalised_lhs!=rhs)
+    const sort_expression normalised_rhs = find_normal_form(rhs,resulting_normalized_sort_aliases);
+    if (normalised_lhs!=normalised_rhs)
     {
-      resulting_normalized_sort_aliases.insert(std::pair<sort_expression,sort_expression >(normalised_lhs,rhs)); 
+      resulting_normalized_sort_aliases.insert(std::pair<sort_expression,sort_expression >(normalised_lhs,normalised_rhs));
     }
   }
   // Copy resulting_normalized_sort_aliases into m_normalised_aliases, i.e. from multimap to map.
@@ -442,8 +548,196 @@ void sort_specification::reconstruct_m_normalised_aliases() const
   {
     const sort_expression normalised_rhs = find_normal_form(p.second,resulting_normalized_sort_aliases);
     m_normalised_aliases[p.first]=normalised_rhs;
+
     assert(p.first!=normalised_rhs);
   }
+}
+
+///\brief Adds the system defined sorts to the sets with constructors, mappings, and equations for
+//        a given sort. If the boolean skip_equations is true, no equations are added.
+void data_specification::find_associated_system_defined_data_types_for_a_sort(
+                   const sort_expression& sort,
+                   std::set < function_symbol >& constructors,
+                   std::set < function_symbol >& mappings,
+                   std::set < data_equation >& equations,
+                   const bool skip_equations) const
+{
+  // add sorts, constructors, mappings and equations
+  if (sort == sort_bool::bool_())
+  {
+    function_symbol_vector f(sort_bool::bool_generate_constructors_code());
+    constructors.insert(f.begin(), f.end());
+    f = sort_bool::bool_generate_functions_code();
+    mappings.insert(f.begin(), f.end());
+    if (!skip_equations)
+    {
+      data_equation_vector e(sort_bool::bool_generate_equations_code());
+      equations.insert(e.begin(),e.end());
+    }
+  }
+  else if (sort == sort_real::real_())
+  {
+    function_symbol_vector f(sort_real::real_generate_constructors_code());
+    constructors.insert(f.begin(),f.end());
+    f = sort_real::real_generate_functions_code();
+    mappings.insert(f.begin(),f.end());
+    if (!skip_equations)
+    {
+      data_equation_vector e(sort_real::real_generate_equations_code());
+      equations.insert(e.begin(),e.end());
+    }
+  }
+  else if (sort == sort_int::int_())
+  {
+    function_symbol_vector f(sort_int::int_generate_constructors_code());
+    constructors.insert(f.begin(),f.end());
+    f = sort_int::int_generate_functions_code();
+    mappings.insert(f.begin(),f.end());
+    if (!skip_equations)
+    {
+      data_equation_vector e(sort_int::int_generate_equations_code());
+      equations.insert(e.begin(),e.end());
+    }
+  }
+  else if (sort == sort_nat::nat())
+  {
+    function_symbol_vector f(sort_nat::nat_generate_constructors_code());
+    constructors.insert(f.begin(),f.end());
+    f = sort_nat::nat_generate_functions_code();
+    mappings.insert(f.begin(),f.end());
+    if (!skip_equations)
+    {
+      data_equation_vector e(sort_nat::nat_generate_equations_code());
+      equations.insert(e.begin(),e.end());
+    }
+  }
+  else if (sort == sort_pos::pos())
+  {
+    function_symbol_vector f(sort_pos::pos_generate_constructors_code());
+    constructors.insert(f.begin(),f.end());
+    f = sort_pos::pos_generate_functions_code();
+    mappings.insert(f.begin(),f.end());
+    if (!skip_equations)
+    {
+      data_equation_vector e(sort_pos::pos_generate_equations_code());
+      equations.insert(e.begin(),e.end());
+    }
+  }
+  else if (is_function_sort(sort))
+  {
+    const sort_expression& t=function_sort(sort).codomain();
+    const sort_expression_list& l=function_sort(sort).domain();
+    if (l.size()==1)
+    {
+      const function_symbol_vector f = function_update_generate_functions_code(l.front(),t);
+      mappings.insert(f.begin(),f.end());
+
+      if (!skip_equations)
+      {
+        data_equation_vector e(function_update_generate_equations_code(l.front(),t));
+        equations.insert(e.begin(),e.end());
+      }
+    }
+  }
+  else if (is_container_sort(sort))
+  {
+    sort_expression element_sort(container_sort(sort).element_sort());
+    if (sort_list::is_list(sort))
+    {
+      function_symbol_vector f(sort_list::list_generate_constructors_code(element_sort));
+      constructors.insert(f.begin(),f.end());
+      f = sort_list::list_generate_functions_code(element_sort);
+      mappings.insert(f.begin(),f.end());
+      if (!skip_equations)
+      {
+        data_equation_vector e(sort_list::list_generate_equations_code(element_sort));
+        equations.insert(e.begin(),e.end());
+      }
+    }
+    else if (sort_set::is_set(sort))
+    {
+      sort_expression_list element_sorts;
+      element_sorts.push_front(element_sort);
+      function_symbol_vector f(sort_set::set_generate_constructors_code(element_sort));
+      constructors.insert(f.begin(),f.end());
+      f = sort_set::set_generate_functions_code(element_sort);
+      mappings.insert(f.begin(),f.end());
+      if (!skip_equations)
+      {
+        data_equation_vector e(sort_set::set_generate_equations_code(element_sort));
+        equations.insert(e.begin(),e.end());
+      }
+    }
+    else if (sort_fset::is_fset(sort))
+    {
+      function_symbol_vector f = sort_fset::fset_generate_constructors_code(element_sort);
+      constructors.insert(f.begin(),f.end());
+      f = sort_fset::fset_generate_functions_code(element_sort);
+      mappings.insert(f.begin(),f.end());
+      if (!skip_equations)
+      {
+        data_equation_vector e = sort_fset::fset_generate_equations_code(element_sort);
+        equations.insert(e.begin(),e.end());
+      }
+    }
+    else if (sort_bag::is_bag(sort))
+    {
+      sort_expression_list element_sorts;
+      element_sorts.push_front(element_sort);
+      function_symbol_vector f(sort_bag::bag_generate_constructors_code(element_sort));
+      constructors.insert(f.begin(),f.end());
+      f = sort_bag::bag_generate_functions_code(element_sort);
+      mappings.insert(f.begin(),f.end());
+      if (!skip_equations)
+      {
+        data_equation_vector e(sort_bag::bag_generate_equations_code(element_sort));
+        equations.insert(e.begin(),e.end());
+      }
+    }
+    else if (sort_fbag::is_fbag(sort))
+    {
+      function_symbol_vector f = sort_fbag::fbag_generate_constructors_code(element_sort);
+      constructors.insert(f.begin(),f.end());
+      f = sort_fbag::fbag_generate_functions_code(element_sort);
+      mappings.insert(f.begin(),f.end());
+      if (!skip_equations)
+      {
+        data_equation_vector e = sort_fbag::fbag_generate_equations_code(element_sort);
+        equations.insert(e.begin(),e.end());
+      }
+    }
+  }
+  else if (is_structured_sort(sort))
+  {
+    insert_mappings_constructors_for_structured_sort(
+                    atermpp::down_cast<structured_sort>(sort),
+                    constructors, mappings, equations, skip_equations);
+  }
+  add_standard_mappings_and_equations(sort, mappings, equations, skip_equations);
+}
+
+void data_specification::get_system_defined_sorts_constructors_and_mappings(
+            std::set < sort_expression >& sorts,
+            std::set < function_symbol >& constructors,
+            std::set <function_symbol >& mappings) const
+{
+  sorts.insert(sort_bool::bool_());
+  sorts.insert(sort_pos::pos());
+  sorts.insert(sort_nat::nat());
+  sorts.insert(sort_int::int_());
+  sorts.insert(sort_real::real_());
+  sorts.insert(sort_list::list(sort_pos::pos()));
+  sorts.insert(sort_fset::fset(sort_pos::pos()));
+  sorts.insert(sort_set::set_(sort_pos::pos()));
+  sorts.insert(sort_fbag::fbag(sort_pos::pos()));
+  sorts.insert(sort_bag::bag(sort_pos::pos()));
+
+  std::set < data_equation > dummy_equations;
+  for(const sort_expression& s: sorts)
+  {
+    find_associated_system_defined_data_types_for_a_sort(s, constructors, mappings, dummy_equations, true);
+  }
+  assert(dummy_equations.size()==0);
 }
 
 bool data_specification::is_well_typed() const
@@ -480,10 +774,14 @@ void data_specification::build_from_aterm(const atermpp::aterm_appl& term)
   assert(core::detail::check_rule_DataSpec(term));
 
   // Note backwards compatibility measure: alias is no longer a sort_expression
-  atermpp::term_list<atermpp::aterm_appl> term_sorts(atermpp::down_cast<atermpp::aterm_appl>(term[0])[0]);
-  data::function_symbol_list              term_constructors(atermpp::down_cast<atermpp::aterm_appl>(term[1])[0]);
-  data::function_symbol_list              term_mappings(atermpp::down_cast<atermpp::aterm_appl>(term[2])[0]);
-  data::data_equation_list                term_equations(atermpp::down_cast<atermpp::aterm_appl>(term[3])[0]);
+  const atermpp::term_list<atermpp::aterm_appl> term_sorts=
+                 atermpp::down_cast<atermpp::term_list<atermpp::aterm_appl> >(atermpp::down_cast<atermpp::aterm_appl>(term[0])[0]);
+  const data::function_symbol_list term_constructors=
+                 atermpp::down_cast<data::function_symbol_list>(atermpp::down_cast<atermpp::aterm_appl>(term[1])[0]);
+  const data::function_symbol_list term_mappings=
+                 atermpp::down_cast<data::function_symbol_list>(atermpp::down_cast<atermpp::aterm_appl>(term[2])[0]);
+  const data::data_equation_list term_equations=
+                 atermpp::down_cast<data::data_equation_list>(atermpp::down_cast<atermpp::aterm_appl>(term[3])[0]);
 
   // Store the sorts and aliases.
   for(const atermpp::aterm_appl& t: term_sorts)
@@ -505,10 +803,10 @@ void data_specification::build_from_aterm(const atermpp::aterm_appl& term)
   }
 
   // Store the mappings.
-  for(const function_symbol& f: term_mappings) 
+  for(const function_symbol& f: term_mappings)
   {
     add_mapping(f);
-  } 
+  }
 
   // Store the equations.
   for(const data_equation& e: term_equations)
@@ -516,6 +814,32 @@ void data_specification::build_from_aterm(const atermpp::aterm_appl& term)
     add_equation(e);
   }
 }
+
+void data_specification::load(std::istream& stream, bool binary, const std::string& source)
+{
+  atermpp::aterm t = core::load_aterm(stream, binary, "data specification", source);
+  std::unordered_map<atermpp::aterm_appl, atermpp::aterm> cache;
+  t = data::detail::add_index(t, cache);
+  if (!t.type_is_appl() || !is_data_specification(atermpp::down_cast<const atermpp::aterm_appl>(t)))
+  {
+    throw mcrl2::runtime_error("Input stream does not contain a data specification");
+  }
+  build_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
+}
+
+void data_specification::save(std::ostream& stream, bool binary) const
+{
+  atermpp::aterm t = detail::data_specification_to_aterm(*this);
+  t = data::detail::remove_index(t);
+  if (binary)
+  {
+    atermpp::write_term_to_binary_stream(t, stream);
+  }
+  else
+  {
+    atermpp::write_term_to_text_stream(t, stream);
+  }
+}
+
 } // namespace data
 } // namespace mcrl2
-

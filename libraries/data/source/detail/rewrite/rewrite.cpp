@@ -28,7 +28,7 @@
 #include "mcrl2/data/detail/rewrite/with_prover.h"
 
 #include "mcrl2/data/detail/rewriter_wrapper.h"
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
 
 using namespace mcrl2::core;
@@ -117,12 +117,11 @@ abstraction Rewriter::rewrite_single_lambda(
   std::size_t count=0;
   std::vector<variable> new_variables(vl.size());
   {
-    const std::set<variable>& variables_in_sigma(sigma.variables_in_rhs());
     // Create new unique variables to replace the old and create storage for
     // storing old values for variables in vl.
     for(const variable& v: vl)
     {
-      if (variables_in_sigma.find(v) != variables_in_sigma.end() || sigma(v) != v)
+      if (sigma(v)!=v || sigma.variable_occurs_in_a_rhs(v))
       {
         number_of_renamed_variables++;
         new_variables[count]=data::variable(m_generator(), v.sort());
@@ -272,7 +271,6 @@ data_expression Rewriter::rewrite_lambda_application(
     return result;
   }
 
-
   // There are more arguments than bound variables.
   // Rewrite the remaining arguments and apply the rewritten lambda term to them.
   return application(result,
@@ -395,7 +393,7 @@ data_expression Rewriter::quantifier_enumeration(
 
   /* Find A solution*/
   rewriter_wrapper wrapped_rewriter(this);
-  const std::size_t max_count = sorts_are_finite ? npos() : data::detail::get_enumerator_variable_limit();
+  const std::size_t max_count = sorts_are_finite ? std::numeric_limits<std::size_t>::max() : data::detail::get_enumerator_iteration_limit();
 
   struct is_not
   {
@@ -424,7 +422,7 @@ data_expression Rewriter::quantifier_enumeration(
     data_expression partial_result = identity_element;
 
     std::size_t loop_upperbound = (sorts_are_finite ? npos() : 10);
-    std::deque<enumerator_list_element<> > enumerator_solution_deque(1,enumerator_list_element<>(vl_new_l_enum, t3));
+    data::enumerator_queue<enumerator_list_element<> > enumerator_solution_deque(enumerator_list_element<>(vl_new_l_enum, t3));
 
     enumerator_type::iterator sol = enumerator.begin(sigma, enumerator_solution_deque);
     for( ; loop_upperbound > 0 &&

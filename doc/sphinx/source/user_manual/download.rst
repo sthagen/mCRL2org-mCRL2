@@ -23,7 +23,7 @@ latest release of the toolset.
    |                        +------------------------+
    |                        | |zip_w64|_             |
    +------------------------+------------------------+
-   |Mac OS X                | |bin_osx|_             |
+   |macOS                   | |bin_osx|_             |
    +------------------------+------------------------+
    |Ubuntu                  | |bin_ppa|_             |
    +------------------------+------------------------+
@@ -46,7 +46,7 @@ They are available here.
    |                        +-------------------------+
    |                        | |zip_w64n|_             |
    +------------------------+-------------------------+
-   |Mac OS X                | |bin_osx64n|_           |
+   |macOS                   | |bin_osx64n|_           |
    +------------------------+-------------------------+
    |Ubuntu                  | |bin_deb32n|_           |
    |                        +-------------------------+
@@ -64,12 +64,7 @@ If you are using a Linux distribution that is not listed, you may wish to try
 Known issues
 ------------
 
-* Running LTSgraph on Windows with an NVDIA GPU might result in a crash.
-  There are two workarounds for this: disabling the drawing of state and
-  transition labels resolves the issue. This can be done by starting
-  LTSgraph without arguments and disabling these options in the visualisation
-  pane. The other option is to force LTSgraph to use the integrated Intel or
-  AMD GPU, if available. This can be done using the NVIDIA control panel.
+There are no major known issues at the moment.
 
 
 

@@ -117,7 +117,7 @@ class specification_base
     /// \brief Constructor.
     /// \param t A term
     /// \param stochastic_distributions_allowed A boolean indicating that the specification can contain stochastic operators.
-    specification_base(const atermpp::aterm_appl& t, bool stochastic_distributions_allowed = true)
+    explicit specification_base(const atermpp::aterm_appl& t, bool stochastic_distributions_allowed = true)
     {
       assert(core::detail::check_rule_LinProcSpec(t));
       construct_from_aterm(t, stochastic_distributions_allowed);
@@ -157,7 +157,7 @@ class specification_base
       {
         throw mcrl2::runtime_error("Input stream does not contain an LPS");
       }
-      construct_from_aterm(atermpp::aterm_appl(t));
+      construct_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
       // The well typedness check is only done in debug mode, since for large LPSs it takes too much
       // time
     }
@@ -265,16 +265,13 @@ class specification: public specification_base<linear_process, process_initializ
 
   public:
     /// \brief Constructor.
-    specification()
-    { }
+    specification() = default;
 
-    specification(const specification& other)
-      : super(other)
-    { }
+    specification(const specification& other) = default;
 
     /// \brief Constructor.
     /// \param t A term
-    specification(const atermpp::aterm_appl& t)
+    explicit specification(const atermpp::aterm_appl& t)
       : super(t, false)
     {
       complete_data_specification(*this);
@@ -333,6 +330,7 @@ std::set<data::variable> find_all_variables(const lps::specification& x);
 std::set<data::variable> find_free_variables(const lps::specification& x);
 std::set<data::function_symbol> find_function_symbols(const lps::specification& x);
 std::set<core::identifier_string> find_identifiers(const lps::specification& x);
+std::set<process::action_label> find_action_labels(const lps::specification& x);
 
 /// \brief Conversion to aterm_appl.
 /// \return The specification converted to aterm format.

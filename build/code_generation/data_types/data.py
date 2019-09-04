@@ -338,7 +338,7 @@ class function_declaration_list():
       /// \\pre {0} is defined for e
       /// \\return The argument of e that corresponds to {0}
       inline
-      data_expression {1}(const data_expression& e)
+      const data_expression& {1}(const data_expression& e)
       {{
         assert({2});
         {3}
@@ -405,7 +405,47 @@ class function_declaration_list():
           const='const& ' if sortparams == [] else '',
           static='static ' if sortparams == [] else '')
 
-      def polymorphic_function_constructor(self, fullname, name, sortparams):
+      def plain_polymorphic_function_constructor(self, fullname, name, sortparams):
+        CODE_TEMPLATE = Template('''
+      // This function is not intended for public use and therefore not documented in Doxygen.
+      inline
+      function_symbol const& ${functionname}(${parameters})
+      {
+${cases}
+        else
+        {
+          throw mcrl2::runtime_error("cannot compute target sort for ${functionname} with domain sorts \" + ${sortmsg});
+        }
+      }
+''')
+        CASE_TEMPLATE = Template('''        ${elsestr}if (${condition})
+        {
+          static function_symbol ${functionname}(${functionname}_name(), ${sortname});
+          return ${functionname};
+        }''')
+
+        domain_sort_ids = [sort_identifier(identifier("s%s" % i)) for i in range(len(self.sort_expression_list.elements[0].domain.elements))]
+        cases = []
+        for (i,sort) in enumerate(self.sort_expression_list.elements):
+          cases.append(CASE_TEMPLATE.substitute(
+            elsestr = '' if i == 0 else 'else ',
+            condition = ' && '.join(map(lambda (j,domsort): '{0} == {1}'.format(domain_sort_ids[j].code(spec), domsort.code(spec)), enumerate(sort.domain.sorts()))),
+            functionname = escape(name),
+            sortname = sort.code(spec)
+          ))
+
+        parameters = map(lambda x: 'const sort_expression& {0}'.format(x.code()), domain_sort_ids)
+
+        return self.function_name(fullname, name) + CODE_TEMPLATE.substitute(
+          namestring = escape(fullname),
+          sortparameterstring = '\n      '.join(map(lambda x: '/// \\param {0} A sort expression'.format(escape(x.code())), sortparams + domain_sort_ids)),
+          functionname = name,
+          parameters = ', '.join(parameters),
+          cases = '\n'.join(cases),
+          sortmsg = " + \", \" + ".join(['pp({0})'.format(domain_sort_ids[j].code(spec)) for j in range(len(sort.domain.elements))])
+          )
+
+      def templated_polymorphic_function_constructor(self, fullname, name, sortparams):
         CODE_TEMPLATE = Template('''
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
@@ -428,10 +468,9 @@ class function_declaration_list():
         # If all codomains are equal we have a unique target sort, otherwise
         # this is detemined from the domain_sort_ids
         first_codomain = self.sort_expression_list.elements[0].codomain
-        simple = False
-        if all(map(lambda x: x.codomain == first_codomain, self.sort_expression_list.elements)):
+        simple = all(map(lambda x: x.codomain == first_codomain, self.sort_expression_list.elements))
+        if simple:
           target_sort = 'sort_expression {0}({1});'.format(target_sort_id, first_codomain.code(spec))
-          simple = True
         else:
           CASE_TEMPLATE = Template('''        ${elsestr}if (${condition})
         {
@@ -487,7 +526,7 @@ ${cases}
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e)${getnamef} == ${functionname}${getname}();
+          return atermpp::down_cast<function_symbol>(e)${getnamef} == ${functionname}${getname}();
         }
         return false;
       }
@@ -510,7 +549,7 @@ ${cases}
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
           return f.name() == ${functionname}_name()${condition};
         }
         return false;
@@ -518,8 +557,8 @@ ${cases}
 ''')
 
         domain_size = len(self.sort_expression_list.elements[0].domain.elements)
-        condition = ' && function_sort(f.sort()).domain().size() == {0}'.format(domain_size)
-        
+        condition = ' && atermpp::down_cast<function_sort>(f.sort()).domain().size() == {0}'.format(domain_size)
+
         if sortparams == '':
           cases = []
           for s in self.sort_expression_list.elements:
@@ -570,11 +609,7 @@ ${cases}
       inline
       bool is_${functionname}_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_${functionname}_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_${functionname}_function_symbol(atermpp::down_cast<application>(e).head());
       }
 ''')
 
@@ -605,7 +640,12 @@ ${cases}
         else:
           assert self.sort_expression_list.elements > 1
 
-          return self.polymorphic_function_constructor(self.id, self.label, self.sort_expression_list.sort_parameters(spec)) + \
+          is_templated = any(map(lambda x: x.sort_parameters(spec) != [], self.sort_expression_list.elements))
+          if is_templated:
+            function_constructor_code = self.templated_polymorphic_function_constructor(self.id, self.label, self.sort_expression_list.sort_parameters(spec))
+          else:
+            function_constructor_code = self.plain_polymorphic_function_constructor(self.id, self.label, self.sort_expression_list.sort_parameters(spec))
+          return function_constructor_code + \
                  self.polymorphic_function_recogniser(self.id, self.label, self.sort_expression_list.formal_parameters_code(spec)) + \
                  self.function_application_code(self.sort_expression_list.elements[0], True)
 
@@ -2122,4 +2162,3 @@ class using():
 
   def code(self):
     return str(self)
-

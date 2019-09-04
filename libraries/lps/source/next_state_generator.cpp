@@ -35,7 +35,7 @@ class rewriter_class
     {
       return m_r(t,m_sigma);
     }
-};
+}; 
 
 class state_applier
 {
@@ -58,10 +58,13 @@ class state_applier
 next_state_generator::next_state_generator(
   const stochastic_specification& spec,
   const data::rewriter& rewriter,
+  const substitution_t& base_substitution,
   bool use_enumeration_caching,
   bool use_summand_pruning)
   : m_specification(spec),
     m_rewriter(rewriter),
+    m_substitution(base_substitution),
+    m_base_substitution(base_substitution),
     m_enumerator(m_rewriter, m_specification.data(), m_rewriter, m_id_generator, (std::numeric_limits<std::size_t>::max)(),true),  // Generate exceptions.
     m_use_enumeration_caching(use_enumeration_caching)
 {
@@ -117,7 +120,6 @@ next_state_generator::next_state_generator(
   data::data_expression_list initial_state_raw = m_specification.initial_process().state(m_specification.process().process_parameters());
 
   mutable_indexed_substitution<> sigma;
-  rewriter_class r(m_rewriter,m_substitution);
   data::data_expression_vector initial_symbolic_state(initial_state_raw.begin(),initial_state_raw.end());
   m_initial_states = calculate_distribution(m_specification.initial_process().distribution(),
                                             initial_symbolic_state,
@@ -321,10 +323,17 @@ atermpp::detail::shared_subset<next_state_generator::summand_t>::iterator next_s
 
 
 
-next_state_generator::iterator::iterator(next_state_generator *generator, const state& state, next_state_generator::substitution_t *substitution, summand_subset_t& summand_subset, enumerator_queue_t* enumeration_queue)
+next_state_generator::iterator::iterator(
+           next_state_generator *generator, 
+           const state& state, 
+           next_state_generator::substitution_t *substitution, 
+           next_state_generator::substitution_t *base_substitution, 
+           summand_subset_t& summand_subset, 
+           enumerator_queue_t* enumeration_queue)
   : m_generator(generator),
     m_state(state),
     m_substitution(substitution),
+    m_base_substitution(base_substitution),
     m_single_summand(false),
     m_use_summand_pruning(summand_subset.m_use_summand_pruning),
     m_summand(nullptr),
@@ -350,10 +359,17 @@ next_state_generator::iterator::iterator(next_state_generator *generator, const 
   increment();
 }
 
-next_state_generator::iterator::iterator(next_state_generator *generator, const state& state, next_state_generator::substitution_t *substitution, std::size_t summand_index, enumerator_queue_t* enumeration_queue)
+next_state_generator::iterator::iterator(
+           next_state_generator *generator, 
+           const state& state, 
+           next_state_generator::substitution_t *substitution, 
+           next_state_generator::substitution_t *base_substitution, 
+           std::size_t summand_index, 
+           enumerator_queue_t* enumeration_queue)
   : m_generator(generator),
     m_state(state),
     m_substitution(substitution),
+    m_base_substitution(base_substitution),
     m_single_summand(true),
     m_single_summand_index(summand_index),
     m_use_summand_pruning(false),
@@ -388,10 +404,10 @@ const next_state_generator::transition_t::state_probability_list next_state_gene
                          const data::data_expression_vector& state_args,
                          substitution_t& sigma)
 {
-  rewriter_class r(m_rewriter,sigma);
   transition_t::state_probability_list resulting_state_probability_list;
   if (dist.variables().empty())
   {
+    rewriter_class r(m_rewriter,sigma);
     const lps::state target_state(state_args.begin(),state_args.size(),r);
     resulting_state_probability_list.push_front(state_probability_pair(target_state,probabilistic_data_expression::one()));
   }
@@ -409,8 +425,8 @@ const next_state_generator::transition_t::state_probability_list next_state_gene
     typedef enumerator_algorithm_with_iterator<rewriter, enumerator_list_element_with_substitution<>, is_not_zero> enumerator_type;
     const bool throw_exceptions=true;
     enumerator_type enumerator(m_rewriter, m_specification.data(), m_rewriter, m_id_generator,
-                               data::detail::get_enumerator_variable_limit(), throw_exceptions);
-    std::deque<enumerator_list_element_with_substitution<> > enumerator_solution_deque(1,enumerator_list_element_with_substitution<>(dist.variables(), dist.distribution()));
+                               std::numeric_limits<std::size_t>::max(), throw_exceptions);
+    data::enumerator_queue<enumerator_list_element_with_substitution<> > enumerator_solution_deque(enumerator_list_element_with_substitution<>(dist.variables(), dist.distribution()));
     for(enumerator_type::iterator probabilistic_solution = enumerator.begin(sigma, enumerator_solution_deque);
                                   probabilistic_solution != enumerator.end(); ++probabilistic_solution)
     {
@@ -418,14 +434,20 @@ const next_state_generator::transition_t::state_probability_list next_state_gene
       rewriter_class r(m_rewriter,sigma);
       const lps::state target_state(state_args.begin(),state_args.size(),r);
       assert(probabilistic_solution->expression()==m_rewriter(dist.distribution(),sigma));
-      if (atermpp::down_cast<probabilistic_data_expression>(probabilistic_solution->expression())>probabilistic_data_expression::zero())
-      {
-        resulting_state_probability_list.push_front(state_probability_pair(target_state,probabilistic_solution->expression()));
-      }
+      const data_expression result=m_rewriter(data::less(probabilistic_data_expression::zero(),probabilistic_solution->expression()),sigma);
       // Reset substitution
       for(const variable& v: dist.variables())
       {
         sigma[v]=v;
+      }
+
+      if (result==sort_bool::true_())
+      {
+        resulting_state_probability_list.push_front(state_probability_pair(target_state,probabilistic_solution->expression()));
+      }
+      else if (result!=sort_bool::false_())
+      {
+        throw mcrl2::runtime_error("Comparison of fraction does not rewrite to true or false: " + pp(result) + ".");
       }
     }
 
@@ -548,7 +570,7 @@ void next_state_generator::iterator::increment()
 
       // Reduce condition as much as possible, and give a hint of the original condition in the error message.
       data_expression reduced_condition(m_generator->m_rewriter(m_summand->condition, *m_substitution));
-      std::string printed_condition(data::pp(m_summand->condition).substr(0, 300));
+      std::string printed_condition(data::pp(data::replace_variables(m_summand->condition,*m_base_substitution)).substr(0, 300));  //XXXX
 
       throw mcrl2::runtime_error("Expression " + data::pp(reduced_condition) +
                                  " does not rewrite to true or false in the condition "
@@ -591,8 +613,7 @@ void next_state_generator::iterator::increment()
     {
       // There are no state probability pairs. But this is wrong. The total probabilities should add up to one.
       // This means there should at least be one probability.
-      rewriter_class r(m_generator->m_rewriter,*m_substitution);
-      throw mcrl2::runtime_error("The distribution " + pp(r(dist.distribution())) + " has an empty set of instances.");
+      throw mcrl2::runtime_error("The distribution " + pp(m_generator->m_rewriter(dist.distribution(),*m_substitution)) + " has an empty set of instances.");
     }
     // Set one state as the resulting state, and leave the other states in the resulting_state_probability_list.
     m_transition.set_target_state(resulting_state_probability_list.front().state());

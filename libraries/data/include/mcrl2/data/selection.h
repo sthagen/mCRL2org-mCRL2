@@ -17,6 +17,7 @@
 #include "mcrl2/data/data_equation.h"
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/find.h"
+#include "mcrl2/data/fset.h"
 #include "mcrl2/data/standard_utility.h"
 
 namespace mcrl2
@@ -81,38 +82,40 @@ class used_data_equation_selector
           add_symbol(sort_fset::insert(s.element_sort()));
         }
 
-        // Always add the if:Bool#S#S->S for every sort as enumerating elements over function sorts S1 #... # S # ... # Sn -> S 
-        // rewriting over functions of this shape. 
+        // Always add the if:Bool#S#S->S for every sort as enumerating elements over function sorts S1 #... # S # ... # Sn -> S
+        // rewriting over functions of this shape.
         add_symbol(if_(sort));
       }
 
-      std::set< data_equation > equations(specification.equations().begin(),specification.equations().end());
-
       std::map< data_equation, std::set< function_symbol > > symbols_for_equation;
 
-      for (const data_equation& equation: equations)
+      for (const data_equation& equation: specification.equations())
       {
         std::set< function_symbol > used_symbols;
 
         data::detail::make_find_function_symbols_traverser<data::data_expression_traverser>(std::inserter(used_symbols, used_symbols.end())).apply(equation.lhs());
-
         symbols_for_equation[equation].swap(used_symbols);
       }
 
-      for (std::set< data_equation >::size_type n = 0, m = equations.size(); n != m; n = m, m = equations.size())
+      /* Calculate the closure under the function symbols that can be introduced by applying equations, such that all
+         the function symbols that can occur during rewriting are present in the datatype */
+      std::vector<bool> equations_of_which_symbols_have_been_added(specification.equations().size(),false);
+      bool stable=false;
+      while (!stable)
       {
-        for (std::set< data_equation >::iterator i = equations.begin(); i != equations.end();)
+        stable=true;
+        std::size_t equation_count=0;
+        for (const data_equation& e: specification.equations())
         {
-          if (std::includes(m_used_symbols.begin(), m_used_symbols.end(), symbols_for_equation[*i].begin(), symbols_for_equation[*i].end()))
+          if (!equations_of_which_symbols_have_been_added[equation_count] &&
+              std::includes(m_used_symbols.begin(), m_used_symbols.end(), symbols_for_equation[e].begin(), symbols_for_equation[e].end()))
           {
-            add_function_symbols(i->rhs());
-            add_function_symbols(i->condition());
-            equations.erase(i++);
+            add_function_symbols(e.rhs());
+            add_function_symbols(e.condition());
+            equations_of_which_symbols_have_been_added[equation_count]=true;
+            stable=false;
           }
-          else
-          {
-            ++i;
-          }
+          equation_count++;
         }
       }
     }
@@ -193,4 +196,3 @@ class used_data_equation_selector
 } // namespace mcrl2
 
 #endif // MCRL2_DATA_SELECTION_H
-

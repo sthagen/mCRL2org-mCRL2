@@ -9,6 +9,7 @@
 /// \file type_check_tree_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE type_check_tree_test
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/experimental/type_check_tree.h"
 #include "mcrl2/data/parse.h"
@@ -43,7 +44,6 @@ void test_data_expression(const std::string& text, const std::string& variable_c
   tnode->set_constraint(context);
   data::print_node(tnode);
   context.remove_context_variables(variables);
-  p.destroy_parse_node(node);
 }
 
 void test_data_expression_fail(const std::string& text, const std::string& variable_context = "", const std::string& expected_sort = "")
@@ -139,7 +139,3 @@ BOOST_AUTO_TEST_CASE(replace_untyped_sort_test)
   BOOST_CHECK(replace_untyped_sort(s1, B) == s2);
 }
 
-boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
-{
-  return nullptr;
-}

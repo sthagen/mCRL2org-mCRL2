@@ -9,6 +9,7 @@
 /// \file next_state_generator_test.cpp
 /// \brief Test for next_state_generator class.
 
+#define BOOST_TEST_MODULE next_state_generator_test 
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/lps/next_state_generator.h"
 #include "mcrl2/lps/parse.h"
@@ -40,7 +41,7 @@ void test_initial_state_successors(const stochastic_specification& lps_spec)
 void test_next_state_generator(const stochastic_specification& lps_spec, std::size_t expected_states, std::size_t expected_transitions, std::size_t expected_transition_labels, bool enumeration_caching, bool summand_pruning, bool per_summand)
 {
   data::rewriter rewriter(lps_spec.data());
-  next_state_generator generator(lps_spec, rewriter, enumeration_caching, summand_pruning);
+  next_state_generator generator(lps_spec, rewriter, mutable_indexed_substitution<>(), enumeration_caching, summand_pruning);
 
   state initial_state = generator.initial_states().front().state(); // Only the first state of the set of probabilistic states is considered.
 
@@ -155,7 +156,3 @@ BOOST_AUTO_TEST_CASE(test_non_true_condition)
 
 }
 
-boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
-{
-  return nullptr;
-}

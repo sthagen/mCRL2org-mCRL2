@@ -1,6 +1,4 @@
-// Author(s): Jan Friso Groote
-//            Xiao Qi
-//            Wieger Wesselink 2017-2018
+// Author(s): Wieger Wesselink 2017-2019
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
 //
@@ -21,12 +19,14 @@
 #include <unordered_map>
 #include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/rewriter.h"
+#include "mcrl2/data/substitution_utility.h"
 #include "mcrl2/pbes/detail/bes_equation_limit.h"
 #include "mcrl2/pbes/detail/instantiate_global_variables.h"
-#include "mcrl2/pbes/pbesinst_algorithm.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
+#include "mcrl2/pbes/pbessolve_options.h"
 #include "mcrl2/pbes/remove_equations.h"
 #include "mcrl2/pbes/replace.h"
+#include "mcrl2/pbes/replace_constants_by_variables.h"
 #include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
 #include "mcrl2/pbes/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/pbes/rewriters/simplify_quantifiers_rewriter.h"
@@ -46,11 +46,146 @@ namespace mcrl2
 namespace pbes_system
 {
 
-/// \brief An alternative lazy algorithm for instantiating a PBES, ported from
-///         bes_deprecated.h.
+// This todo set maintains elements that were removed by the reset procedure.
+class pbesinst_lazy_todo
+{
+  protected:
+    std::unordered_set<propositional_variable_instantiation> irrelevant;
+    std::deque<propositional_variable_instantiation> todo;
+
+    // checks some invariants on the internal state
+    bool check_invariants() const
+    {
+      using utilities::detail::contains;
+      for (const auto& X: irrelevant)
+      {
+        if (contains(todo, X))
+        {
+          return false;
+        }
+      }
+      std::unordered_set<propositional_variable_instantiation> tmp(todo.begin(), todo.end());
+      return tmp.size() == todo.size();
+    }
+
+  public:
+    const propositional_variable_instantiation& front() const
+    {
+      return todo.front();
+    }
+
+    const propositional_variable_instantiation& back() const
+    {
+      return todo.back();
+    }
+
+    bool empty() const
+    {
+      return todo.empty() && irrelevant.empty();
+    }
+
+    std::size_t size() const
+    {
+      return todo.size();
+    }
+
+    const std::deque<propositional_variable_instantiation>& elements() const
+    {
+      return todo;
+    }
+
+    const std::unordered_set<propositional_variable_instantiation>& irrelevant_elements() const
+    {
+      return irrelevant;
+    }
+
+    std::unordered_set<propositional_variable_instantiation>& irrelevant_elements()
+    {
+      return irrelevant;
+    }
+
+    std::vector<propositional_variable_instantiation> all_elements() const
+    {
+      std::vector<propositional_variable_instantiation> result;
+      result.insert(result.end(), todo.begin(), todo.end());
+      result.insert(result.end(), irrelevant.begin(), irrelevant.end());
+      return result;
+    }
+
+    void pop_front()
+    {
+      todo.pop_front();
+    }
+
+    void pop_back()
+    {
+      todo.pop_back();
+    }
+
+    void insert(const propositional_variable_instantiation& x)
+    {
+      irrelevant.erase(x);
+      todo.push_back(x);
+    }
+
+    template <typename FwdIter>
+    void insert(FwdIter first, FwdIter last, const std::unordered_set<propositional_variable_instantiation>& discovered)
+    {
+      using utilities::detail::contains;
+
+      for (FwdIter i = first; i != last; ++i)
+      {
+        auto j = irrelevant.find(*i);
+        if (j != irrelevant.end())
+        {
+          todo.push_back(*j);
+          irrelevant.erase(j);
+        }
+        else if (!contains(discovered, *i))
+        {
+          todo.push_back(*i);
+        }
+      }
+    }
+
+    void set_todo(std::deque<propositional_variable_instantiation>& new_todo)
+    {
+      using utilities::detail::contains;
+      std::size_t size_before = todo.size() + irrelevant.size();
+
+      std::unordered_set<propositional_variable_instantiation> new_irrelevant;
+      for (const propositional_variable_instantiation& x: all_elements())
+      {
+        if (!contains(new_todo, x))
+        {
+          new_irrelevant.insert(x);
+        }
+      }
+      std::swap(todo, new_todo);
+      std::swap(irrelevant, new_irrelevant);
+
+      std::size_t size_after = todo.size() + irrelevant.size();
+      if (size_before != size_after)
+      {
+        throw mcrl2::runtime_error("sizes do not match in pbesinst_lazy_todo::set_todo");
+      }
+      assert(check_invariants());
+    }
+};
+
+inline
+std::ostream& operator<<(std::ostream& out, const pbesinst_lazy_todo& todo)
+{
+  return out << "todo = " << core::detail::print_list(todo.elements()) << " irrelevant = " << core::detail::print_list(todo.irrelevant_elements()) << std::endl;
+}
+
+/// \brief A PBES instantiation algorithm that uses a lazy strategy
 class pbesinst_lazy_algorithm
 {
   protected:
+    /// \brief Algorithm options.
+    const pbessolve_options& m_options;
+
     /// \brief Data rewriter.
     data::rewriter datar;
 
@@ -64,7 +199,7 @@ class pbesinst_lazy_algorithm
     enumerate_quantifiers_rewriter R;
 
     /// \brief The propositional variable instantiations that need to be handled.
-    std::deque<propositional_variable_instantiation> todo;
+    pbesinst_lazy_todo todo;
 
     /// \brief The propositional variable instantiations that have been discovered (not necessarily handled).
     std::unordered_set<propositional_variable_instantiation> discovered;
@@ -72,10 +207,8 @@ class pbesinst_lazy_algorithm
     /// \brief The initial value (after rewriting).
     propositional_variable_instantiation init;
 
-    /// \brief The search strategy to use when exploring the state space.
-    search_strategy m_search_strategy;
-
-    int m_optimization = 0;
+    // \brief The number of iterations
+    std::size_t m_iteration_count = 0;
 
     /// \brief Prints a log message for every 1000-th equation
     std::string print_equation_count(std::size_t size) const
@@ -130,8 +263,8 @@ class pbesinst_lazy_algorithm
       );
       if (changed)
       {
-        simplify_rewriter R;
-        return R(result);
+        simplify_rewriter simplify;
+        return simplify(result);
       }
       else
       {
@@ -147,27 +280,34 @@ class pbesinst_lazy_algorithm
     /// \param search_strategy The search strategy used to explore the pbes, typically depth or breadth first.
     /// \param optimization An indication of the optimisation level. 
     explicit pbesinst_lazy_algorithm(
-            const pbes& p,
-            data::rewriter::strategy rewrite_strategy = data::jitty,
-            search_strategy search_strategy = breadth_first,
-            int optimization = 0
+      const pbessolve_options& options,
+      const pbes& p
     )
-     : datar(p.data(), data::used_data_equation_selector(p.data(), pbes_system::find_function_symbols(p), p.global_variables()), rewrite_strategy),
+     : m_options(options),
+       datar(p.data(), data::used_data_equation_selector(p.data(), pbes_system::find_function_symbols(p), p.global_variables()), options.rewrite_strategy),
        m_pbes(preprocess(p)),
        m_equation_index(p),
-       R(datar, p.data()),
-       m_search_strategy(search_strategy),
-       m_optimization(optimization)
+       R(datar, p.data())
     { }
+
+    virtual ~pbesinst_lazy_algorithm() = default;
 
     /// \brief Reports BES equations that are produced by the algorithm.
     /// This function is called for every BES equation X = psi with rank k that is produced. By default it does nothing.
-    virtual void report_equation(const propositional_variable_instantiation& /* X */, const pbes_expression& /* psi */, std::size_t /* k */)
+    virtual void on_report_equation(const propositional_variable_instantiation& /* X */, const pbes_expression& /* psi */, std::size_t /* k */)
+    { }
+
+    /// \brief This function is called when new elements are added to discovered.
+    virtual void on_discovered_elements(const std::set<propositional_variable_instantiation>& /* elements */)
+    { }
+
+    /// \brief This function is called right after the while loop is finished.
+    virtual void on_end_while_loop()
     { }
 
     propositional_variable_instantiation next_todo()
     {
-      if (m_search_strategy == breadth_first)
+      if (m_options.exploration_strategy == breadth_first)
       {
         auto X_e = todo.front();
         todo.pop_front();
@@ -192,7 +332,7 @@ class pbesinst_lazy_algorithm
                                         const pbes_expression& psi
                                        )
     {
-      return m_optimization >= 1 ? rewrite_true_false(symbol, X, psi) : psi;
+      return m_options.optimization >= 1 ? rewrite_true_false(symbol, X, psi) : psi;
     }
 
     virtual bool solution_found(const propositional_variable_instantiation& /* init */) const
@@ -200,59 +340,54 @@ class pbesinst_lazy_algorithm
       return false;
     }
 
-    // recreates todo
-    virtual void reset(const propositional_variable_instantiation& /* init */,
-                       std::deque<propositional_variable_instantiation>& /* todo */,
-                       std::size_t /* regeneration_period */
-                      )
-    { }
-
     /// \brief Runs the algorithm. The result is obtained by calling the function \p get_result.
     virtual void run()
     {
       using utilities::detail::contains;
 
-      std::size_t m_iteration_count = 0;
-
-      init = atermpp::down_cast<propositional_variable_instantiation>(R(m_pbes.initial_state()));
-      todo.push_back(init);
-      discovered.insert(init);
-      while (!todo.empty())
+      m_iteration_count = 0;
+      data::mutable_indexed_substitution<> sigma;
+      if (m_options.replace_constants_by_variables)
       {
-        auto const& X_e = next_todo();
+        pbes_system::replace_constants_by_variables(m_pbes, datar, sigma);
+      }
 
+      init = atermpp::down_cast<propositional_variable_instantiation>(R(m_pbes.initial_state(), sigma));
+      todo.insert(init);
+      discovered.insert(init);
+      while (!todo.elements().empty())
+      {
+        ++m_iteration_count;
+        mCRL2log(log::status) << print_equation_count(m_iteration_count);
+        detail::check_bes_equation_limit(m_iteration_count);
+
+        propositional_variable_instantiation X_e = next_todo();
         std::size_t index = m_equation_index.index(X_e.name());
         const pbes_equation& eqn = m_pbes.equations()[index];
-        data::rewriter::substitution_type sigma;
-        make_pbesinst_substitution(eqn.variable().parameters(), X_e.parameters(), sigma);
-        auto const& phi = eqn.formula();
+        const auto& phi = eqn.formula();
+        data::add_assignments(sigma, eqn.variable().parameters(), X_e.parameters());
         pbes_expression psi_e = R(phi, sigma);
+        data::remove_assignments(sigma, eqn.variable().parameters());
 
         // optional step
         psi_e = rewrite_psi(eqn.symbol(), X_e, psi_e);
 
-        // Store and report the new equation
-        report_equation(X_e, psi_e, m_equation_index.rank(X_e.name()));
+        // report the generated equation
+        std::size_t k = m_equation_index.rank(X_e.name());
+        mCRL2log(log::debug) << "generated equation " << X_e << " = " << psi_e << " with rank " << k << std::endl;
+        on_report_equation(X_e, psi_e, k);
 
-        for (const propositional_variable_instantiation& Y_f: find_propositional_variable_instantiations(psi_e))
-        {
-          if (!contains(discovered, Y_f))
-          {
-            todo.push_back(Y_f);
-            discovered.insert(Y_f);
-          }
-        }
-
-        mCRL2log(log::status) << print_equation_count(++m_iteration_count);
-        detail::check_bes_equation_limit(m_iteration_count);
+        std::set<propositional_variable_instantiation> occ = find_propositional_variable_instantiations(psi_e);
+        todo.insert(occ.begin(), occ.end(), discovered);
+        discovered.insert(occ.begin(), occ.end());
+        on_discovered_elements(occ);
 
         if (solution_found(init))
         {
           break;
         }
-
-        reset(init, todo, (discovered.size() - todo.size()) / 2);
       }
+      on_end_while_loop();
     }
 
     const pbes_equation_index& equation_index() const

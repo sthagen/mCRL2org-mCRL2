@@ -9,7 +9,8 @@
 /// \file data_specification_test.cpp
 /// \brief Basic regression test for data specifications.
 
-#include <boost/test/minimal.hpp>
+#define BOOST_TEST_MODULE data_specification_test
+#include <boost/test/included/unit_test_framework.hpp>
 #include <functional>
 #include <iostream>
 #include "mcrl2/data/bag.h"
@@ -58,15 +59,13 @@ bool detailed_compare_for_equality(data_specification const& left, data_specific
   std::set<data::function_symbol> right_mappings(right.mappings().begin(), right.mappings().end());
   BOOST_CHECK(left_mappings == right_mappings);
 
-  std::set<data_equation> left_equations(left.equations().begin(), left.equations().end());
-  std::set<data_equation> right_equations(right.equations().begin(), right.equations().end());
-  BOOST_CHECK(left_equations == right_equations);
+  BOOST_CHECK(left.equations() == right.equations());
 
   if (/*(left_aliases != right_aliases)*/
        (left_sorts != right_sorts)
       || (left_constructors != right_constructors)
       || (left_mappings != right_mappings)
-      || (left_equations != right_equations))
+      || (left.equations() != right.equations()))
   {
     std::clog << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl
                   << "Specification detailed comparison:" << std::endl;
@@ -92,7 +91,7 @@ bool detailed_compare_for_equality(data_specification const& left, data_specific
       std::clog << "Mappings (left)  " << data::pp(left.mappings()) << std::endl;
       std::clog << "Mappings (right) " << data::pp(right.mappings()) << std::endl;
     }
-    if (left_equations != right_equations)
+    if (left.equations() != right.equations())
     {
       std::clog << "Equations (left)  " << data::pp(left.equations()) << std::endl;
       std::clog << "Equations (right) " << data::pp(right.equations()) << std::endl;
@@ -108,42 +107,6 @@ bool detailed_compare_for_equality(data_specification const& left, data_specific
 bool compare_for_equality(data_specification const& left, data_specification const& right)
 {
   return detailed_compare_for_equality(left, right);
-  /*
-  if (!(left == right))
-  {
-    BOOST_CHECK(left == right);
-
-    std::clog << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl
-              << "Specification detailed comparison:" << std::endl;
-
-    if (left.sorts() != right.sorts())
-    {
-      std::clog << "Sorts (left)  " << data::pp(left.sorts()) << std::endl;
-      std::clog << "Sorts (right) " << data::pp(right.sorts()) << std::endl;
-    }
-    if (left.constructors() != right.constructors())
-    {
-      std::clog << "Constructors (left)  " << data::pp(left.constructors()) << std::endl;
-      std::clog << "Constructors (right) " << data::pp(right.constructors()) << std::endl;
-    }
-    if (left.mappings() != right.mappings())
-    {
-      std::clog << "Mappings (left)  " << data::pp(left.mappings()) << std::endl;
-      std::clog << "Mappings (right) " << data::pp(right.mappings()) << std::endl;
-    }
-    if (left.equations() != right.equations())
-    {
-      std::clog << "Equations (left)  " << data::pp(left.equations()) << std::endl;
-      std::clog << "Equations (right) " << data::pp(right.equations()) << std::endl;
-    }
-
-    std::clog << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
-
-    return false;
-  }
-
-  return true;
-  */
 }
 
 void test_sorts()
@@ -964,7 +927,7 @@ void test_standard_sorts_mappings_functions()
    BOOST_CHECK(mappings.size()==225);
 }
 
-int test_main(int argc, char** argv)
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_bke();
 
@@ -995,8 +958,6 @@ int test_main(int argc, char** argv)
   test_merge_data_specifications();
 
   test_standard_sorts_mappings_functions();
-
-  return EXIT_SUCCESS;
 }
 
 

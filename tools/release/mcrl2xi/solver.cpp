@@ -12,7 +12,7 @@
 #include "solver.h"
 #include "parsing.h"
 
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 
 Solver::Solver(QThread *atermThread, mcrl2::data::rewrite_strategy strategy):
   m_strategy(strategy)
@@ -34,7 +34,7 @@ void Solver::solve(QString specification, QString dataExpression)
       mcrl2xi_qt::parseMcrl2Specification(m_specification.toStdString(), m_data_spec, m_global_vars);
       m_parsed = true;
     }
-    catch (mcrl2::runtime_error e)
+    catch (const mcrl2::runtime_error& e)
     {
       m_parseError = QString::fromStdString(e.what());
     }
@@ -86,7 +86,7 @@ void Solver::solve(QString specification, QString dataExpression)
       enumerator_type enumerator(rewr, m_data_spec, rewr, id_generator, 10000, true);
 
       mutable_indexed_substitution<> sigma;
-      std::deque<enumerator_element> enumerator_deque(1, enumerator_element(variable_list(m_vars.begin(),m_vars.end()), term));
+      mcrl2::data::enumerator_queue<enumerator_element> enumerator_deque(enumerator_element(variable_list(m_vars.begin(),m_vars.end()), term));
       for (enumerator_type::iterator i = enumerator.begin(sigma, enumerator_deque); i != enumerator.end() && !m_abort; ++i)
       {
         mCRL2log(verbose) << "Solution found" << std::endl;
@@ -114,13 +114,9 @@ void Solver::solve(QString specification, QString dataExpression)
         if (m_abort)
           break;
       }
-      if (m_abort)
-        mCRL2log(info) << "Abort by user." << std::endl;
-      else
-        mCRL2log(info) << "Done solving." << std::endl;
-
+      mCRL2log(info) << (m_abort ? "Abort by user." : "Done solving.") << std::endl;
     }
-    catch (mcrl2::runtime_error e)
+    catch (const mcrl2::runtime_error& e)
     {
       QString err = QString::fromStdString(e.what());
       emit(exprError(err));
@@ -137,4 +133,3 @@ void Solver::abort()
 {
   m_abort = true;
 }
-

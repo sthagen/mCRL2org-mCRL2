@@ -16,6 +16,7 @@
 #include "mcrl2/pbes/add_binding.h"
 #include "mcrl2/pbes/builder.h"
 #include "mcrl2/pbes/find.h"
+#include "mcrl2/pbes/replace_capture_avoiding.h"
 
 namespace mcrl2
 {
@@ -26,53 +27,6 @@ namespace pbes_system
 namespace detail {
 
 /// \cond INTERNAL_DOCS
-template <template <class> class Builder, class Derived, class Substitution>
-struct add_capture_avoiding_replacement: public data::detail::add_capture_avoiding_replacement<Builder, Derived, Substitution>
-{
-  typedef data::detail::add_capture_avoiding_replacement<Builder, Derived, Substitution> super;
-  using super::enter;
-  using super::leave;
-  using super::update;
-  using super::apply;
-  using super::update_sigma;
-
-  pbes_expression apply(const forall& x)
-  {
-    data::variable_list v = update_sigma.push(x.variables());
-    pbes_expression result = forall(v, apply(x.body()));
-    update_sigma.pop(v);
-    return result;
-  }
-
-  pbes_expression apply(const exists& x)
-  {
-    data::variable_list v = update_sigma.push(x.variables());
-    pbes_expression result = exists(v, apply(x.body()));
-    update_sigma.pop(v);
-    return result;
-  }
-
-  void update(pbes_equation& x)
-  {
-    data::variable_list v = update_sigma.push(x.variable().parameters());
-    x.variable() = propositional_variable(x.variable().name(), v);
-    x.formula() = apply(x.formula());
-    update_sigma.pop(v);
-  }
-
-  void update(pbes& x)
-  {
-    std::set<data::variable> v = update_sigma(x.global_variables());
-    x.global_variables() = v;
-    update(x.equations());
-    update_sigma.pop(v);
-  }
-
-  add_capture_avoiding_replacement(Substitution& sigma, std::multiset<data::variable>& V)
-    : super(sigma, V)
-  { }
-};
-
 template <template <class> class Builder, class Substitution>
 struct substitute_pbes_expressions_builder: public Builder<substitute_pbes_expressions_builder<Builder, Substitution> >
 {
@@ -112,9 +66,8 @@ struct replace_propositional_variables_builder: public Builder<replace_propositi
   using super::apply;
 
   const Substitution& sigma;
-  bool innermost;
 
-  replace_propositional_variables_builder(const Substitution& sigma_)
+  explicit replace_propositional_variables_builder(const Substitution& sigma_)
     : sigma(sigma_)
   {}
 
@@ -130,6 +83,8 @@ make_replace_propositional_variables_builder(const Substitution& sigma)
 {
   return replace_propositional_variables_builder<Builder, Substitution>(sigma);
 }
+
+
 /// \endcond
 
 } // namespace detail
@@ -220,7 +175,7 @@ void replace_free_variables(T& x,
                            )
 {
   assert(data::is_simple_substitution(sigma));
-  data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_binding>(sigma).update(x);
+  data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_builder_binding>(sigma).update(x);
 }
 
 /// \brief Applies the substitution sigma to x.
@@ -232,7 +187,7 @@ T replace_free_variables(const T& x,
                         )
 {
   assert(data::is_simple_substitution(sigma));
-  return data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_binding>(sigma).apply(x);
+  return data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_builder_binding>(sigma).apply(x);
 }
 
 /// \brief Applies the substitution sigma to x, where the elements of bound_variables are treated as bound variables.
@@ -245,7 +200,7 @@ void replace_free_variables(T& x,
                            )
 {
   assert(data::is_simple_substitution(sigma));
-  data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_binding>(sigma).update(x, bound_variables);
+  data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_builder_binding>(sigma).update(x, bound_variables);
 }
 
 /// \brief Applies the substitution sigma to x, where the elements of bound_variables are treated as bound variables.
@@ -258,47 +213,9 @@ T replace_free_variables(const T& x,
                         )
 {
   assert(data::is_simple_substitution(sigma));
-  return data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_binding>(sigma).apply(x, bound_variables);
+  return data::detail::make_replace_free_variables_builder<pbes_system::data_expression_builder, pbes_system::add_data_variable_builder_binding>(sigma).apply(x, bound_variables);
 }
 //--- end generated pbes_system replace code ---//
-
-//--- start generated pbes_system replace_capture_avoiding code ---//
-/// \brief Applies sigma as a capture avoiding substitution to x.
-/// \param x The object to which the subsitution is applied.
-/// \param sigma A mutable substitution.
-/// \param sigma_variables a container of variables.
-/// \pre { sigma_variables must contain the free variables appearing in the right hand side of sigma }.
-template <typename T, typename Substitution, typename VariableContainer>
-void replace_variables_capture_avoiding(T& x,
-                       Substitution& sigma,
-                       const VariableContainer& sigma_variables,
-                       typename std::enable_if<!std::is_base_of<atermpp::aterm, T>::value>::type* = nullptr
-                      )
-{
-  std::multiset<data::variable> V;
-  pbes_system::find_free_variables(x, std::inserter(V, V.end()));
-  V.insert(sigma_variables.begin(), sigma_variables.end());
-  data::detail::apply_replace_capture_avoiding_variables_builder<pbes_system::data_expression_builder, pbes_system::detail::add_capture_avoiding_replacement>(sigma, V).update(x);
-}
-
-/// \brief Applies sigma as a capture avoiding substitution to x.
-/// \param x The object to which the substiution is applied.
-/// \param sigma A mutable substitution.
-/// \param sigma_variables a container of variables.
-/// \pre { sigma_variables must contain the free variables appearing in the right hand side of sigma }.
-template <typename T, typename Substitution, typename VariableContainer>
-T replace_variables_capture_avoiding(const T& x,
-                    Substitution& sigma,
-                    const VariableContainer& sigma_variables,
-                    typename std::enable_if<std::is_base_of<atermpp::aterm, T>::value>::type* = nullptr
-                   )
-{
-  std::multiset<data::variable> V;
-  pbes_system::find_free_variables(x, std::inserter(V, V.end()));
-  V.insert(sigma_variables.begin(), sigma_variables.end());
-  return data::detail::apply_replace_capture_avoiding_variables_builder<pbes_system::data_expression_builder, pbes_system::detail::add_capture_avoiding_replacement>(sigma, V).apply(x);
-}
-//--- end generated pbes_system replace_capture_avoiding code ---//
 
 /// \brief Applies a propositional variable substitution.
 template <typename T, typename Substitution>
@@ -314,7 +231,7 @@ void replace_propositional_variables(T& x,
 template <typename T, typename Substitution>
 T replace_propositional_variables(const T& x,
                                   const Substitution& sigma,
-                                  typename std::enable_if< std::is_base_of< atermpp::aterm, T >::value>::type* = nullptr
+                                  typename std::enable_if<std::is_base_of< atermpp::aterm, T>::value>::type* = nullptr
                                  )
 {
   return pbes_system::detail::make_replace_propositional_variables_builder<pbes_system::pbes_expression_builder>(sigma).apply(x);

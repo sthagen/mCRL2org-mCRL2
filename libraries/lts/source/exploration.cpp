@@ -10,10 +10,12 @@
 #include <ctime>
 
 #include "mcrl2/utilities/logger.h"
+#include "mcrl2/data/real.h"
 #include "mcrl2/lps/resolve_name_clashes.h"
 #include "mcrl2/lps/detail/instantiate_global_variables.h"
 #include "mcrl2/lps/probabilistic_data_expression.h"
 #include "mcrl2/lps/one_point_rule_rewrite.h"
+#include "mcrl2/lps/detail/move_constants_to_substitution.h"
 #include "mcrl2/lts/detail/exploration.h"
 #include "mcrl2/lts/detail/counter_example.h"
 #include "mcrl2/lts/lts_io.h"
@@ -29,14 +31,14 @@ probabilistic_state<std::size_t, probabilistic_data_expression> lps2lts_algorith
   assert(!initial_states.empty());
   if (++initial_states.begin() == initial_states.end()) // Means initial_states.size()==1
   {
-    std::size_t state_number=m_state_numbers.put(initial_states.front().state()).first;
+    std::size_t state_number=m_state_numbers.insert(initial_states.front().state()).first;
     return probabilistic_state<std::size_t, probabilistic_data_expression>(state_number);
   }
   std::vector <state_probability_pair<std::size_t, lps::probabilistic_data_expression> > result;
   for(lps::next_state_generator::transition_t::state_probability_list::const_iterator i=initial_states.begin();
                     i!=initial_states.end(); ++i)
   {
-    std::size_t state_number=m_state_numbers.put(i->state()).first;
+    std::size_t state_number=m_state_numbers.insert(i->state()).first;
     result.push_back(state_probability_pair<std::size_t, probabilistic_data_expression>(state_number, i->probability()));
   }
   return probabilistic_state<std::size_t, probabilistic_data_expression>(result.begin(),result.end());
@@ -45,7 +47,8 @@ probabilistic_state<std::size_t, probabilistic_data_expression> lps2lts_algorith
 probabilistic_state<std::size_t, probabilistic_data_expression> lps2lts_algorithm::create_a_probabilistic_state_from_target_distribution(
                const std::size_t base_state_number,
                const next_state_generator::transition_t::state_probability_list& other_probabilities,
-               const lps::state& source_state)
+               const lps::state& source_state,
+               const std::function<void(const lps::state&)> add_state_to_todo_queue_function)
 {
   if (other_probabilities.empty())
   {
@@ -65,8 +68,8 @@ probabilistic_state<std::size_t, probabilistic_data_expression> lps2lts_algorith
       throw mcrl2::runtime_error("The probability " + data::pp(i->probability()) + " is not a proper rational number.");
     }
     residual_probability=data::sort_real::minus(residual_probability,i->probability());
-    const std::pair<std::size_t, bool> probability_destination_state_number=add_target_state(source_state,i->state());
-    result.push_back(state_probability_pair<std::size_t, probabilistic_data_expression>(probability_destination_state_number.first, i->probability()));
+    const std::size_t probability_destination_state_number=add_target_state(source_state,i->state(),add_state_to_todo_queue_function);
+    result.push_back(state_probability_pair<std::size_t, probabilistic_data_expression>(probability_destination_state_number, i->probability()));
   }
 
   residual_probability= (m_generator->get_rewriter())(residual_probability);
@@ -100,7 +103,7 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
   }
   else
   {
-    m_state_numbers = atermpp::indexed_set<lps::state>(m_options.initial_table_size, 50);
+    m_state_numbers = utilities::indexed_set<lps::state>(m_options.initial_table_size);
   }
 
   m_num_states = 0;
@@ -144,11 +147,14 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
   }
 
   data::rewriter rewriter;
+
   if (m_options.removeunused)
   {
     mCRL2log(verbose) << "removing unused parts of the data specification." << std::endl;
     std::set<data::function_symbol> extra_function_symbols = lps::find_function_symbols(specification);
     extra_function_symbols.insert(data::sort_real::minus(data::sort_real::real_(),data::sort_real::real_()));
+    // The symbols below are needed to compare probabilities. Greater implies the inclusion of smaller. 
+    extra_function_symbols.insert(data::greater(data::sort_real::real_()));
 
     if (m_options.expl_strat == es_value_prioritized || m_options.expl_strat == es_value_random_prioritized)
     {
@@ -156,7 +162,9 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
       extra_function_symbols.insert(data::equal_to(data::sort_nat::nat()));
     }
 
-    rewriter = data::rewriter(specification.data(), data::used_data_equation_selector(specification.data(), extra_function_symbols, specification.global_variables()), m_options.strat);
+    rewriter = data::rewriter(specification.data(), 
+                              data::used_data_equation_selector(specification.data(), extra_function_symbols, specification.global_variables()), 
+                              m_options.strat);
   }
   else
   {
@@ -168,22 +176,28 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
   // more lps's to generate lts's. The overhead of this rewriter is limited.
   one_point_rule_rewrite(specification);
 
+  // Replace all constant expressions t in a specification by a variable x, and set base_substitution(x)=u where u is the normal form of t.
+  // This avoids having to rewrite the constant expressions each time they are encountered. This typically saves more than 50% of the total
+  // time to generate a state space.
+  data::mutable_indexed_substitution<> base_substitution;  // This is the substitution used as base in the state space generation.
+  move_constants_to_substitution(specification, rewriter, base_substitution);
+
   stochastic_action_summand_vector prioritised_summands;
   stochastic_action_summand_vector nonprioritised_summands;
   if (m_options.priority_action != "")
   {
     mCRL2log(verbose) << "applying confluence reduction with tau action '" << m_options.priority_action << "'..." << std::endl;
 
-    for (stochastic_action_summand_vector::iterator i = specification.process().action_summands().begin(); i != specification.process().action_summands().end(); i++)
+    for(const stochastic_action_summand& s: specification.process().action_summands())
     {
-      if ((m_options.priority_action == "tau" && i->is_tau()) ||
-          (i->multi_action().actions().size() == 1 && m_options.priority_action == (std::string)i->multi_action().actions().front().label().name()))
+      if ((m_options.priority_action == "tau" && s.is_tau()) ||
+          (s.multi_action().actions().size() == 1 && m_options.priority_action == static_cast<std::string>(s.multi_action().actions().front().label().name())))
       {
-        prioritised_summands.push_back(*i);
+        prioritised_summands.push_back(s);
       }
       else
       {
-        nonprioritised_summands.push_back(*i);
+        nonprioritised_summands.push_back(s);
       }
     }
 
@@ -253,7 +267,7 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
       }
     }
   }
-  m_generator = new next_state_generator(specification, rewriter, m_options.use_enumeration_caching, m_options.use_summand_pruning);
+  m_generator = new next_state_generator(specification, rewriter, base_substitution, m_options.use_enumeration_caching, m_options.use_summand_pruning);
 
   if (m_use_confluence_reduction)
   {
@@ -323,7 +337,7 @@ bool lps2lts_algorithm::generate_lts(const lts_generation_options& options)
     for(lps::next_state_generator::transition_t::state_probability_list::const_iterator i=m_initial_states.begin();
                     i!=m_initial_states.end(); ++i)
     {
-      if (m_state_numbers.put(i->state()).second && m_options.outformat != lts_aut) // The state is new.
+      if (m_state_numbers.insert(i->state()).second && m_options.outformat != lts_aut) // The state is new.
       {
         m_output_lts.add_state(state_label_lts(i->state()));
       }
@@ -333,7 +347,7 @@ bool lps2lts_algorithm::generate_lts(const lts_generation_options& options)
   if (m_options.outformat == lts_aut)
   {
     m_aut_file << "des(";
-    print_target_distribution_in_aut_format(m_initial_states,lps::state());
+    print_target_distribution_in_aut_format(m_initial_states,lps::state(),[](const lps::state&){});
     // HACK: this line will be overwritten once generation is finished.
     m_aut_file << ",0,0)                                          " << std::endl;
   }
@@ -348,7 +362,6 @@ bool lps2lts_algorithm::generate_lts(const lts_generation_options& options)
   {
     return true;
   }
-
   if (m_options.expl_strat == es_breadth || m_options.expl_strat == es_value_prioritized)
   {
     if (m_options.bithashing)
@@ -359,7 +372,7 @@ bool lps2lts_algorithm::generate_lts(const lts_generation_options& options)
     {
       if (m_options.todo_max==std::string::npos)
       {
-        generate_lts_breadth_todo_max_is_npos();
+        generate_lts_breadth_todo_max_is_npos(m_initial_states);
       }
       else
       {
@@ -409,7 +422,7 @@ void lps2lts_algorithm::finalise_lts_generation()
     m_aut_file.flush();
     m_aut_file.seekp(0);
     m_aut_file << "des (";
-    print_target_distribution_in_aut_format(m_initial_states,lps::state());
+    print_target_distribution_in_aut_format(m_initial_states,lps::state(),[](const lps::state&){});
     m_aut_file << "," << m_num_transitions << "," << m_num_states << ")";
     m_aut_file.close();
   }
@@ -682,13 +695,13 @@ bool lps2lts_algorithm::search_divergence(
               COUNTER_EXAMPLE_GENERATOR& divergence_loop)
 {
   current_path.insert(state_pair.state());
-  std::vector<detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR> > new_states;
+  std::vector<mcrl2::lts::detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR> > new_states;
   next_state_generator::enumerator_queue_t enumeration_queue;
   for (next_state_generator::iterator j = m_generator->begin(state_pair.state(), m_tau_summands, &enumeration_queue); j != m_generator->end(); j++)
   {
     assert(is_hidden_summand(j->action().actions(),m_options.actions_internal_for_divergencies));
 
-    std::pair<std::size_t, bool> action_label_number = m_action_label_numbers.put(j->action().actions());
+    std::pair<std::size_t, bool> action_label_number = m_action_label_numbers.put(j->action());
     if (action_label_number.second)
     {
       assert(j->action().actions().size() != 0);
@@ -702,7 +715,7 @@ bool lps2lts_algorithm::search_divergence(
       typename COUNTER_EXAMPLE_GENERATOR::index_type i=divergence_loop.add_transition(action_label_number.first,state_pair.index());
       if (visited.insert(j->target_state()).second)
       {
-        new_states.push_back(detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR>(j->target_state(),i));
+        new_states.push_back(mcrl2::lts::detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR>(j->target_state(),i));
       }
       else if (current_path.count(j->target_state()) != 0)
       {
@@ -713,7 +726,7 @@ bool lps2lts_algorithm::search_divergence(
     }
   }
 
-  for (const detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR>& p: new_states)
+  for (const mcrl2::lts::detail::state_index_pair<COUNTER_EXAMPLE_GENERATOR>& p: new_states)
   {
     if (search_divergence(p, current_path, visited,divergence_loop))
     {
@@ -783,9 +796,13 @@ void lps2lts_algorithm::save_actions(const lps::state& state, const next_state_g
     }
     filename = filename + ".trc";
     if (save_trace(state, transition, filename))
+    {
       mCRL2log(info) << " and saved to '" << filename << "'";
+    }
     else
+    {
       mCRL2log(info) << " but it could not saved to '" << filename << "'";
+    }
   }
   mCRL2log(info) << std::endl;
 }
@@ -853,21 +870,29 @@ void lps2lts_algorithm::save_error(const lps::state& state)
   }
 }
 
-// Add the target state to the transition system, and if necessary store it to be investigated later.
-// Return the number of the target state.
-std::pair<std::size_t, bool> lps2lts_algorithm::add_target_state(const lps::state& source_state, const lps::state& target_state)
+std::pair<std::size_t, bool> lps2lts_algorithm::get_state_number(const lps::state& target_state)
 {
-  std::pair<std::size_t, bool> destination_state_number;
   if (m_options.bithashing)
   {
-    destination_state_number = m_bit_hash_table.add_state(target_state);
+    return m_bit_hash_table.add_state(target_state);
   }
   else
   {
-    destination_state_number = m_state_numbers.put(target_state);
+    return m_state_numbers.insert(target_state);
   }
+}
+
+// Add the target state to the transition system, and if necessary store it to be investigated later.
+// Return the number of the target state.
+std::size_t lps2lts_algorithm::add_target_state(
+                                     const lps::state& source_state, 
+                                     const lps::state& target_state,
+                                     const std::function<void(const lps::state&)> add_state_to_todo_queue_function)
+{
+  std::pair<std::size_t, bool> destination_state_number=get_state_number(target_state);;
   if (destination_state_number.second) // The state is new.
   {
+    add_state_to_todo_queue_function(target_state);
     m_num_states++;
     if (m_maintain_traces)
     {
@@ -881,13 +906,14 @@ std::pair<std::size_t, bool> lps2lts_algorithm::add_target_state(const lps::stat
       m_output_lts.add_state(state_label_lts(target_state));
     }
   }
-  return destination_state_number;
+  return destination_state_number.first;
 }
 
 void lps2lts_algorithm::print_target_distribution_in_aut_format(
                const lps::next_state_generator::transition_t::state_probability_list& state_probability_list,
                const std::size_t last_state_number,
-               const lps::state& source_state)
+               const lps::state& source_state,
+               const std::function<void(const lps::state&)> add_state_to_todo_queue_function)
 {
   for(lps::next_state_generator::transition_t::state_probability_list::const_iterator
                         i=state_probability_list.begin();
@@ -896,7 +922,7 @@ void lps2lts_algorithm::print_target_distribution_in_aut_format(
     if (m_options.outformat == lts_aut)
     {
       const lps::state probability_destination = i->state();
-      const std::pair<std::size_t, bool> probability_destination_state_number=add_target_state(source_state,probability_destination);
+      const std::size_t probability_destination_state_number=add_target_state(source_state,probability_destination,add_state_to_todo_queue_function);
       if (is_application(i->probability()) && atermpp::down_cast<data::application>(i->probability()).head().size()!=3)
       {
         if (m_options.outformat == lts_aut)
@@ -910,8 +936,8 @@ void lps2lts_algorithm::print_target_distribution_in_aut_format(
       {
         throw mcrl2::runtime_error("Probability is not a closed expression with a proper enumerator and denominator: " + pp(i->probability()) + ".");
       }
-      m_aut_file << probability_destination_state_number.first << " " << (prob[0]) << "/"
-                                                                      << (prob[1]) << " ";
+      m_aut_file << probability_destination_state_number << " " << (prob[0]) << "/"
+                                                                << (prob[1]) << " ";
     }
   }
   m_aut_file << last_state_number;
@@ -919,19 +945,24 @@ void lps2lts_algorithm::print_target_distribution_in_aut_format(
 
 void lps2lts_algorithm::print_target_distribution_in_aut_format(
                 const lps::next_state_generator::transition_t::state_probability_list& state_probability_list,
-                const lps::state& source_state)
+                const lps::state& source_state,
+                const std::function<void(const lps::state&)> add_state_to_todo_queue_function)
 {
   assert(!state_probability_list.empty());
-  const std::pair<std::size_t, bool> a_destination_state_number=add_target_state(source_state,state_probability_list.front().state());
+  const std::size_t a_destination_state_number=
+                add_target_state(source_state,state_probability_list.front().state(), add_state_to_todo_queue_function);
+
   lps::next_state_generator::transition_t::state_probability_list temporary_list=state_probability_list;
   temporary_list.pop_front();
-  print_target_distribution_in_aut_format(temporary_list,a_destination_state_number.first,source_state);
+  print_target_distribution_in_aut_format(temporary_list, a_destination_state_number, source_state, add_state_to_todo_queue_function);
 }
 
 
-bool lps2lts_algorithm::add_transition(const lps::state& source_state, const next_state_generator::transition_t& transition)
+void lps2lts_algorithm::add_transition(const lps::state& source_state, 
+                                       const next_state_generator::transition_t& transition,
+                                       const std::function<void(const lps::state&)> add_state_to_todo_queue_function
+                                      )
 {
-
   std::size_t source_state_number;
   if (m_options.bithashing)
   {
@@ -939,11 +970,11 @@ bool lps2lts_algorithm::add_transition(const lps::state& source_state, const nex
   }
   else
   {
-    source_state_number = m_state_numbers[source_state];
+    source_state_number = m_state_numbers.index(source_state);
   }
 
   const lps::state& destination = transition.target_state();
-  const std::pair<std::size_t, bool> destination_state_number=add_target_state(source_state,destination);
+  const std::size_t destination_state_number=add_target_state(source_state,destination,add_state_to_todo_queue_function);
 
   if (m_options.detect_action && m_detected_action_summands[transition.summand_index()])
   {
@@ -958,7 +989,7 @@ bool lps2lts_algorithm::add_transition(const lps::state& source_state, const nex
       m_aut_file << "(" << source_state_number << ",\"" << lps::pp(transition.action()) << "\",";
     }
 
-    print_target_distribution_in_aut_format(transition.other_target_states(),destination_state_number.first,source_state);
+    print_target_distribution_in_aut_format(transition.other_target_states(),destination_state_number, source_state, add_state_to_todo_queue_function);
 
     // Close transition.
     if (m_options.outformat == lts_aut)
@@ -968,7 +999,7 @@ bool lps2lts_algorithm::add_transition(const lps::state& source_state, const nex
   }
   else
   {
-    std::pair<std::size_t, bool> action_label_number = m_action_label_numbers.put(transition.action().actions());
+    std::pair<std::size_t, bool> action_label_number = m_action_label_numbers.put(transition.action());
     if (action_label_number.second)
     {
       assert(transition.action().actions().size() != 0);
@@ -978,9 +1009,10 @@ bool lps2lts_algorithm::add_transition(const lps::state& source_state, const nex
     }
     std::size_t number_of_a_new_probabilistic_state=m_output_lts.add_probabilistic_state(
                                     create_a_probabilistic_state_from_target_distribution(
-                                               destination_state_number.first,
+                                               destination_state_number,
                                                transition.other_target_states(),
-                                               source_state)); // Add a new probabilistic state.
+                                               source_state,
+                                               add_state_to_todo_queue_function)); // Add a new probabilistic state.
     m_output_lts.add_transition(mcrl2::lts::transition(source_state_number, action_label_number.first, number_of_a_new_probabilistic_state));
   }
 
@@ -993,8 +1025,6 @@ bool lps2lts_algorithm::add_transition(const lps::state& source_state, const nex
       save_actions(source_state, transition);
     }
   }
-
-  return destination_state_number.second;
 }
 
 // The function below checks whether in the set of outgoing transitions,
@@ -1103,7 +1133,7 @@ void lps2lts_algorithm::get_transitions(const lps::state& state,
   }
 }
 
-void lps2lts_algorithm::generate_lts_breadth_todo_max_is_npos()
+void lps2lts_algorithm::generate_lts_breadth_todo_max_is_npos(const next_state_generator::transition_t::state_probability_list& initial_states)
 {
   assert(m_options.todo_max==std::string::npos);
   std::size_t current_state = 0;
@@ -1112,15 +1142,16 @@ void lps2lts_algorithm::generate_lts_breadth_todo_max_is_npos()
   std::vector<next_state_generator::transition_t> transitions;
   time_t last_log_time = time(nullptr) - 1, new_log_time;
   next_state_generator::enumerator_queue_t enumeration_queue;
+  (void)initial_states; // suppress unused variable warning. 
 
   while (!m_must_abort && (current_state < m_state_numbers.size()) &&
          (current_state < m_options.max_states) && (!m_options.trace || m_traces_saved < m_options.max_traces))
   {
-    lps::state state=m_state_numbers.get(current_state);
+    lps::state state=m_state_numbers[current_state];
     get_transitions(state,transitions,enumeration_queue);
     for (const next_state_generator::transition_t& t: transitions)
     {
-      add_transition(state, t);
+      add_transition(state, t, [](const lps::state&){});
     }
     transitions.clear();
 
@@ -1179,10 +1210,7 @@ void lps2lts_algorithm::generate_lts_breadth_todo_max_is_not_npos(const next_sta
 
     for (std::vector<next_state_generator::transition_t>::iterator i = transitions.begin(); i != transitions.end(); i++)
     {
-      if (add_transition(state, *i))
-      {
-        state_queue.add_to_queue(i->target_state());
-      }
+      add_transition(state, *i, [&state_queue](const lps::state& s){ state_queue.add_to_queue(s);});
     }
     transitions.clear();
 
@@ -1250,13 +1278,18 @@ void lps2lts_algorithm::generate_lts_breadth_bithashing(const next_state_generat
 
     for (std::vector<next_state_generator::transition_t>::iterator i = transitions.begin(); i != transitions.end(); i++)
     {
-      if (add_transition(state, *i))
-      {
-        // It can be that a state is dropped in the queue, as the queue reached its todo-limit.
-        // This is ignored in combination with bithashing. So, there might be states with outgoing
-        // transitions of which the outgoing transitions are not investigated.
-        state_queue.add_to_queue(i->target_state());
-      }
+      // It can be that a state is dropped in the queue, as the queue reached its todo-limit.
+      // This is ignored in combination with bithashing. So, there might be states with outgoing
+      // transitions of which the outgoing transitions are not investigated.
+      add_transition(state, *i, [&state_queue](const lps::state& s){ state_queue.add_to_queue(s); });
+
+      // if (add_transition(state, *i))
+      // {
+      //   // It can be that a state is dropped in the queue, as the queue reached its todo-limit.
+      //   // This is ignored in combination with bithashing. So, there might be states with outgoing
+      //   // transitions of which the outgoing transitions are not investigated.
+      //   state_queue.add_to_queue(i->target_state());
+      // }
     }
     transitions.clear();
 
@@ -1318,10 +1351,17 @@ void lps2lts_algorithm::generate_lts_depth(const next_state_generator::transitio
 
     for (std::vector<next_state_generator::transition_t>::iterator i = transitions.begin(); i != transitions.end(); i++)
     {
-      if (add_transition(state, *i) && (current_state + stack.size() < m_options.max_states) && (stack.size() < m_options.todo_max))
-      {
-        stack.push_back(i->target_state());
-      }
+      add_transition(state, *i, 
+          [&](const lps::state& s)
+             { if ((current_state + stack.size() < m_options.max_states) && (stack.size() < m_options.todo_max))
+               {  
+                 stack.push_back(s);
+               }
+             });
+      // if (add_transition(state, *i) && (current_state + stack.size() < m_options.max_states) && (stack.size() < m_options.todo_max))
+      // {
+      //  stack.push_back(i->target_state());
+      // }
     }
     transitions.clear();
 
@@ -1367,7 +1407,8 @@ void lps2lts_algorithm::generate_lts_random(const next_state_generator::transiti
 
     for (std::vector<next_state_generator::transition_t>::iterator i = transitions.begin(); i != transitions.end(); i++)
     {
-      add_transition(state, *i);
+      // Only the first state of a probabilistic state is randomly chosen. Not all states are considered. 
+      add_transition(state, *i, [](const lps::state& ){});
 
       if (index-- == 0)
       {

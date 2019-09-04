@@ -99,7 +99,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == creal();
+          return atermpp::down_cast<function_symbol>(e) == creal();
         }
         return false;
       }
@@ -122,11 +122,7 @@ namespace mcrl2 {
       inline
       bool is_creal_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_creal_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_creal_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Pos2Real
@@ -156,7 +152,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == pos2real();
+          return atermpp::down_cast<function_symbol>(e) == pos2real();
         }
         return false;
       }
@@ -178,11 +174,7 @@ namespace mcrl2 {
       inline
       bool is_pos2real_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_pos2real_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_pos2real_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Nat2Real
@@ -212,7 +204,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == nat2real();
+          return atermpp::down_cast<function_symbol>(e) == nat2real();
         }
         return false;
       }
@@ -234,11 +226,7 @@ namespace mcrl2 {
       inline
       bool is_nat2real_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_nat2real_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_nat2real_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Int2Real
@@ -268,7 +256,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == int2real();
+          return atermpp::down_cast<function_symbol>(e) == int2real();
         }
         return false;
       }
@@ -290,11 +278,7 @@ namespace mcrl2 {
       inline
       bool is_int2real_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_int2real_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_int2real_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Real2Pos
@@ -324,7 +308,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == real2pos();
+          return atermpp::down_cast<function_symbol>(e) == real2pos();
         }
         return false;
       }
@@ -346,11 +330,7 @@ namespace mcrl2 {
       inline
       bool is_real2pos_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_real2pos_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_real2pos_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Real2Nat
@@ -380,7 +360,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == real2nat();
+          return atermpp::down_cast<function_symbol>(e) == real2nat();
         }
         return false;
       }
@@ -402,11 +382,7 @@ namespace mcrl2 {
       inline
       bool is_real2nat_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_real2nat_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_real2nat_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier Real2Int
@@ -436,7 +412,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == real2int();
+          return atermpp::down_cast<function_symbol>(e) == real2int();
         }
         return false;
       }
@@ -458,11 +434,7 @@ namespace mcrl2 {
       inline
       bool is_real2int_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_real2int_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_real2int_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier max
@@ -476,56 +448,62 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol maximum(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& maximum(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == real_())
         {
-          target_sort = real_();
+          static function_symbol maximum(maximum_name(), make_function_sort(real_(), real_(), real_()));
+          return maximum;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_int::int_())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_pos::pos(), sort_int::int_(), sort_pos::pos()));
+          return maximum;
         }
         else if (s0 == sort_int::int_() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_int::int_(), sort_pos::pos(), sort_pos::pos()));
+          return maximum;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_int::int_())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_nat::nat(), sort_int::int_(), sort_nat::nat()));
+          return maximum;
         }
         else if (s0 == sort_int::int_() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_int::int_(), sort_nat::nat(), sort_nat::nat()));
+          return maximum;
         }
         else if (s0 == sort_int::int_() && s1 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_int::int_(), sort_int::int_(), sort_int::int_()));
+          return maximum;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_nat::nat())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_pos::pos(), sort_nat::nat(), sort_pos::pos()));
+          return maximum;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_nat::nat(), sort_pos::pos(), sort_pos::pos()));
+          return maximum;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_nat::nat()));
+          return maximum;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol maximum(maximum_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), sort_pos::pos()));
+          return maximum;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for maximum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol maximum(maximum_name(), make_function_sort(s0, s1, target_sort));
-        return maximum;
       }
 
       /// \brief Recogniser for function max
@@ -536,8 +514,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == maximum_name() && function_sort(f.sort()).domain().size() == 2 && (f == maximum(real_(), real_()) || f == maximum(sort_pos::pos(), sort_int::int_()) || f == maximum(sort_int::int_(), sort_pos::pos()) || f == maximum(sort_nat::nat(), sort_int::int_()) || f == maximum(sort_int::int_(), sort_nat::nat()) || f == maximum(sort_int::int_(), sort_int::int_()) || f == maximum(sort_pos::pos(), sort_nat::nat()) || f == maximum(sort_nat::nat(), sort_pos::pos()) || f == maximum(sort_nat::nat(), sort_nat::nat()) || f == maximum(sort_pos::pos(), sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == maximum_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == maximum(real_(), real_()) || f == maximum(sort_pos::pos(), sort_int::int_()) || f == maximum(sort_int::int_(), sort_pos::pos()) || f == maximum(sort_nat::nat(), sort_int::int_()) || f == maximum(sort_int::int_(), sort_nat::nat()) || f == maximum(sort_int::int_(), sort_int::int_()) || f == maximum(sort_pos::pos(), sort_nat::nat()) || f == maximum(sort_nat::nat(), sort_pos::pos()) || f == maximum(sort_nat::nat(), sort_nat::nat()) || f == maximum(sort_pos::pos(), sort_pos::pos()));
         }
         return false;
       }
@@ -560,11 +538,7 @@ namespace mcrl2 {
       inline
       bool is_maximum_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_maximum_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_maximum_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier min
@@ -578,32 +552,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol minimum(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& minimum(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == real_())
         {
-          target_sort = real_();
+          static function_symbol minimum(minimum_name(), make_function_sort(real_(), real_(), real_()));
+          return minimum;
         }
         else if (s0 == sort_int::int_() && s1 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol minimum(minimum_name(), make_function_sort(sort_int::int_(), sort_int::int_(), sort_int::int_()));
+          return minimum;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol minimum(minimum_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_nat::nat()));
+          return minimum;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol minimum(minimum_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), sort_pos::pos()));
+          return minimum;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for minimum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol minimum(minimum_name(), make_function_sort(s0, s1, target_sort));
-        return minimum;
       }
 
       /// \brief Recogniser for function min
@@ -614,8 +588,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == minimum_name() && function_sort(f.sort()).domain().size() == 2 && (f == minimum(real_(), real_()) || f == minimum(sort_int::int_(), sort_int::int_()) || f == minimum(sort_nat::nat(), sort_nat::nat()) || f == minimum(sort_pos::pos(), sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == minimum_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == minimum(real_(), real_()) || f == minimum(sort_int::int_(), sort_int::int_()) || f == minimum(sort_nat::nat(), sort_nat::nat()) || f == minimum(sort_pos::pos(), sort_pos::pos()));
         }
         return false;
       }
@@ -638,11 +612,7 @@ namespace mcrl2 {
       inline
       bool is_minimum_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_minimum_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_minimum_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier abs
@@ -656,24 +626,22 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol abs(const sort_expression& s0)
+      function_symbol const& abs(const sort_expression& s0)
       {
-        sort_expression target_sort;
         if (s0 == real_())
         {
-          target_sort = real_();
+          static function_symbol abs(abs_name(), make_function_sort(real_(), real_()));
+          return abs;
         }
         else if (s0 == sort_int::int_())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol abs(abs_name(), make_function_sort(sort_int::int_(), sort_nat::nat()));
+          return abs;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for abs with domain sorts " + pp(s0));
         }
-
-        function_symbol abs(abs_name(), make_function_sort(s0, target_sort));
-        return abs;
       }
 
       /// \brief Recogniser for function abs
@@ -684,8 +652,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == abs_name() && function_sort(f.sort()).domain().size() == 1 && (f == abs(real_()) || f == abs(sort_int::int_()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == abs_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 1 && (f == abs(real_()) || f == abs(sort_int::int_()));
         }
         return false;
       }
@@ -707,11 +675,7 @@ namespace mcrl2 {
       inline
       bool is_abs_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_abs_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_abs_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier -
@@ -725,32 +689,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol negate(const sort_expression& s0)
+      function_symbol const& negate(const sort_expression& s0)
       {
-        sort_expression target_sort;
         if (s0 == real_())
         {
-          target_sort = real_();
+          static function_symbol negate(negate_name(), make_function_sort(real_(), real_()));
+          return negate;
         }
         else if (s0 == sort_pos::pos())
         {
-          target_sort = sort_int::int_();
+          static function_symbol negate(negate_name(), make_function_sort(sort_pos::pos(), sort_int::int_()));
+          return negate;
         }
         else if (s0 == sort_nat::nat())
         {
-          target_sort = sort_int::int_();
+          static function_symbol negate(negate_name(), make_function_sort(sort_nat::nat(), sort_int::int_()));
+          return negate;
         }
         else if (s0 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol negate(negate_name(), make_function_sort(sort_int::int_(), sort_int::int_()));
+          return negate;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for negate with domain sorts " + pp(s0));
         }
-
-        function_symbol negate(negate_name(), make_function_sort(s0, target_sort));
-        return negate;
       }
 
       /// \brief Recogniser for function -
@@ -761,8 +725,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == negate_name() && function_sort(f.sort()).domain().size() == 1 && (f == negate(real_()) || f == negate(sort_pos::pos()) || f == negate(sort_nat::nat()) || f == negate(sort_int::int_()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == negate_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 1 && (f == negate(real_()) || f == negate(sort_pos::pos()) || f == negate(sort_nat::nat()) || f == negate(sort_int::int_()));
         }
         return false;
       }
@@ -784,11 +748,7 @@ namespace mcrl2 {
       inline
       bool is_negate_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_negate_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_negate_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier succ
@@ -802,32 +762,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol succ(const sort_expression& s0)
+      function_symbol const& succ(const sort_expression& s0)
       {
-        sort_expression target_sort;
         if (s0 == real_())
         {
-          target_sort = real_();
+          static function_symbol succ(succ_name(), make_function_sort(real_(), real_()));
+          return succ;
         }
         else if (s0 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol succ(succ_name(), make_function_sort(sort_int::int_(), sort_int::int_()));
+          return succ;
         }
         else if (s0 == sort_nat::nat())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol succ(succ_name(), make_function_sort(sort_nat::nat(), sort_pos::pos()));
+          return succ;
         }
         else if (s0 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol succ(succ_name(), make_function_sort(sort_pos::pos(), sort_pos::pos()));
+          return succ;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for succ with domain sorts " + pp(s0));
         }
-
-        function_symbol succ(succ_name(), make_function_sort(s0, target_sort));
-        return succ;
       }
 
       /// \brief Recogniser for function succ
@@ -838,8 +798,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == succ_name() && function_sort(f.sort()).domain().size() == 1 && (f == succ(real_()) || f == succ(sort_int::int_()) || f == succ(sort_nat::nat()) || f == succ(sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == succ_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 1 && (f == succ(real_()) || f == succ(sort_int::int_()) || f == succ(sort_nat::nat()) || f == succ(sort_pos::pos()));
         }
         return false;
       }
@@ -861,11 +821,7 @@ namespace mcrl2 {
       inline
       bool is_succ_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_succ_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_succ_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier pred
@@ -879,32 +835,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol pred(const sort_expression& s0)
+      function_symbol const& pred(const sort_expression& s0)
       {
-        sort_expression target_sort;
         if (s0 == real_())
         {
-          target_sort = real_();
+          static function_symbol pred(pred_name(), make_function_sort(real_(), real_()));
+          return pred;
         }
         else if (s0 == sort_nat::nat())
         {
-          target_sort = sort_int::int_();
+          static function_symbol pred(pred_name(), make_function_sort(sort_nat::nat(), sort_int::int_()));
+          return pred;
         }
         else if (s0 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol pred(pred_name(), make_function_sort(sort_int::int_(), sort_int::int_()));
+          return pred;
         }
         else if (s0 == sort_pos::pos())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol pred(pred_name(), make_function_sort(sort_pos::pos(), sort_nat::nat()));
+          return pred;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for pred with domain sorts " + pp(s0));
         }
-
-        function_symbol pred(pred_name(), make_function_sort(s0, target_sort));
-        return pred;
       }
 
       /// \brief Recogniser for function pred
@@ -915,8 +871,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == pred_name() && function_sort(f.sort()).domain().size() == 1 && (f == pred(real_()) || f == pred(sort_nat::nat()) || f == pred(sort_int::int_()) || f == pred(sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == pred_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 1 && (f == pred(real_()) || f == pred(sort_nat::nat()) || f == pred(sort_int::int_()) || f == pred(sort_pos::pos()));
         }
         return false;
       }
@@ -938,11 +894,7 @@ namespace mcrl2 {
       inline
       bool is_pred_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_pred_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_pred_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier +
@@ -956,40 +908,42 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol plus(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& plus(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == real_())
         {
-          target_sort = real_();
+          static function_symbol plus(plus_name(), make_function_sort(real_(), real_(), real_()));
+          return plus;
         }
         else if (s0 == sort_int::int_() && s1 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol plus(plus_name(), make_function_sort(sort_int::int_(), sort_int::int_(), sort_int::int_()));
+          return plus;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_nat::nat())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol plus(plus_name(), make_function_sort(sort_pos::pos(), sort_nat::nat(), sort_pos::pos()));
+          return plus;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol plus(plus_name(), make_function_sort(sort_nat::nat(), sort_pos::pos(), sort_pos::pos()));
+          return plus;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol plus(plus_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_nat::nat()));
+          return plus;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol plus(plus_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), sort_pos::pos()));
+          return plus;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for plus with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol plus(plus_name(), make_function_sort(s0, s1, target_sort));
-        return plus;
       }
 
       /// \brief Recogniser for function +
@@ -1000,8 +954,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == plus_name() && function_sort(f.sort()).domain().size() == 2 && (f == plus(real_(), real_()) || f == plus(sort_int::int_(), sort_int::int_()) || f == plus(sort_pos::pos(), sort_nat::nat()) || f == plus(sort_nat::nat(), sort_pos::pos()) || f == plus(sort_nat::nat(), sort_nat::nat()) || f == plus(sort_pos::pos(), sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == plus_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == plus(real_(), real_()) || f == plus(sort_int::int_(), sort_int::int_()) || f == plus(sort_pos::pos(), sort_nat::nat()) || f == plus(sort_nat::nat(), sort_pos::pos()) || f == plus(sort_nat::nat(), sort_nat::nat()) || f == plus(sort_pos::pos(), sort_pos::pos()));
         }
         return false;
       }
@@ -1024,11 +978,7 @@ namespace mcrl2 {
       inline
       bool is_plus_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_plus_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_plus_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier -
@@ -1042,32 +992,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol minus(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& minus(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == real_())
         {
-          target_sort = real_();
+          static function_symbol minus(minus_name(), make_function_sort(real_(), real_(), real_()));
+          return minus;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
         {
-          target_sort = sort_int::int_();
+          static function_symbol minus(minus_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), sort_int::int_()));
+          return minus;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_int::int_();
+          static function_symbol minus(minus_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_int::int_()));
+          return minus;
         }
         else if (s0 == sort_int::int_() && s1 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol minus(minus_name(), make_function_sort(sort_int::int_(), sort_int::int_(), sort_int::int_()));
+          return minus;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for minus with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol minus(minus_name(), make_function_sort(s0, s1, target_sort));
-        return minus;
       }
 
       /// \brief Recogniser for function -
@@ -1078,8 +1028,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == minus_name() && function_sort(f.sort()).domain().size() == 2 && (f == minus(real_(), real_()) || f == minus(sort_pos::pos(), sort_pos::pos()) || f == minus(sort_nat::nat(), sort_nat::nat()) || f == minus(sort_int::int_(), sort_int::int_()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == minus_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == minus(real_(), real_()) || f == minus(sort_pos::pos(), sort_pos::pos()) || f == minus(sort_nat::nat(), sort_nat::nat()) || f == minus(sort_int::int_(), sort_int::int_()));
         }
         return false;
       }
@@ -1102,11 +1052,7 @@ namespace mcrl2 {
       inline
       bool is_minus_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_minus_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_minus_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier *
@@ -1120,32 +1066,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol times(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& times(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == real_())
         {
-          target_sort = real_();
+          static function_symbol times(times_name(), make_function_sort(real_(), real_(), real_()));
+          return times;
         }
         else if (s0 == sort_int::int_() && s1 == sort_int::int_())
         {
-          target_sort = sort_int::int_();
+          static function_symbol times(times_name(), make_function_sort(sort_int::int_(), sort_int::int_(), sort_int::int_()));
+          return times;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol times(times_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_nat::nat()));
+          return times;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol times(times_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), sort_pos::pos()));
+          return times;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for times with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol times(times_name(), make_function_sort(s0, s1, target_sort));
-        return times;
       }
 
       /// \brief Recogniser for function *
@@ -1156,8 +1102,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == times_name() && function_sort(f.sort()).domain().size() == 2 && (f == times(real_(), real_()) || f == times(sort_int::int_(), sort_int::int_()) || f == times(sort_nat::nat(), sort_nat::nat()) || f == times(sort_pos::pos(), sort_pos::pos()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == times_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == times(real_(), real_()) || f == times(sort_int::int_(), sort_int::int_()) || f == times(sort_nat::nat(), sort_nat::nat()) || f == times(sort_pos::pos(), sort_pos::pos()));
         }
         return false;
       }
@@ -1180,11 +1126,7 @@ namespace mcrl2 {
       inline
       bool is_times_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_times_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_times_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier exp
@@ -1198,32 +1140,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol exp(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& exp(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort;
         if (s0 == real_() && s1 == sort_int::int_())
         {
-          target_sort = real_();
+          static function_symbol exp(exp_name(), make_function_sort(real_(), sort_int::int_(), real_()));
+          return exp;
         }
         else if (s0 == sort_int::int_() && s1 == sort_nat::nat())
         {
-          target_sort = sort_int::int_();
+          static function_symbol exp(exp_name(), make_function_sort(sort_int::int_(), sort_nat::nat(), sort_int::int_()));
+          return exp;
         }
         else if (s0 == sort_pos::pos() && s1 == sort_nat::nat())
         {
-          target_sort = sort_pos::pos();
+          static function_symbol exp(exp_name(), make_function_sort(sort_pos::pos(), sort_nat::nat(), sort_pos::pos()));
+          return exp;
         }
         else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
         {
-          target_sort = sort_nat::nat();
+          static function_symbol exp(exp_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), sort_nat::nat()));
+          return exp;
         }
         else
         {
           throw mcrl2::runtime_error("cannot compute target sort for exp with domain sorts " + pp(s0) + ", " + pp(s1));
         }
-
-        function_symbol exp(exp_name(), make_function_sort(s0, s1, target_sort));
-        return exp;
       }
 
       /// \brief Recogniser for function exp
@@ -1234,8 +1176,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == exp_name() && function_sort(f.sort()).domain().size() == 2 && (f == exp(real_(), sort_int::int_()) || f == exp(sort_int::int_(), sort_nat::nat()) || f == exp(sort_pos::pos(), sort_nat::nat()) || f == exp(sort_nat::nat(), sort_nat::nat()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == exp_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == exp(real_(), sort_int::int_()) || f == exp(sort_int::int_(), sort_nat::nat()) || f == exp(sort_pos::pos(), sort_nat::nat()) || f == exp(sort_nat::nat(), sort_nat::nat()));
         }
         return false;
       }
@@ -1258,11 +1200,7 @@ namespace mcrl2 {
       inline
       bool is_exp_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_exp_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_exp_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier /
@@ -1276,11 +1214,32 @@ namespace mcrl2 {
 
       // This function is not intended for public use and therefore not documented in Doxygen.
       inline
-      function_symbol divides(const sort_expression& s0, const sort_expression& s1)
+      function_symbol const& divides(const sort_expression& s0, const sort_expression& s1)
       {
-        sort_expression target_sort(real_());
-        function_symbol divides(divides_name(), make_function_sort(s0, s1, target_sort));
-        return divides;
+        if (s0 == sort_pos::pos() && s1 == sort_pos::pos())
+        {
+          static function_symbol divides(divides_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), real_()));
+          return divides;
+        }
+        else if (s0 == sort_nat::nat() && s1 == sort_nat::nat())
+        {
+          static function_symbol divides(divides_name(), make_function_sort(sort_nat::nat(), sort_nat::nat(), real_()));
+          return divides;
+        }
+        else if (s0 == sort_int::int_() && s1 == sort_int::int_())
+        {
+          static function_symbol divides(divides_name(), make_function_sort(sort_int::int_(), sort_int::int_(), real_()));
+          return divides;
+        }
+        else if (s0 == real_() && s1 == real_())
+        {
+          static function_symbol divides(divides_name(), make_function_sort(real_(), real_(), real_()));
+          return divides;
+        }
+        else
+        {
+          throw mcrl2::runtime_error("cannot compute target sort for divides with domain sorts " + pp(s0) + ", " + pp(s1));
+        }
       }
 
       /// \brief Recogniser for function /
@@ -1291,8 +1250,8 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          function_symbol f(e);
-          return f.name() == divides_name() && function_sort(f.sort()).domain().size() == 2 && (f == divides(sort_pos::pos(), sort_pos::pos()) || f == divides(sort_nat::nat(), sort_nat::nat()) || f == divides(sort_int::int_(), sort_int::int_()) || f == divides(real_(), real_()));
+          const function_symbol& f = atermpp::down_cast<function_symbol>(e);
+          return f.name() == divides_name() && atermpp::down_cast<function_sort>(f.sort()).domain().size() == 2 && (f == divides(sort_pos::pos(), sort_pos::pos()) || f == divides(sort_nat::nat(), sort_nat::nat()) || f == divides(sort_int::int_(), sort_int::int_()) || f == divides(real_(), real_()));
         }
         return false;
       }
@@ -1315,11 +1274,7 @@ namespace mcrl2 {
       inline
       bool is_divides_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_divides_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_divides_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier floor
@@ -1349,7 +1304,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == floor();
+          return atermpp::down_cast<function_symbol>(e) == floor();
         }
         return false;
       }
@@ -1371,11 +1326,7 @@ namespace mcrl2 {
       inline
       bool is_floor_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_floor_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_floor_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier ceil
@@ -1405,7 +1356,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == ceil();
+          return atermpp::down_cast<function_symbol>(e) == ceil();
         }
         return false;
       }
@@ -1427,11 +1378,7 @@ namespace mcrl2 {
       inline
       bool is_ceil_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_ceil_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_ceil_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier round
@@ -1461,7 +1408,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == round();
+          return atermpp::down_cast<function_symbol>(e) == round();
         }
         return false;
       }
@@ -1483,11 +1430,7 @@ namespace mcrl2 {
       inline
       bool is_round_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_round_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_round_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@redfrac
@@ -1517,7 +1460,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == reduce_fraction();
+          return atermpp::down_cast<function_symbol>(e) == reduce_fraction();
         }
         return false;
       }
@@ -1540,11 +1483,7 @@ namespace mcrl2 {
       inline
       bool is_reduce_fraction_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_reduce_fraction_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_reduce_fraction_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@redfracwhr
@@ -1574,7 +1513,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == reduce_fraction_where();
+          return atermpp::down_cast<function_symbol>(e) == reduce_fraction_where();
         }
         return false;
       }
@@ -1598,11 +1537,7 @@ namespace mcrl2 {
       inline
       bool is_reduce_fraction_where_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_reduce_fraction_where_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_reduce_fraction_where_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier \@redfrachlp
@@ -1632,7 +1567,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == reduce_fraction_helper();
+          return atermpp::down_cast<function_symbol>(e) == reduce_fraction_helper();
         }
         return false;
       }
@@ -1655,11 +1590,7 @@ namespace mcrl2 {
       inline
       bool is_reduce_fraction_helper_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_reduce_fraction_helper_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_reduce_fraction_helper_function_symbol(atermpp::down_cast<application>(e).head());
       }
       /// \brief Give all system defined mappings for real_
       /// \return All system defined mappings for real_
@@ -1702,7 +1633,7 @@ namespace mcrl2 {
       /// \pre right is defined for e
       /// \return The argument of e that corresponds to right
       inline
-      data_expression right(const data_expression& e)
+      const data_expression& right(const data_expression& e)
       {
         assert(is_creal_application(e) || is_maximum_application(e) || is_minimum_application(e) || is_plus_application(e) || is_minus_application(e) || is_times_application(e) || is_exp_application(e) || is_divides_application(e) || is_reduce_fraction_application(e) || is_reduce_fraction_helper_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -1714,7 +1645,7 @@ namespace mcrl2 {
       /// \pre arg1 is defined for e
       /// \return The argument of e that corresponds to arg1
       inline
-      data_expression arg1(const data_expression& e)
+      const data_expression& arg1(const data_expression& e)
       {
         assert(is_reduce_fraction_where_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -1726,7 +1657,7 @@ namespace mcrl2 {
       /// \pre arg2 is defined for e
       /// \return The argument of e that corresponds to arg2
       inline
-      data_expression arg2(const data_expression& e)
+      const data_expression& arg2(const data_expression& e)
       {
         assert(is_reduce_fraction_where_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -1738,7 +1669,7 @@ namespace mcrl2 {
       /// \pre arg3 is defined for e
       /// \return The argument of e that corresponds to arg3
       inline
-      data_expression arg3(const data_expression& e)
+      const data_expression& arg3(const data_expression& e)
       {
         assert(is_reduce_fraction_where_application(e));
         return atermpp::down_cast<const application >(e)[2];
@@ -1750,7 +1681,7 @@ namespace mcrl2 {
       /// \pre arg is defined for e
       /// \return The argument of e that corresponds to arg
       inline
-      data_expression arg(const data_expression& e)
+      const data_expression& arg(const data_expression& e)
       {
         assert(is_pos2real_application(e) || is_nat2real_application(e) || is_int2real_application(e) || is_real2pos_application(e) || is_real2nat_application(e) || is_real2int_application(e) || is_abs_application(e) || is_negate_application(e) || is_succ_application(e) || is_pred_application(e) || is_floor_application(e) || is_ceil_application(e) || is_round_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -1762,7 +1693,7 @@ namespace mcrl2 {
       /// \pre left is defined for e
       /// \return The argument of e that corresponds to left
       inline
-      data_expression left(const data_expression& e)
+      const data_expression& left(const data_expression& e)
       {
         assert(is_creal_application(e) || is_maximum_application(e) || is_minimum_application(e) || is_plus_application(e) || is_minus_application(e) || is_times_application(e) || is_exp_application(e) || is_divides_application(e) || is_reduce_fraction_application(e) || is_reduce_fraction_helper_application(e));
         return atermpp::down_cast<const application >(e)[0];

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright: Wieger Wesselink <j.w.wesselink@tue.nl> 2014-2017
+# Copyright: Wieger Wesselink <j.w.wesselink@tue.nl> 2014-2018
 #
 # This script is used for building debian packages.
 #
@@ -12,7 +12,7 @@
 #
 # Before calling the script, do the following steps:
 #
-# * Update the MCRL2_MAJOR_VERSION variable in the file scripts/MCRL2Version.cmake".
+# * Update the MCRL2_MAJOR_VERSION variable in the file build/cmake/MCRL2Version.cmake".
 # * Update the MCRL2_VERSION and UBUNTU_VERSION variables below.
 # * Update the copyright period in the file COPYING."
 # * Make sure that all changes are committed.
@@ -22,8 +22,7 @@
 # DEB_BUILD_OPTIONS="parallel=8"
 # APTCACHEHARDLINK=no
 #
-# N.B. This script has been modified such that it operates in place on a checked
-# out SVN repository. It has not been used in practice yet!
+# Please run this script in an empty directory.
 #
 # The commands at the end are all commented out. It's a good idea to do the steps
 # incrementally, to make sure everything works. Please make sure to do the optional
@@ -31,8 +30,9 @@
 # do_ppa_upload. If these steps fail, it makes no sense to do an upload. After
 # every failed upload attempt the version number needs to be updated.
 
-MCRL2_VERSION="201707.1"
-UBUNTU_VERSION="1ubuntu1ppa2"
+MCRL2_RELEASE_BRANCH="release-201808"
+MCRL2_VERSION="201808.0"
+UBUNTU_VERSION="1ubuntu1ppa1"
 DEBEMAIL="j.w.wesselink@tue.nl"
 DEBFULLNAME="Wieger Wesselink"
 
@@ -42,7 +42,7 @@ DEBFULLNAME="Wieger Wesselink"
 set +x
 # N.B. Do not call this variable PWD, since it is overwritten during the LTSMin installation!
 MYPWD=`pwd`
-MCRL2_ROOT=../../..
+MCRL2_ROOT=$MYPWD/mcrl2
 LTSMIN_DIR=$MYPWD/ltsmin
 MCRL2_RELEASE_DIR=$MYPWD/mcrl2-release
 MCRL2_TEST_DIR=$MYPWD/mcrl2-test
@@ -55,6 +55,16 @@ function clear_path
 }
 
 #-----------------------------------------------------------#
+# Download the mcrl2 release branch
+#-----------------------------------------------------------#
+function download_mcrl2_release
+{
+  cd $MYPWD
+  rm -rf $MCRL2_ROOT
+  git clone -b $MCRL2_RELEASE_BRANCH https://github.com/mcrl2org/mcrl2.git mcrl2
+}
+
+#-----------------------------------------------------------#
 # Copy the debian packaging files
 #-----------------------------------------------------------#
 function prepare_debian_packaging
@@ -63,7 +73,7 @@ function prepare_debian_packaging
   rm -rf $DEBIAN_PACKAGING_DIR
   mkdir $DEBIAN_PACKAGING_DIR
   mkdir $DEBIAN_PACKAGING_DIR/mcrl2
-  cp -r debian $DEBIAN_PACKAGING_DIR/mcrl2
+  cp -r $MCRL2_ROOT/build/make_release/debian $DEBIAN_PACKAGING_DIR/mcrl2
   cp mcrl2-package/mcrl2-$MCRL2_VERSION.tar.gz $DEBIAN_PACKAGING_DIR/mcrl2_$MCRL2_VERSION.orig.tar.gz
 }
 
@@ -185,19 +195,6 @@ function test_ltsmin
 }
 
 #-----------------------------------------------------------#
-# Tag the release
-#-----------------------------------------------------------#
-function tag_release
-{
-  echo "-------------------------------------------------------------------------------------------------------------------"
-  echo "* Tag the release using the following command:"
-  echo ""
-  echo "svn copy https://svn.win.tue.nl/repos/MCRL2/branches/release https://svn.win.tue.nl/repos/MCRL2/tags/mcrl2-$MCRL2_VERSION"
-  echo "-------------------------------------------------------------------------------------------------------------------"
-  exit
-}
-
-#-----------------------------------------------------------#
 # Build and upload the source package
 #-----------------------------------------------------------#
 function build_source_package
@@ -208,11 +205,6 @@ function build_source_package
   cd mcrl2-package
   cmake $MCRL2_ROOT -DMCRL2_PACKAGE_RELEASE="ON"
   make package_source
-  echo "-------------------------------------------------------------------------------------------------------------------"
-  echo "* Upload the package using the following command:"
-  echo ""
-  echo "scp mcrl2-package/mcrl2-$MCRL2_VERSION.tar.gz mcrl2@www.win.tue.nl:www/download/release"
-  echo "-------------------------------------------------------------------------------------------------------------------"
 }
 
 #-----------------------------------------------------------#
@@ -251,41 +243,26 @@ function test_debian_package
   fi
   cd $DEBIAN_PACKAGING_DIR/mcrl2
   VERSION="$MCRL2_VERSION-$UBUNTU_VERSION~$1"
-  dch -v $VERSION -D $1
+  dch -v $VERSION -D $1 "New upstream release."
   debuild -S -sa
   cd ..
   pbuilder-dist $1 build mcrl2_$VERSION.dsc --buildresult .
   lintian -i mcrl2_${VERSION}_amd64.deb
 }
 
-#--- Build mcrl2
-#build_mcrl2_release
-#build_source_package
-
-#--- Test mcrl2
-#build_mcrl2_test              # optional
-#test_mcrl2_release            # optional
-
-#--- Build + test ltsmin
-#build_mcrl2_ltsmin
-#build_ltsmin
-#test_ltsmin
+function build_ppa_package
+{
+  # N.B. Either run build_debian_package or test_debian_package. Otherwise in a
+  # later step GPG errors may occur!
+  #
+  #prepare_debian_packaging
+  #build_debian_package $1 $2
+  #test_debian_package $1
+  #simulate_ppa_upload $1
+  #do_ppa_upload $1
+}
 
 #--- Build ppa packages
-#prepare_debian_packaging
-#build_debian_package xenial
-#test_debian_package xenial    # optional
-#simulate_ppa_upload xenial    # optional
-#do_ppa_upload xenial
-
-#prepare_debian_packaging
-#build_debian_package yakkety
-#test_debian_package yakkety   # optional
-#simulate_ppa_upload yakkety   # optional
-#do_ppa_upload yakkety
-
-#prepare_debian_packaging
-#build_debian_package zesty
-#test_debian_package zesty     # optional
-#simulate_ppa_upload zesty     # optional
-#do_ppa_upload zesty
+#build_ppa_package trusty
+#build_ppa_package xenial
+#build_ppa_package bionic

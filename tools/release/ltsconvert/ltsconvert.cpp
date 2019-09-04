@@ -135,7 +135,9 @@ class ltsconvert_tool : public input_output_tool
 
       if (tool_options.check_reach)
       {
+        timer().start("reachability check");
         reachability_check(l, true); // Remove unreachable states from the input transition system.
+        timer().finish("reachability check");
       }
 
       if (tool_options.remove_state_information)
@@ -147,7 +149,9 @@ class ltsconvert_tool : public input_output_tool
       {
         mCRL2log(verbose) << "reducing LTS (modulo " <<  description(tool_options.equivalence) << ")..." << std::endl;
         mCRL2log(verbose) << "before reduction: " << l.num_states() << " states and " << l.num_transitions() << " transitions " << std::endl;
+        timer().start("reduction");
         reduce(l,tool_options.equivalence);
+        timer().finish("reduction");
         mCRL2log(verbose) << "after reduction: " << l.num_states() << " states and " << l.num_transitions() << " transitions" << std::endl;
       }
 
@@ -155,7 +159,9 @@ class ltsconvert_tool : public input_output_tool
       {
         mCRL2log(verbose) << "determinising LTS..." << std::endl;
         mCRL2log(verbose) << "before determinisation: " << l.num_states() << " states and " << l.num_transitions() << " transitions" << std::endl;
+        timer().start("determinisation");
         determinise(l);
+        timer().finish("determinisation");
         mCRL2log(verbose) << "after determinisation: " << l.num_states() << " states and " << l.num_transitions() << " transitions" << std::endl;
       }
 
@@ -259,15 +265,15 @@ class ltsconvert_tool : public input_output_tool
                       .add_value(lts_eq_none, true)
                       .add_value(lts_eq_bisim)
                       .add_value(lts_eq_bisim_gv)
-                      .add_value(lts_eq_bisim_tb)
+                      .add_value(lts_eq_bisim_gjkw)
                       .add_value(lts_eq_bisim_sigref)
                       .add_value(lts_eq_branching_bisim)
                       .add_value(lts_eq_branching_bisim_gv)
-                      .add_value(lts_eq_branching_bisim_tb)
+                      .add_value(lts_eq_branching_bisim_gjkw)
                       .add_value(lts_eq_branching_bisim_sigref)
                       .add_value(lts_eq_divergence_preserving_branching_bisim)
                       .add_value(lts_eq_divergence_preserving_branching_bisim_gv)
-                      .add_value(lts_eq_divergence_preserving_branching_bisim_tb)
+                      .add_value(lts_eq_divergence_preserving_branching_bisim_gjkw)
                       .add_value(lts_eq_divergence_preserving_branching_bisim_sigref)
                       .add_value(lts_eq_weak_bisim)
                       .add_value(lts_eq_divergence_preserving_weak_bisim)
@@ -352,12 +358,12 @@ class ltsconvert_tool : public input_output_tool
 
       if (tool_options.determinise && (tool_options.equivalence != lts_eq_none))
       {
-        throw parser.error("cannot use option -D/--determinise together with LTS reduction options\n");
+        parser.error("cannot use option -D/--determinise together with LTS reduction options\n");
       }
 
       if (2 < parser.arguments.size())
       {
-        throw parser.error("too many file arguments");
+        parser.error("too many file arguments");
       }
       else
       {

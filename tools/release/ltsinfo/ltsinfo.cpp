@@ -11,6 +11,7 @@
 #define NAME "ltsinfo"
 #define AUTHOR "Muck van Weerdenburg"
 
+#include <algorithm>
 #include <string>
 
 #include "mcrl2/utilities/logger.h"
@@ -38,7 +39,9 @@ class ltsinfo_tool : public ltsinfo_base
 
     std::string                 infilename;
     mcrl2::lts::lts_type        intype;
+    bool                        print_action_labels;
     bool                        print_state_labels;
+    bool                        print_branching_factor;
 
   public:
 
@@ -67,10 +70,14 @@ class ltsinfo_tool : public ltsinfo_base
       ltsinfo_base::add_options(desc);
 
       desc.
+      add_option("action-label",
+                 "print the labels of actions",'a').
       add_option("in", make_mandatory_argument("FORMAT"),
                  "use FORMAT as the input format", 'i').
       add_option("state-label",
-                 "print the labels of states",'l') ;
+                 "print the labels of states",'l').
+      add_option("branching-factor",
+                 "print the average, minimal and maximal branching factor",'b');
     }
 
     void parse_options(const command_line_parser& parser)
@@ -85,25 +92,27 @@ class ltsinfo_tool : public ltsinfo_base
       }
       if (1 < parser.arguments.size())
       {
-        throw parser.error("Too many file arguments.");
+        parser.error("Too many file arguments.");
       }
 
       if (parser.options.count("in"))
       {
         if (1 < parser.options.count("in"))
         {
-          throw parser.error("Multiple input formats specified; can only use one.");
+          parser.error("Multiple input formats specified; can only use one.");
         }
 
         intype = mcrl2::lts::detail::parse_format(parser.option_argument("in"));
         if (intype == lts_none || intype == lts_dot)
         {
-          throw parser.error("Option -i/--in has illegal argument '" +
+          parser.error("Option -i/--in has illegal argument '" +
                        parser.option_argument("in") + "'.");
         }
       }
 
-      print_state_labels=parser.options.count("state-label")>0;
+      print_action_labels = parser.options.count("action-label") > 0;
+      print_state_labels = parser.options.count("state-label") > 0;
+      print_branching_factor = parser.options.count("branching-factor") > 0;
     }
 
     template <class SL, class AL, class BASE>
@@ -111,7 +120,6 @@ class ltsinfo_tool : public ltsinfo_base
     {
       // No probabilistic information is provided for a plain lts.
     }
-
 
     template <class SL, class AL, class PROBABILISTIC_STATE, class BASE>
     static void provide_probabilistic_information(mcrl2::lts::probabilistic_lts < SL, AL, PROBABILISTIC_STATE, BASE>&  l)
@@ -141,6 +149,64 @@ class ltsinfo_tool : public ltsinfo_base
         mCRL2log(info) << "This lts has no probabilistic states.\n";
       }
 
+    }
+
+    template<typename T>
+    static bool is_even(T t)
+    {
+      return t % 2 == 0;
+    }
+
+    template<typename LTS>
+    void print_the_action_labels(const LTS& l) const
+    {
+      if (!print_action_labels) { return; }
+
+      mCRL2log(info) << "The action labels of this transition system: \n";
+      for (auto& action_label : l.action_labels())
+      {
+         mCRL2log(info) << action_label << "\n";
+      }
+    }
+
+    /// \brief Prints the min, max, median and average of the branching factor for the given LTS.
+    template<typename LTS>
+    void print_the_branching_factor(const LTS& lts) const
+    {
+      if (!print_branching_factor) { return; }
+
+      // Count the number of transitions outgoing from each state
+      std::vector<std::uint64_t> branching_factor(lts.num_states());
+      for (auto& transition : lts.get_transitions())
+      {
+        ++branching_factor[transition.from()];
+      }
+
+      // Sort the counts to obtain min, max and median.
+      std::sort(branching_factor.begin(), branching_factor.end());
+      std::uint64_t min = branching_factor.front();
+      std::uint64_t max = branching_factor.back();
+
+      double median = static_cast<double>(branching_factor[branching_factor.size() / 2]);
+      if (is_even(branching_factor.size()))
+      {
+        // For even number of observations is even we average the observations left and right of the middle,
+        // because indices start at zero the left observation is located at n / 2 - 1.
+        median = static_cast<double>(branching_factor[branching_factor.size() / 2 - 1] + branching_factor[branching_factor.size() / 2]) / 2.0;
+      }
+
+      // Calculate the average, (sum i from zero to n of i) divided by n or equivalently sum i from zero to n of i/n.
+      double average_branching_factor = 0;
+      for (auto& factor : branching_factor)
+      {
+        average_branching_factor += static_cast<double>(factor) / lts.num_states();
+      }
+
+      // Print the results.
+      mCRL2log(info) << "The branching factor is min: " << min
+        << ", max: " << max
+        << ", median: " << median
+        << " and average: " << average_branching_factor << "\n";
     }
 
     // Code to print the state labels. There is a specialisation for an probabilistic_lts_lts_t.
@@ -241,12 +307,12 @@ class ltsinfo_tool : public ltsinfo_base
 
       provide_probabilistic_information(l);
 
+      print_the_action_labels(l);
       print_the_state_labels(l);
+      print_the_branching_factor(l);
 
       return true;
     }
-
-
 
   public:
 

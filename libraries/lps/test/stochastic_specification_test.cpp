@@ -6,9 +6,11 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file specification_test.cpp
+/// \file stochastic_specification_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE stochastic_specification_test
+#include <boost/test/included/unit_test_framework.hpp>
 #include "mcrl2/lps/detail/test_input.h"
 #include "mcrl2/lps/find.h"
 #include "mcrl2/lps/is_stochastic.h"
@@ -17,7 +19,7 @@
 #include "mcrl2/lps/parse.h"
 #include "mcrl2/lps/print.h"
 #include "mcrl2/lps/stochastic_specification.h"
-#include <boost/test/included/unit_test_framework.hpp>
+#include "mcrl2/lps/is_well_typed.h"
 
 using namespace mcrl2;
 using namespace mcrl2::data;
@@ -159,6 +161,7 @@ BOOST_AUTO_TEST_CASE(test_push_dist_outward)
     ;
 
   stochastic_specification spec=linearise(text);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
 }  
 
 
@@ -167,9 +170,65 @@ BOOST_AUTO_TEST_CASE(test_parelm)
   stochastic_specification spec = linearise(lps::detail::ABP_SPECIFICATION());
   std::set<data::variable> v = lps::find_all_variables(spec);
   parelm(spec);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
 }
 
-boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
+/* This test case caused the lineariser to incorrectly handle bound variables in the distribution operator */
+BOOST_AUTO_TEST_CASE(bound_variable)
 {
-  return nullptr;
+  std::string text =
+    "act a;\n"
+    "init dist x0: Bool[if(x0,1/3,2/3)].(x0 -> (a . dist x1: Bool[1/2].(x1 -> a)));\n";
+  stochastic_specification spec=linearise(text);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
 }
+
+/* The following test case requires that the sum operator is distributed over the dist operator.
+ * This is only possible, as it stands for finite domains. */
+BOOST_AUTO_TEST_CASE(distributed_sum_over_dist1)
+{
+  std::string text =
+    "act\n"
+    "  c:Bool#Bool;\n"
+    "\n"
+    "proc\n"
+    "  Q = sum b1: Bool. dist x0: Bool[if(x0,1/4,3/4)].c(b1,x0).delta;\n"
+    "  \n"
+    "init Q;\n";
+  stochastic_specification spec=linearise(text);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
+}
+
+/* A more elaborate example of the previous test case, where there are also distributions
+ * inside the linear process. */
+BOOST_AUTO_TEST_CASE(distributed_sum_over_dist2)
+{
+  std::string text =
+    "act  c: Bool # Bool;\n"
+    "  \n"
+    "glob dc,dc1,dc2,dc3: Bool;\n"
+    "\n"
+    "proc P(s1_Q: Pos, x: Bool) = \n"
+    "       (s1_Q == 2) ->\n"
+    "         c(true, x) .\n"
+    "         P(s1_Q = 1, x = dc)\n"
+    "     + delta;\n"
+    "         \n"
+    "init dist x: Bool[if(x, 1 / 4, 3 / 4)] . P(2, x);\n";
+  stochastic_specification spec=linearise(text);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
+}
+/* The following example shows an initial distribution with variables
+ * that are not used in the body. */
+BOOST_AUTO_TEST_CASE(non_bound_initial_stochastic_variables)
+{
+  std::string text =
+    "act a;\n"
+    "\n"
+    "proc P = (true -> delta <> (dist x0: Bool[1 / 2] . x0 -> a)) . P;\n"
+    "\n"
+    "init P;\n";
+  stochastic_specification spec=linearise(text);
+  BOOST_CHECK(lps::detail::is_well_typed(spec));
+}
+

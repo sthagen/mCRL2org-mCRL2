@@ -38,8 +38,21 @@
 
 .. note::
 
-   We switched from svn to git. The mCRL2 toolset is downloadable at `github <https://github.com/mCRL2org/mCRL2>`_. The latest
-   svn commit is revision 15385 from June 4, 2018.
+  The 201908.0 release of mCRL2 is now available. Packages for various platforms can be
+  found on the :ref:`download<download>` page. In this release, the ATerm library, which is
+  the main internal data storage engine of mCRL2, has been re-implemented completely.
+  Furthermore, the mCRL2ide has seen many improvements, including the ability to check
+  whether two processes are equal under a given behavioural equivalence.
+
+.. note::
+  .. image:: tacas-ae.png
+          :align: right
+          :width: 90px
+          :alt: TACAS artefact evaluation badge
+  A tool paper explaining the latest developments in mCRL2 was published in TACAS2019.
+  The new features include counterexamples, probabilistic processes and efficient algorithms for several types of behavioural relations.
+  As part of the review process, mCRL2 was tested and accepted by the TACAS artefact evaluation committee.
+  The paper is `available <https://doi.org/10.1007/978-3-030-17465-1_2>`_ under open access.
 
 .. note::
 
@@ -57,19 +70,15 @@
 
 .. note::
 
-   mCRL2 received a prize for the distinguished user-assistance tool feature in the
-   `VerifyThis verification challenge <http://etaps2015.verifythis.org/>`_
-   held at `ETAPS2015 <http://www.etaps.org/>`_, in London. mCRL2 combined a rich specification
-   language with excellent automatic reasoning
-   features that made it an excellent tool to obtain
-   insight in complex data structures and behaviours.
-
-.. note::
-
-   mCRL2 now can be compiled using `Zapcc 1.0.1 <https://www.zapcc.com/>`_, a fast C++ compiler
-   based on clang-5.0. This speeds up the compilation with about 40%. To make it work add
-   ``*/libraries/utilities/source/command_line_interface.cpp`` to the ``[DoNotZap]`` section in
-   ``bin/zapccs.config``.
+   .. image:: Verum-2-Logo-Vert-Colour.jpg
+          :align: right
+          :width: 75px
+          :alt: Verum is the industry leader in reliable software design.
+          :target: https://www.verum.com
+   mCRL2 is used by the company `Verum <https://www.verum.com>`_ as their verification engine.
+   Verum provides model based software development environments for the languages ASD and Dezyne that
+   allow to program proven correct embedded software with much less effort than "classical" programming.
+   As it stands Verum is the industry leader in reliable software design.
 
 .. list-table::
    :class: teamcity-blurb

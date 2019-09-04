@@ -11,6 +11,7 @@
 
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/utilities/exception.h"
+#include "mcrl2/utilities/platform.h"
 
 #include <QSettings>
 #include <utility>
@@ -20,19 +21,19 @@
 #include "information.h"
 #include "springlayout.h"
 
-#define MAX_NODE_COUNT 400
+/// \brief The number of vertices before the user is prompted to enable exploration mode.
+constexpr std::size_t MAX_NODE_COUNT  = 400;
 
 MainWindow::MainWindow(QWidget* parent) :
   QMainWindow(parent),
   m_fileDialog("", this)
 {
-
   m_ui.setupUi(this);
   m_ui.dockOutput->setVisible(false);
 
   // Add graph area
+
   m_glwidget = new GLWidget(m_graph, m_ui.frame);
-  m_glwidget->setDepth(0, 0);
   m_ui.widgetLayout->addWidget(m_glwidget);
 
   // Create springlayout algorithm + UI
@@ -53,13 +54,13 @@ MainWindow::MainWindow(QWidget* parent) :
   informationui->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
 
   // Connect signals & slots
-  connect(m_glwidget, SIGNAL(widgetResized(const QVector3D&)), this, SLOT(onWidgetResized(const QVector3D&)));
   connect(m_ui.actExit, SIGNAL(triggered()), this, SLOT(close()));
   connect(m_ui.actLayoutControl, SIGNAL(toggled(bool)), springlayoutui, SLOT(setVisible(bool)));
   connect(m_ui.actVisualization, SIGNAL(toggled(bool)), glwidgetui, SLOT(setVisible(bool)));
   connect(m_ui.actInformation, SIGNAL(toggled(bool)), informationui, SLOT(setVisible(bool)));
   connect(m_ui.actOutput, SIGNAL(toggled(bool)), m_ui.dockOutput, SLOT(setVisible(bool)));
   connect(m_ui.act3D, SIGNAL(toggled(bool)), this, SLOT(on3DChanged(bool)));
+  connect(m_ui.act3D, SIGNAL(toggled(bool)), this, SLOT(updateStatusBar()));
   connect(m_ui.actExplorationMode, SIGNAL(toggled(bool)), this, SLOT(onExplore(bool)));
   connect(m_ui.actLayout, SIGNAL(toggled(bool)), springlayoutui, SLOT(setActive(bool)));
   connect(m_ui.actReset, SIGNAL(triggered()), m_glwidget, SLOT(resetViewpoint()));
@@ -81,11 +82,12 @@ MainWindow::MainWindow(QWidget* parent) :
   m_ui.actInformation->setChecked(!informationui->isHidden());
   m_ui.actOutput->setChecked(!m_ui.dockOutput->isHidden());
 
-#ifdef __APPLE__
+#ifdef MCRL2_PLATFORM_MAC
   m_ui.actFullscreen->setShortcut(QString("Meta+Ctrl+F"));
 #else
   m_ui.actFullscreen->setShortcut(QString("F11"));
 #endif
+  updateStatusBar();
 }
 
 void MainWindow::onFullscreen()
@@ -130,25 +132,22 @@ MainWindow::~MainWindow()
   delete m_glwidget;
 }
 
-void MainWindow::onWidgetResized(const QVector3D& newsize)
+void MainWindow::on3DChanged(bool enabled)
 {
+  m_glwidget->set3D(enabled);
+
+  // For 3D mode there is no limit and otherwise the z-dimension is limited to 0.
   QVector3D limit{INFINITY, INFINITY, INFINITY};
-  if (newsize.z() == 0.0)
+  if (!enabled)
   {
     limit.setZ(0.0);
   }
   m_graph.clip(-limit, limit);
-  m_layout->setClipRegion(-limit, limit, newsize.z());
-  m_glwidget->update();
-}
 
-void MainWindow::on3DChanged(bool enabled)
-{
-  if (enabled) {
-    m_glwidget->setDepth(1000, 25);
-  }
-  else {
-    m_glwidget->setDepth(0, 80);
+  if(enabled)
+  {
+    // Here, 10 is an arbitrary value chosen to move the nodes in the z-dimension when 3D is enabled.
+    m_layout->randomizeZ(10.0f);
   }
 }
 
@@ -156,12 +155,14 @@ void MainWindow::onExplore(bool enabled)
 {
   if (enabled)
   {
-    m_graph.makeSelection();
-    m_graph.toggleActive(m_graph.initialState());
+    m_graph.makeExploration();
+    m_graph.toggleOpen(m_graph.initialState());
   }
-  else {
-    m_graph.discardSelection();
+  else
+  {
+    m_graph.discardExploration();
   }
+
   m_glwidget->update();
 }
 
@@ -181,17 +182,26 @@ void MainWindow::openFile(const QString& fileName)
   {
     try
     {
-      bool hadSelection = m_graph.hasSelection();
+      // Indicates that exploration mode was previously enabled
+      bool hadExploration = m_graph.hasExploration();
+
+      // Disable layouting and reset viewport.
       m_ui.actLayout->setChecked(false);
+
       m_glwidget->pause();
       m_glwidget->resetViewpoint(0);
-      const double scaling = 0.5;
-      QVector3D limit = m_glwidget->size3() / 2.0 * scaling;
+
+      // We limit the initial positions of the nodes.
+      QVector3D limit = QVector3D(1000.0, 1000.0f, 0.0f) / 4.0f;
+
       // The argument '-' means we should read from stdin, the lts library
       // does that when supplied an empty string as the input file name
       m_graph.load(fileName == "-" ? "" : fileName, -limit, limit);
 
-      if (m_graph.nodeCount() > MAX_NODE_COUNT && !hadSelection)
+      m_glwidget->rebuild();
+      on3DChanged(false);
+
+      if (m_graph.nodeCount() > MAX_NODE_COUNT && !hadExploration)
       {
         if (QMessageBox::question(this, "Exploration mode",
                                   tr("The selected LTS has a large number of states; "
@@ -204,16 +214,16 @@ void MainWindow::openFile(const QString& fileName)
       }
       else
       {
-        onExplore(hadSelection);
+        onExplore(hadExploration);
       }
 
-      m_glwidget->rebuild();
       m_glwidget->resume();
+
       m_information->update();
       setWindowTitle(QString("LTSGraph - ") + fileName);
       m_graph.setStable(false);
     }
-    catch (mcrl2::runtime_error e)
+    catch (const mcrl2::runtime_error& e)
     {
       QMessageBox::critical(this, "Error opening file", e.what());
       mCRL2log(mcrl2::log::error) << "Error opening file: " << e.what() << std::endl;
@@ -263,11 +273,11 @@ void MainWindow::onImportXML()
 
   if (!fileName.isNull())
   {
-    bool hadSelection = m_graph.hasSelection();
+    bool hadExploration = m_graph.hasExploration();
     m_layout->ui()->setActive(false);
     m_glwidget->resetViewpoint(0);
     m_graph.loadXML(fileName);
-    onExplore(hadSelection);
+    onExplore(hadExploration);
     m_glwidget->rebuild();
     m_information->update();
     m_graph.setStable(false);
@@ -284,4 +294,16 @@ void MainWindow::onExportXML()
   {
     m_graph.saveXML(fileName);
   }
+}
+
+void MainWindow::updateStatusBar()
+{
+  QString ctrlKey = QKeySequence(Qt::ControlModifier).toString(QKeySequence::NativeText);
+  QString msg =
+    m_glwidget->isPainting() ?
+      "Click to paint a node" :
+      !m_ui.act3D->isChecked() ?
+        ctrlKey + "drag: move camera; scroll: zoom in/out; Esc: reset viewpoint; Right click: fix a node/handle" :
+        ctrlKey + "drag: move camera; Shift + drag: rotate camera; scroll: zoom in/out; Esc: reset viewpoint; Right click: fix a node/handle";
+  m_ui.statusBar->showMessage(msg);
 }

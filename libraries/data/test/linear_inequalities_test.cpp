@@ -7,13 +7,14 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 /// \file linear_inequalities_test.cpp
-/// \brief Test the linear_inequality functionality. 
+/// \brief Test the linear_inequality functionality.
 
+#define BOOST_TEST_MODULE linear_inequalities_test
 #include "mcrl2/data/fourier_motzkin.h"
 #include "mcrl2/data/join.h"
 #include "mcrl2/data/linear_inequalities.h"
 #include "mcrl2/data/parse.h"
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 using namespace mcrl2;
 using namespace mcrl2::core;
@@ -62,7 +63,7 @@ void test_linear_inequality()
   li = linear_inequality(expr, rewr);
   check(!li.is_true(rewr), "Expected '" + pp(expr) + "' to not be true");
   check(!li.lhs().empty(), "Expected left hand side of '" + pp(expr) + "' not to be empty");
-  check(li.transform_to_data_expression() == less_equal(sort_real::times(real_one(), vy), real_zero()), 
+  check(li.transform_to_data_expression() == less_equal(sort_real::times(real_one(), vy), real_zero()),
     "Expression '" + pp(expr) + "' parsing/output problem " + pp(li.transform_to_data_expression()));
 
   bool got_exception = false;
@@ -92,7 +93,7 @@ void split_conjunction_of_inequalities_set(const data_expression& e, std::vector
 }
 
 bool test_consistency_of_inequalities(const std::string& vars,
-                                      const std::string& inequalities, 
+                                      const std::string& inequalities,
                                       const bool expect_consistent)
 {
   // Take care that reals are part of the data type.
@@ -131,7 +132,8 @@ bool test_consistency_of_inequalities(const std::string& vars,
 bool test_application_of_Fourier_Motzkin(const std::string& vars,
                                          const std::string& variables_to_be_eliminated,
                                          const std::string& inequalities,
-                                         const std::string& inconsistent_with)
+                                         const std::string& inconsistent_with,
+                                         bool check_consistent = false)
 {
   // Take care that reals are part of the data type.
   data_specification data_spec;
@@ -149,15 +151,15 @@ bool test_application_of_Fourier_Motzkin(const std::string& vars,
 
   std::vector < linear_inequality> inconsistent_inequalities=resulting_inequalities;
   inconsistent_inequalities.push_back(linear_inequality(parse_data_expression(inconsistent_with,variables,data_spec),r));
-  if (!is_inconsistent(inconsistent_inequalities,r, false))
+  if (!(check_consistent ^ is_inconsistent(inconsistent_inequalities,r, false)))
   {
-    std::cout << "Expected set of inequations to be inconsisten with given inequality after applying Fourier-Motzkin elimination\n";
+    std::cout << "Expected set of inequations to be " << (check_consistent ? "" : "in") << "consistent with given inequality after applying Fourier-Motzkin elimination\n";
     std::cout << "Input: " << variables << ": " << inequalities << "\n";
     std::cout << "Parsed input : " << pp_vector(v_inequalities) << "\n";
     std::cout << "Variables to be eliminated: " << v_elim << "\n";
     std::cout << "Input after applying Fourier Motzkin: " << pp_vector(resulting_inequalities) << "\n";
-    std::cout << "Should be inconsistent with " << inconsistent_with << "\n";
-    std::cout << "Inconsistent inequality after parsing " << pp(linear_inequality(parse_data_expression(inconsistent_with,variables,data_spec),r)) << "\n";
+    std::cout << "Should be " << (check_consistent ? "" : "in") << "consistent with " << inconsistent_with << "\n";
+    std::cout << (check_consistent ? "Consistent" : "Inconsistent")  << " inequality after parsing " << pp(linear_inequality(parse_data_expression(inconsistent_with,variables,data_spec),r)) << "\n";
     return false;
   }
   return true;
@@ -176,7 +178,7 @@ void test_high_level_fourier_motzkin()
   data_expression out;
   variable_list vars_out;
   fourier_motzkin(expr, elim_vars, out, vars_out, rewr);
-  
+
   BOOST_CHECK(vars_out.empty());
   BOOST_CHECK(out == less(sort_real::times(real_one(), vx), sort_real::real_(2)));
 }
@@ -193,7 +195,7 @@ void test_high_level_fourier_motzkin_non_linear()
   data_expression out;
   variable_list vars_out;
   fourier_motzkin(expr, elim_vars, out, vars_out, rewr);
-  
+
   // Fourier Motzkin should fail, because the expression is not linear
   // Original result should be returned
   BOOST_CHECK(vars_out == elim_vars);
@@ -273,7 +275,7 @@ void test_split_conditions()
   real_conditions.clear(); non_real_conditions.clear();
 }
 
-int test_main(int /* argc */, char** /* argv[]*/)
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_linear_inequality();
   test_split_conditions();
@@ -287,8 +289,7 @@ int test_main(int /* argc */, char** /* argv[]*/)
   BOOST_CHECK(test_consistency_of_inequalities("u,t,l:Real;","u + -t <= 1 && -u <= -4 && -u + l < 0 && -u < 0 && -t <= 0 && -l + t <= 0",true));
 
   BOOST_CHECK(test_application_of_Fourier_Motzkin("x,y:Real;", "y:Real;", "-y + x < 0 &&  y < 2", "x>=2"));
+  BOOST_CHECK(test_application_of_Fourier_Motzkin("cup1,cup2,add:Real;", "add:Real;", "add <= 2 && 0 <= add && cup2 + 2 - add <= cup1 + add && 3 < cup1 + add - 2", "cup2 - cup1 >= 2", true));
   test_high_level_fourier_motzkin();
   test_high_level_fourier_motzkin_non_linear();
-  return 0;
 }
-

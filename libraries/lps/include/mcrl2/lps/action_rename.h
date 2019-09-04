@@ -94,7 +94,7 @@ class action_rename_rule
     {
       assert(core::detail::check_rule_ActionRenameRule(t));
       atermpp::aterm_appl::iterator i = t.begin();
-      m_variables       = data::variable_list(*i++);
+      m_variables       = atermpp::down_cast<data::variable_list>(*i++);
       m_condition       = data::data_expression(*i++);
       m_lhs             = process::action(*i++);
       m_rhs             = process::process_expression(*i);
@@ -105,10 +105,10 @@ class action_rename_rule
     /// \param t1 A term
     explicit action_rename_rule(const atermpp::aterm& t1)
     {
-      const atermpp::aterm_appl t(t1);
+      const atermpp::aterm_appl t=atermpp::down_cast<atermpp::aterm_appl>(t1);
       assert(core::detail::check_rule_ActionRenameRule(t));
       atermpp::aterm_appl::iterator i = t.begin();
-      m_variables       = data::variable_list(*i++);
+      m_variables       = atermpp::down_cast<data::variable_list>(*i++);
       m_condition       = data::data_expression(*i++);
       m_lhs             = process::action(*i++);
       m_rhs             = process::process_expression(*i);
@@ -199,10 +199,10 @@ class action_rename_specification
     {
       assert(core::detail::check_rule_ActionRenameSpec(t));
       atermpp::aterm_appl::iterator i = t.begin();
-      m_data            = atermpp::aterm_appl(*i++);
-      m_action_labels   = process::action_label_list(atermpp::aterm_appl(*i++)[0]);
+      m_data            = atermpp::down_cast<atermpp::aterm_appl>(*i++);
+      m_action_labels   = atermpp::down_cast<process::action_label_list>(atermpp::down_cast<atermpp::aterm_appl>(*i++)[0]);
 
-      atermpp::aterm_list rules_list = static_cast<atermpp::aterm_list>(atermpp::aterm_appl(*i)[0]);
+      atermpp::aterm_list rules_list = atermpp::down_cast<atermpp::aterm_list>(atermpp::down_cast<atermpp::aterm_appl>(*i)[0]);
       for (const atermpp::aterm& r: rules_list)
       {
         m_rules.push_back(action_rename_rule(r));
@@ -390,10 +390,14 @@ void rename_renamerule_variables(data::data_expression& rcond, process::action& 
     }
   }
 
-  std::set<data::variable> renamings_variables = data::substitution_variables(renamings);
-  rcond = data::replace_variables_capture_avoiding(rcond, renamings, renamings_variables);
-  rleft = process::replace_variables_capture_avoiding(rleft, renamings, renamings_variables);
-  rright = process::replace_variables_capture_avoiding(rright, renamings, renamings_variables);
+  data::set_identifier_generator id_generator;
+  for (const data::variable& v: data::substitution_variables(renamings))
+  {
+    id_generator.add_identifier(v.name());
+  }
+  rcond = data::replace_variables_capture_avoiding(rcond, renamings, id_generator);
+  rleft = process::replace_variables_capture_avoiding(rleft, renamings, id_generator);
+  rright = process::replace_variables_capture_avoiding(rright, renamings, id_generator);
 }
 
 /* ------------------------------------------ Normalise sorts ------------------------------------------ */

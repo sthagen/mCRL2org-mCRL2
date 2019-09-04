@@ -9,9 +9,10 @@
 /// \file function_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE function_test
 #include <iostream>
 #include <string>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_io.h"
 #include "mcrl2/atermpp/aterm_appl.h"
@@ -30,21 +31,20 @@ void test_aterm_function()
   BOOST_CHECK(a.function() == sym);
 
   string s = pp(a);
-  aterm_appl b ( read_term_from_string(s));
+  aterm_appl b ( read_appl_from_string(s));
   BOOST_CHECK(pp(a) == "f(x)");
   BOOST_CHECK(b.function() == sym); 
 
-  aterm_appl c (read_term_from_string(s));
+  aterm_appl c (read_appl_from_string(s));
   BOOST_CHECK(pp(c) == "f(x)");
   BOOST_CHECK(c.function() == sym); 
 
-  aterm_appl f ( read_term_from_string("f(g(a,b),c)"));
-  aterm_appl g ( read_term_from_string("g(a,b)"));
+  aterm_appl f ( read_appl_from_string("f(g(a,b),c)"));
+  aterm_appl g ( read_appl_from_string("g(a,b)"));
   BOOST_CHECK(f[0] == g);
 }
 
-int test_main(int argc, char* argv[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_aterm_function();
-  return 0;
 }

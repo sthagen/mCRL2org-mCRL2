@@ -9,7 +9,8 @@
 /// \file suminst_test.cpp
 /// \brief Add your file description here.
 
-#include <boost/test/minimal.hpp>
+#define BOOST_TEST_MODULE suminst_test
+#include <boost/test/included/unit_test_framework.hpp>
 #include <iostream>
 #include "mcrl2/lps/linearise.h"
 #include "mcrl2/lps/suminst.h"
@@ -85,7 +86,7 @@ void test_case_3()
   suminst_algorithm<rewriter, specification>(s1, r).run();
   bool sum_occurs = false;
   const action_summand_vector& summands1 = s1.process().action_summands();
-  for (const auto & i : summands1)
+  for (const action_summand& i : summands1)
   {
     sum_occurs = sum_occurs || !i.summation_variables().empty();
   }
@@ -113,7 +114,7 @@ void test_case_4()
   bool tau_sum_occurs = false;
   bool sum_occurs = false;
   const action_summand_vector& summands1 = s1.process().action_summands();
-  for (const auto & i : summands1)
+  for (const action_summand& i : summands1)
   {
     if (i.is_tau())
     {
@@ -151,7 +152,7 @@ void test_case_5()
   bool tau_sum_occurs = false;
   bool sum_occurs = false;
   const action_summand_vector& summands1 = s1.process().action_summands();
-  for (const auto & i : summands1)
+  for (const action_summand& i: summands1)
   {
     if (i.is_tau())
     {
@@ -199,14 +200,14 @@ void test_case_7()
   suminst_algorithm<rewriter, specification>(s1, r, std::set<data::sort_expression>(s1.data().sorts().begin(),s1.data().sorts().end())).run();
   int sum_count = 0;
   const action_summand_vector& summands1 = s1.process().action_summands();
-  for (const auto & i : summands1)
+  for (const action_summand& i: summands1)
   {
     sum_count += i.summation_variables().size();
   }
   BOOST_CHECK(sum_count == 1);
 }
 
-int test_main(int ac, char** av)
+BOOST_AUTO_TEST_CASE(test_main)
 {
   std::clog << "test case 1" << std::endl;
   test_case_1();
@@ -220,7 +221,5 @@ int test_main(int ac, char** av)
   test_case_5();
   std::clog << "test case 6" << std::endl;
   test_case_6();
-
-  return 0;
 }
 

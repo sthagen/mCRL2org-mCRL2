@@ -9,9 +9,10 @@
 /// \file hooks_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE hooks_test
 #include <iostream>
 #include <string>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_appl.h"
 #include "mcrl2/atermpp/aterm_list.h"
@@ -40,12 +41,12 @@ class variable: public aterm_appl
     {}
 };
 
-void on_create_variable(const aterm& t)
+void on_create_variable(const aterm&)
 {
   variable_count++;
 }
 
-void on_delete_variable(const aterm& t)
+void on_delete_variable(const aterm&)
 {
   variable_count--;
 }
@@ -74,17 +75,15 @@ void test_hooks()
   BOOST_CHECK(variable_count == 1);
   f();
   BOOST_CHECK(variable_count == 2);
-  detail::collect_terms_with_reference_count_0();
+  detail::g_term_pool().collect();
   BOOST_CHECK(variable_count == 1);
   aterm_appl a = g();
   BOOST_CHECK(variable_count == 2);
-  detail::collect_terms_with_reference_count_0();
+  detail::g_term_pool().collect();
   BOOST_CHECK(variable_count == 2);
 }
 
-int test_main(int argc, char* argv[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_hooks();
-
-  return 0;
 }

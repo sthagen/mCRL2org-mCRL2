@@ -13,8 +13,9 @@
 #include <boost/test/included/unit_test_framework.hpp>
 #include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/pbes/enumerator.h"
-#include "mcrl2/pbes/parse.h"
+#include "mcrl2/pbes/detail/parse.h"
 #include "mcrl2/pbes/rewriters/simplify_rewriter.h"
 
 using namespace mcrl2;
@@ -47,19 +48,20 @@ BOOST_AUTO_TEST_CASE(test_enumerator)
   pbes_expression phi = parse_pbes_expression("val(n < 2)", VARSPEC);
   data::mutable_indexed_substitution<> sigma;
   data::enumerator_identifier_generator id_generator("x");
-  data::enumerator_algorithm<pbes_rewriter> E(R, data_spec, datar, id_generator);
-  std::vector<pbes_system::pbes_expression> solutions;
-  std::deque<enumerator_element> P;
-  P.push_back(enumerator_element(v, phi));
-  E.next(P, sigma, is_not_true());
-  while (!P.empty())
-  {
-    solutions.push_back(P.front().expression());
-    P.pop_front();
-    E.next(P, sigma, is_not_true());
-  }
+  bool accept_solutions_with_variables = true;
+  data::enumerator_algorithm<pbes_rewriter> E(R, data_spec, datar, id_generator, accept_solutions_with_variables);
+  std::set<pbes_system::pbes_expression> solutions;
+  E.enumerate(enumerator_element(v, phi),
+              sigma,
+              [&](const enumerator_element& p)
+              {
+                solutions.insert(p.expression());
+                return false; // do not interrupt
+              },
+              is_false
+  );
   std::clog << "solutions = " << core::detail::print_list(solutions) << std::endl;
-  BOOST_CHECK(solutions.size() >= 1);
+  BOOST_CHECK(solutions.size() == 1);
 }
 
 BOOST_AUTO_TEST_CASE(test_enumerator_with_iterator)
@@ -80,7 +82,7 @@ BOOST_AUTO_TEST_CASE(test_enumerator_with_iterator)
   data::enumerator_algorithm_with_iterator<pbes_rewriter, enumerator_element, pbes_system::is_not_true> E(R, data_spec, datar, id_generator, 20);
   std::vector<pbes_system::pbes_expression> solutions;
 
-  std::deque<enumerator_element> P;
+  data::enumerator_queue<enumerator_element> P;
   P.push_back(enumerator_element(v, phi));
   for (auto i = E.begin(sigma, P); i != E.end(); ++i)
   {
@@ -108,7 +110,7 @@ BOOST_AUTO_TEST_CASE(test_enumerator_with_substitutions)
   data::enumerator_algorithm_with_iterator<pbes_rewriter, enumerator_element, pbes_system::is_not_false> E(R, data_spec, datar, id_generator);
   std::vector<pbes_system::pbes_expression> solutions;
 
-  std::deque<enumerator_element> P;
+  data::enumerator_queue<enumerator_element> P;
   P.push_back(enumerator_element(v, phi));
   for (auto i = E.begin(sigma, P); i != E.end(); ++i)
   {
@@ -120,4 +122,58 @@ BOOST_AUTO_TEST_CASE(test_enumerator_with_substitutions)
   }
   std::clog << "solutions = " << core::detail::print_list(solutions) << std::endl;
   BOOST_CHECK(solutions.size() >= 1);
+}
+
+BOOST_AUTO_TEST_CASE(enumerate_callback)
+{
+  typedef pbes_system::simplify_data_rewriter<data::rewriter> pbes_rewriter;
+  typedef data::enumerator_list_element<pbes_expression> enumerator_element;
+  data::enumerator_identifier_generator id_generator;
+  data::data_specification dataspec;
+  dataspec.add_context_sort(data::sort_int::int_());
+  std::size_t max_count = 10;
+  data::rewriter r(dataspec);
+  pbes_rewriter R(r);
+  data::enumerator_algorithm<pbes_rewriter> E(R, dataspec, r, id_generator, max_count);
+
+  auto enumerate = [&](const pbes_expression& x)
+  {
+    data::rewriter::substitution_type sigma;
+    pbes_expression result;
+    id_generator.clear();
+    if (is_forall(x))
+    {
+      const auto& x_ = atermpp::down_cast<pbes_system::forall>(x);
+      result = pbes_system::true_();
+      E.enumerate(enumerator_element(x_.variables(), R(x_.body())),
+                  sigma,
+                  [&](const enumerator_element& p)
+                  {
+                    result = data::optimized_and(result, p.expression());
+                    return is_false(result);
+                  },
+                  pbes_system::is_true,
+                  pbes_system::is_false
+      );
+    }
+    else if (is_exists(x))
+    {
+      const auto& x_ = atermpp::down_cast<pbes_system::forall>(x);
+      result = pbes_system::false_();
+      E.enumerate(enumerator_element(x_.variables(), R(x_.body())),
+                  sigma,
+                  [&](const enumerator_element& p)
+                  {
+                    result = data::optimized_or(result, p.expression());
+                    return is_true(result);
+                  },
+                  pbes_system::is_false,
+                  pbes_system::is_true
+      );
+    }
+    return result;
+  };
+
+  BOOST_CHECK_EQUAL(enumerate(parse_pbes_expression("forall n: Nat. val(n < 2)")), false_());
+  BOOST_CHECK_EQUAL(enumerate(parse_pbes_expression("exists n: Nat. val(n < 2)")), true_());
 }

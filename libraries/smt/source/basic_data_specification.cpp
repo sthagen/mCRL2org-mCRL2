@@ -290,9 +290,9 @@ std::string basic_data_specification::generate_distinct_assertion(const std::map
 
 void basic_data_specification::find_rewrite_rules(const data::data_specification& data_specification)
 {
-  for (data::data_equation_vector::const_iterator i = data_specification.equations().begin(); i != data_specification.equations().end(); i++)
+  for (const data::data_equation& e: data_specification.equations())
   {
-    data::data_expression lhs = i->lhs();
+    const data::data_expression& lhs = e.lhs();
     data::function_symbol function;
     if (data::is_application(lhs))
     {
@@ -315,7 +315,7 @@ void basic_data_specification::find_rewrite_rules(const data::data_specification
       continue;
     }
 
-    m_rewrite_rules[function].push_back(*i);
+    m_rewrite_rules[function].push_back(e);
   }
 
   /*
@@ -729,6 +729,7 @@ void basic_data_specification::add_numerical_operators(
   const data::basic_sort& int_ = data::sort_int::int_();
   const data::basic_sort& real = data::sort_real::real_();
 
+  data::variable b1("b1", data::sort_bool::bool_());
   data::variable p1("p1", pos);
   data::variable p2("p2", pos);
   data::variable n1("n1", nat);
@@ -755,6 +756,7 @@ void basic_data_specification::add_numerical_operators(
   add_function_definition(data::greater(pos), greater);
   add_function_definition(data::greater_equal(pos), greater_equal);
   add_function_definition(data::sort_pos::plus(), plus);
+  add_function_definition(data::sort_pos::add_with_carry(), data::variable_vector({b1,p1,p2}), data::if_(b1, data::sort_pos::plus(data::sort_pos::c1(), data::sort_pos::plus(p1,p2)), data::sort_pos::plus(p1,p2)));
   add_function_definition(data::sort_pos::times(), times);
   add_function_definition(data::sort_pos::maximum(), maximum, data::variable_vector({p1, p2}), data::if_(data::greater(p1, p2), p1, p2));
   add_function_definition(data::sort_pos::minimum(), minimum, data::variable_vector({p1, p2}), data::if_(data::less(p1, p2), p1, p2));

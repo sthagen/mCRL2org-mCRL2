@@ -8,16 +8,17 @@
 
 #include "mcrl2/gui/arcball.h"
 
+#include "mcrl2/gui/glu.h"
+#include "mcrl2/utilities/platform.h"
+
 #include <cmath>
 
-#ifdef WIN32
-#include <windows.h>
+#ifdef MCRL2_PLATFORM_MAC
+  #include <GLKit/GLKMatrix4.h>
 #endif
-#ifdef __APPLE__
-#include <OpenGL/glu.h>
-#include <GLKit/GLKMatrix4.h>
-#else
-#include <GL/glu.h>
+
+#ifndef M_PI
+  #define M_PI 3.14159265358979323846264338327950288
 #endif
 
 namespace mcrl2
@@ -25,15 +26,19 @@ namespace mcrl2
 namespace gui
 {
 
+/// \brief Compute the projection of the point p on a sphere that covers the viewport
 static QVector3D arcballVector(const QPoint& p)
 {
   float x, y, z;
   const float radius = 1.5f;
   GLint viewport[4];
   glGetIntegerv(GL_VIEWPORT, viewport);
+
+  // Compute x and y relative to the middle of the viewport
   x = (float)p.x() / viewport[2] * 2.0f - 1.0f;
   y = (float)p.y() / viewport[3] * 2.0f - 1.0f;
   y = -y;
+
   float squared = x * x + y * y;
   if (squared <= radius * radius)
   {
@@ -44,11 +49,13 @@ static QVector3D arcballVector(const QPoint& p)
     float len = std::sqrt(squared);
     if (std::isnormal(len))
     {
-      x /= len, y /= len;
+      x /= len;
+      y /= len;
     }
     else
     {
-      x = 0.0f, y = 0.0f;
+      x = 0.0f;
+      y = 0.0f;
     }
     z = 0.0f;
   }
@@ -74,21 +81,6 @@ void applyRotation(const QQuaternion& rotation, bool reverse)
   }
   // not sure why the angle has to be doubled
   glRotatef(2 * angle, rotation.x(), rotation.y(), rotation.z());
-}
-
-void clipVector(QVector3D& vec, const QVector3D& min, const QVector3D& max)
-{
-  for (int i = 0; i < 3; i++)
-  {
-    if (vec[i] < min[i])
-    {
-      vec[i] = min[i];
-    }
-    else if (vec[i] > max[i])
-    {
-      vec[i] = max[i];
-    }
-  }
 }
 
 } // namespace gui

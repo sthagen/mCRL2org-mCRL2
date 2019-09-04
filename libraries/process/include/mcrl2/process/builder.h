@@ -16,6 +16,7 @@
 #include "mcrl2/data/builder.h"
 #include "mcrl2/process/process_specification.h"
 #include "mcrl2/process/untyped_multi_action.h"
+#include "mcrl2/process/timed_multi_action.h"
 
 namespace mcrl2
 {
@@ -74,6 +75,17 @@ struct add_sort_expressions: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
+  }
+
+  void update(process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      x.time() = static_cast<Derived&>(*this).apply(x.time());
+    }
+    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)
@@ -358,7 +370,6 @@ struct add_sort_expressions: public Builder<Derived>
 template <typename Derived>
 struct sort_expression_builder: public add_sort_expressions<data::sort_expression_builder, Derived>
 {
-  typedef add_sort_expressions<data::sort_expression_builder, Derived> super;
 };
 //--- end generated add_sort_expressions code ---//
 
@@ -395,6 +406,17 @@ struct add_data_expressions: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
+  }
+
+  void update(process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      x.time() = static_cast<Derived&>(*this).apply(x.time());
+    }
+    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)
@@ -679,7 +701,6 @@ struct add_data_expressions: public Builder<Derived>
 template <typename Derived>
 struct data_expression_builder: public add_data_expressions<data::data_expression_builder, Derived>
 {
-  typedef add_data_expressions<data::data_expression_builder, Derived> super;
 };
 //--- end generated add_data_expressions code ---//
 
@@ -724,6 +745,17 @@ struct add_variables: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
+  }
+
+  void update(process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      x.time() = static_cast<Derived&>(*this).apply(x.time());
+    }
+    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)
@@ -1008,7 +1040,6 @@ struct add_variables: public Builder<Derived>
 template <typename Derived>
 struct variable_builder: public add_variables<data::data_expression_builder, Derived>
 {
-  typedef add_variables<data::data_expression_builder, Derived> super;
 };
 //--- end generated add_variables code ---//
 
@@ -1321,7 +1352,6 @@ struct add_process_expressions: public Builder<Derived>
 template <typename Derived>
 struct process_expression_builder: public add_process_expressions<core::builder, Derived>
 {
-  typedef add_process_expressions<core::builder, Derived> super;
 };
 //--- end generated add_process_expressions code ---//
 
@@ -1641,7 +1671,6 @@ struct add_process_identifiers: public Builder<Derived>
 template <typename Derived>
 struct process_identifier_builder: public add_process_identifiers<core::builder, Derived>
 {
-  typedef add_process_identifiers<core::builder, Derived> super;
 };
 //--- end generated add_process_identifiers code ---//
 

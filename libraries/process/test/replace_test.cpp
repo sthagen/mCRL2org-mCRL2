@@ -9,7 +9,9 @@
 /// \file replace_test.cpp
 /// \brief Regression test for replace functions
 
-#include <boost/test/minimal.hpp>
+#define BOOST_TEST_MODULE replace_test
+
+#include <boost/test/included/unit_test_framework.hpp>
 #include <iostream>
 
 #include "mcrl2/data/detail/data_functional.h"
@@ -30,9 +32,7 @@ void check_result(const std::string& expression, const std::string& result, cons
   {
     std::cout << "--- failure in " << title << " ---" << std::endl;
     std::cout << "expression      = " << expression << std::endl;
-    std::cout << "result          = " << result << std::endl;
-    std::cout << "expected result = " << expected_result << std::endl;
-    BOOST_CHECK(result == expected_result);
+    BOOST_CHECK_EQUAL(result, expected_result);
   }
 }
 
@@ -121,17 +121,16 @@ void test_replace_variables_capture_avoiding(const std::string& x_text, const st
 {
   process_expression x = parse_expression(x_text);
   data::mutable_map_substitution<> sigma = parse_substitution(sigma_text);
-  std::set<data::variable> sv = sigma_variables(sigma);
-  std::string result = process::pp(process::replace_variables_capture_avoiding(x, sigma, sv));
+  std::string result = process::pp(process::replace_variables_capture_avoiding(x, sigma));
   check_result(x_text + " sigma = " + sigma_text, result, expected_result, "replace_variables_capture_avoiding");
 }
 
-void test_replace_variables_capture_avoiding()
+BOOST_AUTO_TEST_CASE(replace_variables_capture_avoiding_test)
 {
-  test_replace_variables_capture_avoiding("sum n: Bool. a(n) . (sum k: Bool. a(k) . a(m))", "m: Bool := n", "sum n1: Bool. a(n1) . (sum k: Bool. a(k) . a(n))");
+  test_replace_variables_capture_avoiding("sum n: Bool. a(n) . sum k: Bool. a(k) . a(m)", "m: Bool := n", "sum n1: Bool. a(n1) . (sum k1: Bool. a(k1) . a(n))");
 }
 
-void test_process_instance_assignment()
+BOOST_AUTO_TEST_CASE(process_instance_assignment_test)
 {
   std::string text =
     "proc P(b: Bool, c: Bool) = P(c = true); \n"
@@ -146,20 +145,20 @@ void test_process_instance_assignment()
   sigma[c] = data::sort_bool::false_();
 
   process_expression x = p.equations().front().expression();
-  process_expression x1 = process::replace_variables_capture_avoiding(x, sigma, data::substitution_variables(sigma));
+  process_expression x1 = process::replace_variables_capture_avoiding(x, sigma);
   std::cerr << process::pp(x1) << std::endl;
   BOOST_CHECK(process::pp(x1) == "P(c = true)");
 
   sigma[b] = data::sort_bool::false_();
-  process_expression x2 = process::replace_variables_capture_avoiding(x, sigma, data::substitution_variables(sigma));
+  process_expression x2 = process::replace_variables_capture_avoiding(x, sigma);
   std::cerr << process::pp(x2) << std::endl;
   BOOST_CHECK(process::pp(x2) == "P(b = false, c = true)");
 }
 
-void test_replace_process_identifiers()
+BOOST_AUTO_TEST_CASE(replace_process_identifiers_test)
 {
   std::string text =
-    "proc P(b: Bool, c: Bool) = P(c = true) . P(false, false); \n"  
+    "proc P(b: Bool, c: Bool) = P(c = true) . P(false, false); \n"
     "proc Q(b: Bool, c: Bool) = P(c = true);                   \n"
     "proc R(b: Bool, c: Bool) = Q(c = true) . Q(false, false); \n"
     "                                                          \n"
@@ -173,13 +172,4 @@ void test_replace_process_identifiers()
 
   process_expression rhs = replace_process_identifiers(eqP.expression(), process_identifier_assignment(eqP.identifier(), eqQ.identifier()));
   BOOST_CHECK(rhs == eqR.expression());
-}
-
-int test_main(int argc, char** argv)
-{
-  test_replace_variables_capture_avoiding();
-  test_process_instance_assignment();
-  test_replace_process_identifiers();
-
-  return EXIT_SUCCESS;
 }

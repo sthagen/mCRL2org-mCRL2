@@ -1,18 +1,18 @@
 nodes:
   l1:
-    type: mCRL2Spec
+    type: mcrl2
   l2:
-    type: LPS
+    type: lps
   l3:
-    type: LPS
+    type: lps
   l4:
-    type: PBES
+    type: pbes
 
 tools:
   t1:
     input: [l1]
     output: [l2]
-    args: [-lstack]
+    args: [-n]
     name: mcrl22lps
   t2:
     input: [l2]

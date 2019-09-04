@@ -6,6 +6,7 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#define BOOST_TEST_MODULE compare
 #include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/lts/lts_algorithm.h"
@@ -163,17 +164,13 @@ BOOST_AUTO_TEST_CASE(test_ready_sim_1_4)
   BOOST_CHECK(!compare(l1,l4,lts_eq_ready_sim));  
 }
 
-
-
-
-
 BOOST_AUTO_TEST_CASE(test_symmetric_trace_1_2)
 {
   BOOST_CHECK(compare(l1,l2,lts_eq_trace));
   BOOST_CHECK(compare(l2,l1,lts_eq_trace));
   BOOST_CHECK(!compare(l2,l1,lts_eq_bisim));
   BOOST_CHECK(!compare(l2,l1,lts_eq_bisim_gv));
-  // BOOST_CHECK(!compare(l2,l1,lts_eq_bisim_tb)); Only enable if this algorithm is finished and correct.
+  BOOST_CHECK(!compare(l2,l1,lts_eq_bisim_gjkw));
   BOOST_CHECK(preorder_compare(l1,l2,lts_pre_trace));
   BOOST_CHECK(preorder_compare(l2,l1,lts_pre_trace));
   BOOST_CHECK(preorder_compare(l1,l2,lts_pre_trace_anti_chain));
@@ -190,7 +187,7 @@ BOOST_AUTO_TEST_CASE(test_symmetric_trace_1_2a)
   BOOST_CHECK(compare(l2a,l2,lts_eq_trace));
   BOOST_CHECK(!compare(l2a,l2,lts_eq_bisim));
   BOOST_CHECK(!compare(l2a,l2,lts_eq_bisim_gv));
-  // BOOST_CHECK(!compare(l2a,l2,lts_eq_bisim_tb)); Only enable if this algorithm is finished and correct. 
+  BOOST_CHECK(!compare(l2a,l2,lts_eq_bisim_gjkw));
   BOOST_CHECK(preorder_compare(l2,l2a,lts_pre_trace));
   BOOST_CHECK(preorder_compare(l2a,l2,lts_pre_trace));
   BOOST_CHECK(preorder_compare(l2,l2a,lts_pre_trace_anti_chain));
@@ -343,7 +340,7 @@ BOOST_AUTO_TEST_CASE(failures_divergence_inclusion_test)
   BOOST_CHECK(preorder_compare(l1,abc_div,lts_pre_weak_trace_anti_chain));
   BOOST_CHECK(!preorder_compare(l1,abc_div,lts_pre_weak_failures_refinement));
   BOOST_CHECK(preorder_compare(abc_div,l1,lts_pre_weak_failures_refinement));
-  BOOST_CHECK(!preorder_compare(l1,abc_div,lts_pre_failures_divergence_refinement));
+  BOOST_CHECK(preorder_compare(l1,abc_div,lts_pre_failures_divergence_refinement));
   BOOST_CHECK(!preorder_compare(abc_div,l1,lts_pre_failures_divergence_refinement));
 }
 
@@ -389,10 +386,25 @@ BOOST_AUTO_TEST_CASE(verum_test)
   BOOST_CHECK(!preorder_compare(lts_spec,lts_impl,lts_pre_trace_anti_chain));
 }
 
+// P = a.P + tau.P
+const std::string aPtauP =
+  "des (0,2,1)\n"
+  "(0,\"a\",0)\n"
+  "(0,\"tau\",0)\n";
 
+// P = b.P
+const std::string bP =
+  "des (0,1,1)\n"
+  "(0,\"b\",0)\n";
 
-
-boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
+// Check that diverging behaviour in a specification for failures-divergence refinement is
+// regarded as catastrophic. Meaning that all failures are allowed after a divergence in spec.
+// Furthermore check that for failures refinement that trace refinement holds as well. For
+// failures refinement this does not hold, but here trace refinement is required so it does
+// not hold.
+BOOST_AUTO_TEST_CASE(failures_divergence_incomparable_test)
 {
-  return nullptr;
+  BOOST_CHECK(!preorder_compare(aPtauP, bP, lts_pre_failures_refinement)); // empty = failures(aPtauP) subset failures(bP); traces(aPtauP) nsubset traces(bP).
+  BOOST_CHECK(preorder_compare(bP, aPtauP, lts_pre_failures_divergence_refinement)); // failures(bP) subset failures(aPtau) != empty because divergences.
 }
+

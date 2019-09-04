@@ -200,6 +200,7 @@ class logger
       return m_hint_to_level;
     }
 
+  public:
     /// \brief The default log level that is used if no specific log level has
     /// been set.
     static
@@ -216,7 +217,6 @@ class logger
       }
     }
 
-  public:
     /// \brief Default constructor
     logger()
     {}
@@ -497,32 +497,27 @@ std::set<output_policy*> initialise_output_policies()
 /// \brief Default logger that we use
 typedef logger mcrl2_logger;
 
-/// Unless otherwise specified, we compile away all debug messages that have
-/// a log level greater than MCRL2_MAX_LOG_LEVEL.
-#ifndef MCRL2_MAX_LOG_LEVEL
-#define MCRL2_MAX_LOG_LEVEL mcrl2::log::debug
-#endif
+/// \brief Unless otherwise specified, we compile away all debug messages that have
+/// a log level greater than MCRL2MaxLogLevel.
+constexpr log_level_t MCRL2MaxLogLevel = mcrl2::log::debug;
 
-/// mCRL2log(level) provides the function used to log. It performs two
-/// optimisations:
-/// - the first comparison (level > MCRL2_MAX_LOG_LEVEL), compares two constants
-///   during compile time. The compiler will not create any code if (level > MCRl2_MAX_LOG_LEVEL).
-/// - the second comparison compares two constants at runtime. This check makes
-///   sure that the arguments to mCRL2log(level) will not be evaluated if level > file_logger::reporting_level().
-/// In all other cases this macro provides a stream that can be printed to.
-// Note that the macro uses the dirty preprocessor token concatenation. For a
-// description, see e.g. http://en.wikipedia.org/wiki/C_preprocessor#Token_concatenation
-// (accessed 7/4/2011)
-// We also use the facilities to provide a variable number of arguments to a macro, in order
-// to allow mCRL2log(level) as well as mCRL2log(level, "hint")
-#define mCRL2log(level, ...) \
-if ((level) > MCRL2_MAX_LOG_LEVEL) ; \
-else if ((level) > (mcrl2::log::mcrl2_logger::get_reporting_level(__VA_ARGS__))) ; \
-else mcrl2::log::mcrl2_logger().get(level, ##__VA_ARGS__)
+/// \returns True whenever the logging for the given level is enabled.
+constexpr bool mCRL2logEnabled(const log_level_t level)
+{
+  return level <= MCRL2MaxLogLevel && level <= mcrl2_logger::default_reporting_level();
+}
 
-#define mCRL2logEnabled(level, ...) \
-(((level) <= MCRL2_MAX_LOG_LEVEL) && ((level) <= (mcrl2::log::mcrl2_logger::get_reporting_level(__VA_ARGS__))))
+/// \returns True whenever the logging for the given level and hint is enabled.
+constexpr bool mCRL2logEnabled(const log_level_t level, const std::string& hint)
+{
+  return level <= MCRL2MaxLogLevel && level <= mcrl2_logger::get_reporting_level(hint);
+}
 
   } // namespace log
 } // namespace mcrl2
+
+/// \brief mCRL2log(level) or mCRL2log(level, hint) provide the stream used to log.
+/// \details Uses variadic macros to allow mCRL2log(level) as well as mCRL2log(level, "hint").
+#define mCRL2log(...) if (mcrl2::log::mCRL2logEnabled(__VA_ARGS__)) mcrl2::log::mcrl2_logger().get(__VA_ARGS__)
+
 #endif // MCRL2_UTILITIES_LOGGER_H

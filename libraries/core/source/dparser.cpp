@@ -92,6 +92,14 @@ std::string parse_node::pathname() const
   return std::string(node->start_loc.pathname);
 }
 
+parse_node::~parse_node()
+{
+  if (parser)
+  {
+    free_D_ParseNode(parser, node);
+  }
+}
+
 // Prints a tree of
 std::string parser_table::tree(const core::parse_node& node) const
 {
@@ -208,8 +216,6 @@ unsigned int parser::start_symbol_index(const std::string& name) const
   return m_table.start_symbol_index(name);
 }
 
-/// \brief Parses a string. N.B. The user is responsible for destruction of the returned
-/// value by calling destroy_parse_node!!!
 parse_node parser::parse(const std::string& text, unsigned int start_symbol_index, bool partial_parses)
 {
   detail::reset_dparser_error_message_count();
@@ -220,7 +226,7 @@ parse_node parser::parse(const std::string& text, unsigned int start_symbol_inde
   {
     throw mcrl2::runtime_error("syntax error");
   }
-  return parse_node(result);
+  return parse_node(result, m_parser);
 }
 
 void parser::print_symbol_table() const

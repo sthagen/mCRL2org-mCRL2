@@ -18,6 +18,7 @@
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/exists.h"
 #include "mcrl2/data/forall.h"
+#include "mcrl2/data/function_update.h"
 #include "mcrl2/data/lambda.h"
 #include "mcrl2/data/standard_container_utility.h"
 #include "mcrl2/data/standard_utility.h"
@@ -529,7 +530,6 @@ sort_expression parse_sort_expression_new(const std::string& text)
   bool partial_parses = false;
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   sort_expression result = data_expression_actions(p).parse_SortExpr(node);
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -542,7 +542,6 @@ variable_list parse_variables_new(const std::string& text)
   std::string var_text("var " + text);
   core::parse_node node = p.parse(var_text, start_symbol_index, partial_parses);
   variable_list result = data_specification_actions(p).parse_VarSpec(node);
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -555,7 +554,6 @@ data_expression parse_data_expression_new(const std::string& text)
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   core::warn_and_or(node);
   data_expression result = data_expression_actions(p).parse_DataExpr(node);
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -568,7 +566,6 @@ data_specification parse_data_specification_new(const std::string& text)
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   untyped_data_specification untyped_dataspec = data_specification_actions(p).parse_DataSpec(node);
   data_specification result = untyped_dataspec.construct_data_specification();
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -580,7 +577,6 @@ variable_list parse_variable_declaration_list(const std::string& text)
   bool partial_parses = false;
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   variable_list result = data_specification_actions(p).parse_VarsDeclList(node);
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -615,7 +611,6 @@ std::pair<basic_sort_vector, alias_vector> parse_sort_specification(const std::s
     }
   }
   auto result = std::make_pair(sorts, aliases);
-  p.destroy_parse_node(node);
   return result;
 }
 

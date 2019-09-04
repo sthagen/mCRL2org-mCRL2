@@ -9,10 +9,8 @@
 /// \file simplifier_identity.h
 
 
-#ifndef MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H
-#define MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H
-
-#include "mcrl2/data/enumerator.h"
+#ifndef MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H
+#define MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H
 
 #include "simplifier.h"
 
@@ -43,4 +41,4 @@ public:
 } // namespace mcrl2
 } // namespace data
 
-#endif // MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H
+#endif // MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_IDENTITY_H

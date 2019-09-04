@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-#~ Copyright 2013, 2014 Mark Geelen.
-#~ Copyright 2014, 2015 Wieger Wesselink.
-#~ Distributed under the Boost Software License, Version 1.0.
-#~ (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
+# Copyright 2013, 2014 Mark Geelen.
+# Copyright 2014, 2015 Wieger Wesselink.
+# Distributed under the Boost Software License, Version 1.0.
+# (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
 
 import os
 import os.path
@@ -36,7 +36,6 @@ class ToolCrashedError(Exception):
 class Test:
     def __init__(self, file, settings):
         import yaml
-        from collections import Counter
 
         if not settings:
             raise RuntimeError('ERROR in Test.__init__: settings == None')
@@ -98,6 +97,8 @@ class Test:
         # Contains a list of input nodes of this test, sorted by label
         self.input_nodes = self.compute_input_nodes()
 
+        self.tasks = self.make_task_schedule()
+
     def __str__(self):
         import io
         out = io.StringIO()
@@ -127,16 +128,12 @@ class Test:
         return
 
     def _add_tool(self, data, label):
-        import platform
         input_nodes = [next(node for node in self.nodes if node.label == key) for key in data['input']]
         output_nodes = sorted([node for node in self.nodes if node.label in data['output']], key = lambda node: node.label)
-        name = data['name']
-        if platform.system() == 'Windows':
-            name = name + '.exe'
         self.tools.append(ToolFactory().create_tool(label, data['name'], self.toolpath, input_nodes, output_nodes, data['args']))
 
     def setup(self, inputfiles):
-        input_nodes = [node for node in self.input_nodes if node.value == None]
+        input_nodes = [node for node in self.input_nodes if node.value is None]
         if len(input_nodes) != len(inputfiles):
             raise RuntimeError('Invalid number of input files provided: expected {0}, got {1}'.format(len(input_nodes), len(inputfiles)))
         for i in range(len(inputfiles)):
@@ -159,9 +156,41 @@ class Test:
             return False
         return self.globals['result']
 
-    def remaining_tasks(self):
-        # Returns a list of tools that can be executed and have not been executed before
-        return [tool for tool in self.tools if tool.can_execute()]
+    # Returns a valid schedule for executing the tools in this test
+    def make_task_schedule(self):
+        from collections import defaultdict
+        from topological_sort import topological_sort
+
+        # Create a label based mapping E that contains outgoing edges for all nodes.
+        E = defaultdict(lambda: set([]))
+        for tool in self.tools:
+            for node in tool.input_nodes:
+                E[node.label].add(tool.label)
+            for node in tool.output_nodes:
+                E[tool.label].add(node.label)
+
+        # Create a label based graph G
+        G = defaultdict(lambda: (set([]), set([]))) # (predecessors, successors)
+        for tool in self.tools:
+            u = tool.label
+            for v in E[u]:
+                for w in E[v]:
+                    G[u][1].add(w)
+                    G[w][0].add(u)
+
+        # Add isolated nodes
+        for tool in self.tools:
+            u = tool.label
+            if not u in G:
+                G[u] = (set([]), set([]))
+
+        # Create a mapping tool_map from labels to tools
+        tool_map = {}
+        for tool in self.tools:
+            tool_map[tool.label] = tool
+
+        schedule = topological_sort(G)
+        return [tool_map[label] for label in schedule]
 
     def cleanup(self):
         if self.cleanup_files:
@@ -176,23 +205,24 @@ class Test:
     def dump_file_contents(self):
         filenames = [node.filename() for node in self.nodes]
         for file in filenames:
-            if os.path.exists(file) and (file.endswith('.mcrl2spec') or file.endswith('.pbesspec') or file.endswith('.statefrm')):
+            if os.path.exists(file) and (file.endswith('.mcrl2') or file.endswith('.pbesspec') or file.endswith('.mcf')):
                 contents = read_text(file)
                 print('Contents of file {}:\n{}'.format(file, contents))
 
     def run(self):
         import popen
 
-        # Singlecore run
-        tasks = self.remaining_tasks()
-        commands = []
+        tasks = self.tasks[:]
+        commands = [tool.command() for tool in tasks]
+
         while len(tasks) > 0:
-            tool = tasks[0]
+            tool = tasks.pop(0)
             try:
                 commands.append(tool.command())
                 returncode = tool.execute(timeout = self.timeout, memlimit = self.memlimit, verbose = self.verbose)
                 if returncode != 0 and not self.allow_non_zero_return_values:
                     self.dump_file_contents()
+                    self.print_commands(no_paths = True)
                     raise RuntimeError('The execution of tool {} ended with return code {}'.format(tool.name, returncode))
             except popen.MemoryExceededError as e:
                 if self.verbose:
@@ -204,12 +234,16 @@ class Test:
                     print('Time limit exceeded: ' + str(e))
                 self.cleanup()
                 return None
-            except popen.StackOverflowError as e:
+            except popen.StackOverflowError:
                 if self.verbose:
                     print('Stack overflow detected during execution of the tool ' + tool.name)
                 self.cleanup()
                 return None
-            tasks = self.remaining_tasks()
+            except (popen.ToolRuntimeError, popen.SegmentationFault) as e:
+                self.dump_file_contents()
+                self.print_commands(no_paths = True)
+                self.cleanup()
+                raise e
 
         if not all(tool.executed for tool in self.tools):
             not_executed = [tool for tool in self.tools if not tool.executed]
@@ -220,6 +254,12 @@ class Test:
                     raise RuntimeError('Error in test {}: output file {} is missing!'.format(self.name, node.filename()))
             write_text('commands', '\n'.join(commands))
             result = self.result()
+            if result == False:
+                self.dump_file_contents()
+                for tool in self.tools:
+                    if tool.value != {}:
+                        print('Output of {} {}: {}'.format(tool.name, ' '.join(tool.args), tool.value))
+                self.print_commands(no_paths=True)
             self.cleanup()
             return result
 
@@ -230,23 +270,18 @@ class Test:
         except StopIteration:
             raise RuntimeError("could not find model a tool with label '{0}'".format(label))
 
-    def print_commands(self, runpath):
-        from graph_algorithms import topological_sort, insert_edge
-        G = {}
-        for node in self.nodes:
-            G[node.label] = (set(), set())
-        for tool in self.tools:
-            G[tool.label] = (set(), set())
-        for tool in self.tools:
-            for node in tool.input_nodes:
-                insert_edge(G, node.label, tool.label)
-            for node in tool.output_nodes:
-                insert_edge(G, tool.label, node.label)
-        labels = topological_sort(G)
-        toolmap = {}
-        for tool in self.tools:
-            toolmap[tool.label] = tool
-        print('\n'.join([toolmap[label].command(runpath) for label in labels if label in toolmap]))
+    # If no_paths is True, then all paths in the command are excluded
+    def print_commands(self, working_directory = None, no_paths = False):
+        print('#--- commands ---#')
+        print('\n'.join([tool.command(working_directory, no_paths) for tool in self.tasks]))
+
+def result_string(result):
+    if result == True:
+        return 'Pass'
+    elif result == False:
+        return 'FAIL'
+    else:
+        return 'Indeterminate'
 
 def run_yml_test(name, testfile, inputfiles, settings):
     for filename in [testfile] + inputfiles:
@@ -258,11 +293,9 @@ def run_yml_test(name, testfile, inputfiles, settings):
         print('Running test ' + testfile)
     t.setup(inputfiles)
     result = t.run()
-    print('{} {}'.format(name, result))
+    print('{} {}'.format(name, result_string(result)))
     if result == False:
-        for filename in inputfiles:
-            text = read_text(filename)
-            print('- file {}\n{}\n'.format(filename, text))
+        raise RuntimeError('The result expression evaluated to False. The output of the tools likely does not match.')
     return result
 
 class TestRunner(testrunner.TestRunner):

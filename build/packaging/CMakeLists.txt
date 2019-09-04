@@ -25,7 +25,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
     "Tools for modelling, validation and verification of concurrent systems")
 set(CPACK_PACKAGE_EXECUTABLES # exename/displayname to create start menu shortcuts
     "ltsgraph;LTSGraph" "ltsview;LTSView" "diagraphica;DiaGraphica" "lpsxsim;LPS XSim"
-    "mcrl2-gui;mCRL2 GUI" "mcrl2xi;mCRL2 XI")
+    "mcrl2-gui;mCRL2 GUI" "mcrl2xi;mCRL2 XI" "mcrl2ide;mCRL2 IDE")
 set(CPACK_PACKAGE_INSTALL_REGISTRY_KEY "mCRL2")
 set(CPACK_PACKAGE_CONTACT "mCRL2 Development team <mcrl2-users@listserver.tue.nl>")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY mCRL2)
@@ -33,12 +33,6 @@ set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_BINARY_DIR}/COPYING.txt )
 set(CPACK_RESOURCE_FILE_README  ${CMAKE_BINARY_DIR}/README.txt )
 
 if(APPLE)
-  add_custom_target(APPLE_BUNDLE_ITEMS
-    SOURCES
-      ${CMAKE_SOURCE_DIR}/build/packaging/osx/Contents/MacOS/mCRL2
-      ${CMAKE_SOURCE_DIR}/build/packaging/osx/Contents/Info.plist
-  )
-
   configure_file(${CMAKE_SOURCE_DIR}/build/packaging/osx/Contents/Info.plist
             ${MCRL2_STAGE_PATH}/${MCRL2_BUNDLE_PATH}/Contents/Info.plist @ONLY)
   configure_file(${CMAKE_SOURCE_DIR}/build/packaging/osx/Contents/MacOS/mCRL2
@@ -72,30 +66,8 @@ if(APPLE)
         WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}
         OUTPUT_FILE /tmp/macdeployqt.log
       )
-    ")
-# Explicitly install the Qt frameworks in the lib subdirectory. The program macdeployqt
-# does not do this by itself. A more logical place appears to install the files in Contents/Frameworks
-# but the loader on the mac is not able to find them in that directory.
-# It is helpful to set the environment variable QT_DEBUG_PLUGINS to 1 if investigating issues.
-# The same applies with DYLD_PRINT_LIBRARIES, which can also be set to 1.
-    install(DIRECTORY ${Qt5Core_DIR}/../../QtCore.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5Gui_DIR}/../../QtGui.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5OpenGL_DIR}/../../QtOpenGL.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5Widgets_DIR}/../../QtWidgets.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5Xml_DIR}/../../QtXml.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-# The frameworks below are needed by libqcocoa.dylib
-    install(DIRECTORY ${Qt5Xml_DIR}/../../QtDBus.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5Xml_DIR}/../../QtPrintSupport.framework
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/lib)
-    install(DIRECTORY ${Qt5Xml_DIR}/../../../plugins/platforms
-            DESTINATION ${MCRL2_BUNDLE_PATH}/Contents/bin)
-
+    "
+    COMPONENT Stable)
   endif()
 endif()
 
@@ -174,9 +146,10 @@ set(CPACK_COMPONENT_EXAMPLES_INSTALL_TYPES Full Default)
 # -----
 
 #Variables for RPM packaging
-set(CPACK_RPM_PACKAGE_LICENSE "Boost Software License, Version 1.0")
+set(CPACK_RPM_PACKAGE_LICENSE "Boost")
 set(CPACK_RPM_PACKAGE_GROUP "Productivity/Scientific/Other")
 set(CPACK_RPM_PACKAGE_VENDOR "Technische Universiteit Eindhoven (TU/e)")
+set(CPACK_RPM_PACKAGE_URL "https://mcrl2.org")
 set(CPACK_RPM_PACKAGE_REQUIRES "gcc")
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
     "/usr/share/applications"

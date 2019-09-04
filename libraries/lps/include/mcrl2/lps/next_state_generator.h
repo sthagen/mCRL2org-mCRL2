@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "mcrl2/atermpp/detail/shared_subset.h"
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/lps/probabilistic_data_expression.h"
 #include "mcrl2/lps/state.h"
 #include "mcrl2/lps/state_probability_pair.h"
@@ -39,7 +39,7 @@ class next_state_generator
     typedef data::rewriter rewriter_t;
     typedef data::enumerator_algorithm_with_iterator<> enumerator_t;
     typedef enumerator_t::iterator enumerator_iterator_t;
-    typedef std::deque<data::enumerator_list_element_with_substitution<> > enumerator_queue_t;
+    typedef data::enumerator_queue<data::enumerator_list_element_with_substitution<> > enumerator_queue_t;
 
     typedef data::rewriter::substitution_type substitution_t;
 
@@ -159,6 +159,7 @@ class next_state_generator
         next_state_generator* m_generator;
         lps::state m_state;
         substitution_t* m_substitution;
+        substitution_t* m_base_substitution;
 
         bool m_single_summand;
         std::size_t m_single_summand_index;
@@ -200,9 +201,9 @@ class next_state_generator
         {
         }
 
-        iterator(next_state_generator* generator, const lps::state& state, substitution_t* substitution, summand_subset_t& summand_subset, enumerator_queue_t* enumeration_queue);
+        iterator(next_state_generator* generator, const lps::state& state, substitution_t* substitution, substitution_t* base_substitution, summand_subset_t& summand_subset, enumerator_queue_t* enumeration_queue);
 
-        iterator(next_state_generator* generator, const lps::state& state, substitution_t* substitution, std::size_t summand_index, enumerator_queue_t* enumeration_queue);
+        iterator(next_state_generator* generator, const lps::state& state, substitution_t* substitution, substitution_t* base_substitution, std::size_t summand_index, enumerator_queue_t* enumeration_queue);
 
         operator bool() const
         {
@@ -230,6 +231,7 @@ class next_state_generator
     stochastic_specification m_specification;
     rewriter_t m_rewriter;
     substitution_t m_substitution;
+    substitution_t m_base_substitution;
     data::enumerator_identifier_generator m_id_generator;
     enumerator_t m_enumerator;
 
@@ -242,13 +244,18 @@ class next_state_generator
     summand_subset_t m_all_summands;
 
   public:
-    /// \brief Constructor
-    /// \param spec The process specification
-    /// \param rewriter The rewriter used
-    /// \param use_enumeration_caching Cache intermediate enumeration results
+    /// \brief Constructor.
+    /// \param spec The process specification.
+    /// \param rewriter The rewriter used.
+    /// \param base_substitution A substitution from variables to terms in normal form, used to replace variables occurring the in
+    ///        the specification. The rhs's in the substitution are assumed to be in normal form. It can be useful to replace closed
+    ///        expressions in the lps by variables, and put there rhs's in the base_substitution to avoid rewriting these expressions
+    ///        repeatedly.
+    /// \param use_enumeration_caching Cache intermediate enumeration results.
     /// \param use_summand_pruning Preprocess summands using pruning strategy.
     next_state_generator(const stochastic_specification& spec,
                          const data::rewriter& rewriter,
+                         const substitution_t& base_substitution = data::mutable_indexed_substitution<>(),
                          bool use_enumeration_caching = false,
                          bool use_summand_pruning = false);
 
@@ -257,20 +264,20 @@ class next_state_generator
     /// \brief Returns an iterator for generating the successors of the given state.
     iterator begin(const state& state, enumerator_queue_t* enumeration_queue)
     {
-      return iterator(this, state, &m_substitution, m_all_summands, enumeration_queue);
+      return iterator(this, state, &m_substitution, &m_base_substitution, m_all_summands, enumeration_queue);
     }
 
     /// \brief Returns an iterator for generating the successors of the given state.
     iterator begin(const state& state, summand_subset_t& summand_subset, enumerator_queue_t* enumeration_queue)
     {
-      return iterator(this, state, &m_substitution, summand_subset, enumeration_queue);
+      return iterator(this, state, &m_substitution, &m_base_substitution, summand_subset, enumeration_queue);
     }
 
     /// \brief Returns an iterator for generating the successors of the given state.
     /// Only the successors with respect to the summand with the given index are generated.
     iterator begin(const state& state, std::size_t summand_index, enumerator_queue_t* enumeration_queue)
     {
-      return iterator(this, state, &m_substitution, summand_index, enumeration_queue);
+      return iterator(this, state, &m_substitution, &m_base_substitution, summand_index, enumeration_queue);
     }
 
     /// \brief Returns an iterator pointing to the end of a next state list.

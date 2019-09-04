@@ -6,22 +6,23 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+
 #ifndef MCRL2_LTS_DETAIL_EXPLORATION_NEW_H
 #define MCRL2_LTS_DETAIL_EXPLORATION_NEW_H
 
 #include <string>
 #include <limits>
 #include <memory>
-#include <unordered_set>
 
-#include "mcrl2/atermpp/indexed_set.h"
+#include "mcrl2/utilities/indexed_set.h"
+
 #include "mcrl2/trace/trace.h"
 #include "mcrl2/lps/next_state_generator.h"
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/detail/bithashtable.h"
 #include "mcrl2/lts/detail/queue.h"
 #include "mcrl2/lts/detail/lts_generation_options.h"
-#include "mcrl2/lts/detail/exploration_strategy.h"
+#include "mcrl2/lps/exploration_strategy.h"
 
 
 namespace mcrl2
@@ -54,6 +55,36 @@ namespace detail
           return m_index;
         }
     };
+
+    // The class below is used to get a unique number for a multi-action which can contain time. 
+    // The class is a little complex because a multi-action is a pair of actions and time, and
+    // not by itself an aterm. 
+    class multi_action_indexed_set 
+    {
+      protected:
+        utilities::indexed_set<atermpp::aterm> storage;
+      
+      public:
+        inline
+        std::pair<std::size_t, bool> put(const lps::multi_action& ma) 
+        {
+          if (ma.time()==data::undefined_real())
+          {
+            // If the time is undefined, which means the multi-action can take place
+            // at any time, we find a number based on the actions. 
+            return storage.insert(ma.actions());
+          }
+          else 
+          { 
+            // When the time is non trivial we put the time as the first element of the 
+            // list of actions. This is not very elegant but it works. 
+            atermpp::aterm_list l=atermpp::down_cast<atermpp::aterm_list>(static_cast<const atermpp::aterm&>(ma.actions()));
+            l.push_front(ma.time()); 
+            return storage.insert(l);
+          }
+        }
+    };
+
 } // end namespace detail
 
 class lps2lts_algorithm
@@ -70,11 +101,12 @@ class lps2lts_algorithm
     next_state_generator::summand_subset_t m_nonprioritized_subset;
     next_state_generator::summand_subset_t m_prioritized_subset;
 
-    atermpp::indexed_set<lps::state> m_state_numbers;
+    utilities::indexed_set<lps::state> m_state_numbers;
+
     bit_hash_table m_bit_hash_table;
 
     probabilistic_lts_lts_t m_output_lts;
-    atermpp::indexed_set<process::action_list> m_action_label_numbers;
+    detail::multi_action_indexed_set m_action_label_numbers;
     std::ofstream m_aut_file;
 
     bool m_maintain_traces;
@@ -102,7 +134,7 @@ class lps2lts_algorithm
       m_generator(nullptr),
       m_must_abort(false)
     {
-      m_action_label_numbers.put(action_label_lts::tau_action().actions());  // The action tau has index 0 by default.
+      m_action_label_numbers.put(action_label_lts::tau_action());  // The action tau has index 0 by default.
     }
 
     ~lps2lts_algorithm()
@@ -148,13 +180,19 @@ class lps2lts_algorithm
     void save_deadlock(const lps::state& state);
     void save_nondeterministic_state(const lps::state& state, const next_state_generator::transition_t& nondeterminist_transition);
     void save_error(const lps::state& state);
-    std::pair<std::size_t, bool> add_target_state(const lps::state& source_state, const lps::state& target_state);
-    bool add_transition(const lps::state& source_state, const next_state_generator::transition_t& transition);
+    std::pair<std::size_t, bool> get_state_number(const lps::state& target_state);
+    std::size_t add_target_state(
+                         const lps::state& source_state, 
+                         const lps::state& target_state,
+                         const std::function<void(const lps::state&)> add_state_to_todo_queue_function);
+    void add_transition(const lps::state& source_state, 
+                         const next_state_generator::transition_t& transition,
+                         const std::function<void(const lps::state&)> add_state_to_todo_queue_function);
     void get_transitions(const lps::state& state,
                          std::vector<lps2lts_algorithm::next_state_generator::transition_t>& transitions,
                          next_state_generator::enumerator_queue_t& enumeration_queue
     );
-    void generate_lts_breadth_todo_max_is_npos();
+    void generate_lts_breadth_todo_max_is_npos(const next_state_generator::transition_t::state_probability_list& initial_states);
     void generate_lts_breadth_todo_max_is_not_npos(const next_state_generator::transition_t::state_probability_list& initial_states);
     void generate_lts_breadth_bithashing(const next_state_generator::transition_t::state_probability_list& initial_states);
     void generate_lts_depth(const next_state_generator::transition_t::state_probability_list& initial_states);
@@ -162,16 +200,19 @@ class lps2lts_algorithm
     void print_target_distribution_in_aut_format(
                const lps::next_state_generator::transition_t::state_probability_list& state_probability_list,
                const std::size_t last_state_number,
-               const lps::state& source_state);
+               const lps::state& source_state,
+               const std::function<void(const lps::state&)> add_state_to_todo_queue_function);
     void print_target_distribution_in_aut_format(
                 const lps::next_state_generator::transition_t::state_probability_list& state_probability_list,
-                const lps::state& source_state);
+                const lps::state& source_state,
+                const std::function<void(const lps::state&)> add_state_to_todo_queue_function);
     probabilistic_state<std::size_t, lps::probabilistic_data_expression> transform_initial_probabilistic_state_list
                  (const next_state_generator::transition_t::state_probability_list& initial_states);
     probabilistic_state<std::size_t, lps::probabilistic_data_expression> create_a_probabilistic_state_from_target_distribution(
                const std::size_t base_state_number,
                const next_state_generator::transition_t::state_probability_list& other_probabilities,
-               const lps::state& source_state);
+               const lps::state& source_state,
+               const std::function<void(const lps::state&)> add_state_to_todo_queue_function);
 
 
 };

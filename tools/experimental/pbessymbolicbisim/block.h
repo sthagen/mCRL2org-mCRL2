@@ -14,6 +14,7 @@
 #include <list>
 
 #include "mcrl2/utilities/hash_utility.h"
+#include "mcrl2/pbes/structure_graph.h"
 
 #include "subblock.h"
 
@@ -26,6 +27,7 @@ namespace data
 class block
 {
   typedef subblock subblock_t;
+  typedef pbes_system::structure_graph::index_type sg_index_t;
 
 protected:
   // const pbes_type_t m_spec;
@@ -36,6 +38,7 @@ protected:
 
 public:
 
+  sg_index_t index = pbes_system::undefined_vertex();
   int bfs_level = 0;
 
   block()
@@ -43,9 +46,10 @@ public:
   , m_cache(nullptr)
   {}
 
-  block(const std::list< subblock >& subblocks, split_cache<block>* cache)
+  block(const std::list< subblock_t >& subblocks, split_cache<block>* cache, sg_index_t i = pbes_system::undefined_vertex())
   : m_subblocks(std::make_shared<std::list<subblock_t>>(subblocks.begin(), subblocks.end()))
   , m_cache(cache)
+  , index(i)
   {}
 
   /// Move semantics
@@ -61,12 +65,12 @@ public:
     {
       return find_result->second;
     }
-    bool result = std::any_of(m_subblocks->begin(), m_subblocks->end(), [&other](const subblock& sb){ return sb.has_transition(*other.m_subblocks); });
+    bool result = std::any_of(m_subblocks->begin(), m_subblocks->end(), [&other](const subblock_t& sb){ return sb.has_transition(*other.m_subblocks); });
     m_cache->insert_transition(*this, other, result);
     return result;
   }
 
-  std::pair<block, block> split(const block& other, const std::vector<subblock>& subblock_list, bool use_optimisations) const
+  std::pair<block, block> split(const block& other, const std::vector<subblock_t>& subblock_list, bool use_optimisations) const
   {
     if(!has_transition(other))
     {
@@ -80,10 +84,10 @@ public:
     // lists
     // pos_subblocks contains subblocks with a transittion to other
     // neg_subblocks contains subblocks without a transittion to other
-    std::list<subblock> pos_subblocks, neg_subblocks;
-    for(const subblock& sb: *m_subblocks)
+    std::list<subblock_t> pos_subblocks, neg_subblocks;
+    for(const subblock_t& sb: *m_subblocks)
     {
-      std::pair<subblock,subblock> sb_split = sb.split(*other.m_subblocks, subblock_list);
+      std::pair<subblock_t,subblock_t> sb_split = sb.split(*other.m_subblocks, subblock_list);
       if(!sb_split.first.is_empty())
       {
         pos_subblocks.push_back(sb_split.first);
@@ -110,10 +114,10 @@ public:
     {
       return std::make_pair(*this, block());
     }
-    return std::make_pair(block(pos_subblocks, m_cache), block(neg_subblocks, m_cache));
+    return std::make_pair(block(pos_subblocks, m_cache, this->index), block(neg_subblocks, m_cache));
   }
 
-  const std::list<subblock>& subblocks() const
+  const std::list<subblock_t>& subblocks() const
   {
     return *m_subblocks;
   }
@@ -136,7 +140,7 @@ public:
   std::string name() const
   {
     std::ostringstream out;
-    for(const subblock& sb: *m_subblocks)
+    for(const subblock_t& sb: *m_subblocks)
     {
       out << sb.equation().variable().name();
     }

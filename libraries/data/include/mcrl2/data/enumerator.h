@@ -14,7 +14,7 @@
 
 #include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/detail/enumerator_identifier_generator.h"
-#include "mcrl2/data/detail/enumerator_variable_limit.h"
+#include "mcrl2/data/detail/enumerator_iteration_limit.h"
 #include "mcrl2/data/identifier_generator.h"
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/substitutions/enumerator_substitution.h"
@@ -170,9 +170,9 @@ bool is_enumerable(const data_specification& dataspec, const Rewriter& rewr, con
   {
     return false;
   }
-  else if(is_function_sort(sort))
+  else if (is_function_sort(sort))
   {
-    const function_sort& func = atermpp::down_cast<function_sort>(sort);
+    const auto& func = atermpp::down_cast<function_sort>(sort);
     enumerator_identifier_generator id_gen;
     data_expression_vector expr_vec;
     variable_list var_list;
@@ -215,28 +215,19 @@ bool is_enumerable(const data_specification& dataspec, const Rewriter& rewr, con
 
 } // namespace detail
 
+/// \brief Enumerator exception
+struct enumerator_error: public mcrl2::runtime_error
+{
+  explicit enumerator_error(const std::string& message): mcrl2::runtime_error(message)
+  {}
+};
+
 template <typename Rewriter>
 static bool is_enumerable(const data_specification& dataspec, const Rewriter& rewr, const sort_expression& sort)
 {
   std::list<sort_expression> parentstack;
   return detail::is_enumerable(dataspec, rewr, sort, parentstack);
 }
-
-struct is_not_false
-{
-  bool operator()(const data_expression& x) const
-  {
-    return !sort_bool::is_false_function_symbol(x);
-  }
-};
-
-struct is_not_true
-{
-  bool operator()(const data_expression& x) const
-  {
-    return !sort_bool::is_true_function_symbol(x);
-  }
-};
 
 /// \brief The default element for the todo list of the enumerator
 template <typename Expression = data::data_expression>
@@ -247,27 +238,32 @@ class enumerator_list_element
     Expression phi;
 
   public:
+    typedef Expression expression_type;
+
+    /// \brief Default constructor
+    enumerator_list_element() = default;
+
     /// \brief Constructs the element (v, phi)
-    enumerator_list_element(const data::variable_list& v_, const Expression& phi_)
-      : v(v_), phi(phi_)
+    enumerator_list_element(data::variable_list v_, const Expression& phi_)
+      : v(std::move(v_)), phi(phi_)
     {}
 
     /// \brief Constructs the element (v, phi)
-    enumerator_list_element(const data::variable_list& v_,
+    enumerator_list_element(data::variable_list v_,
                             const Expression& phi_,
                             const enumerator_list_element&
                            )
-      : v(v_), phi(phi_)
+      : v(std::move(v_)), phi(phi_)
     {}
 
     /// \brief Constructs the element (v, phi)
-    enumerator_list_element(const data::variable_list& v_,
+    enumerator_list_element(data::variable_list v_,
                             const Expression& phi_,
                             const enumerator_list_element&,
                             const data::variable&,
                             const data::data_expression&
                            )
-      : v(v_), phi(phi_)
+      : v(std::move(v_)), phi(phi_)
     {}
 
     const data::variable_list& variables() const
@@ -313,14 +309,12 @@ class enumerator_list_element_with_substitution: public enumerator_list_element<
     data::variable_list m_variables;
     data::data_expression_list m_expressions;
 
-    // TODO: this is a hack to solve an efficiency problem in the data rewriter
-    static mutable_indexed_substitution<>& empty_substitution()
-    {
-      static mutable_indexed_substitution<> result;
-      return result;
-    }
-
   public:
+    typedef Expression expression_type;
+
+    /// \brief Default constructor
+    enumerator_list_element_with_substitution() = default;
+
     /// \brief Constructs the element (v, phi, [])
     enumerator_list_element_with_substitution(const data::variable_list& v, const Expression& phi)
       : enumerator_list_element<Expression>(v, phi)
@@ -359,18 +353,121 @@ class enumerator_list_element_with_substitution: public enumerator_list_element<
     {
       data::enumerator_substitution sigma(m_variables, m_expressions);
       sigma.revert();
-      for (auto i = v.begin(); i != v.end(); ++i)
+      for (const data::variable& v_i: v)
       {
-        result[*i] = rewriter(sigma(*i), empty_substitution());
+        result[v_i] = rewriter(sigma(v_i));
       }
+    }
+
+    /// \brief Removes the assignments corresponding with this element from the substitution result.
+    template <typename VariableList, typename MutableSubstitution>
+    void remove_assignments(const VariableList& v, MutableSubstitution& result) const
+    {
+      for (const data::variable& v_i: v)
+      {
+        result[v_i] = v_i;
+      }
+    }
+
+    /// \brief Returns the right hand sides corresponding to the variables v
+    /// \pre variables in v must be contained in variables()
+    template <typename VariableList, typename Rewriter>
+    data::data_expression_list assign_expressions(const VariableList& v, const Rewriter& rewriter) const
+    {
+      data::enumerator_substitution sigma(m_variables, m_expressions);
+      sigma.revert();
+      return data_expression_list(v.begin(), v.end(), [&](const data::variable& v_i) { return rewriter(sigma(v_i)); });
     }
 };
 
 template <typename Expression>
 std::ostream& operator<<(std::ostream& out, const enumerator_list_element<Expression>& p)
 {
-  return out << "{ variables = " << core::detail::print_list(p.variables()) << ", expression = " << p.expression() << " }";
+  out << "{ [";
+  const auto& variables = p.variables();
+  for (auto i = variables.begin(); i != variables.end(); ++i)
+  {
+    if (i != variables.begin())
+    {
+      out << ", ";
+    }
+    out << *i << ": " << i->sort();
+  }
+  return out << "], " << p.expression() << " }";
 }
+
+/// \brief Contains the enumerator queue.
+template <typename EnumeratorListElement>
+class enumerator_queue
+{
+  protected:
+    std::deque<EnumeratorListElement> P;
+
+  public:
+    typedef EnumeratorListElement value_type;
+    typedef typename std::deque<EnumeratorListElement>::size_type size_type;
+
+    /// \brief Default constructor
+    enumerator_queue() = default;
+
+    /// \brief Initializes the enumerator queue with the given value
+    explicit enumerator_queue(const EnumeratorListElement& value)
+            : P(1, value)
+    { }
+
+    void push_back(const EnumeratorListElement& x)
+    {
+#ifdef MCRL2_LOG_ENUMERATOR
+      std::cout << "push_back " << x << std::endl;
+#endif
+      P.push_back(x);
+    }
+
+    bool empty() const
+    {
+      return P.empty();
+    }
+
+    void clear()
+    {
+      P.clear();
+    }
+
+    typename std::deque<EnumeratorListElement>::size_type size() const
+    {
+      return P.size();
+    }
+
+    const EnumeratorListElement& front() const
+    {
+      return P.front();
+    }
+
+    EnumeratorListElement& front()
+    {
+      return P.front();
+    }
+
+    const EnumeratorListElement& back() const
+    {
+      return P.back();
+    }
+
+    EnumeratorListElement& back()
+    {
+      return P.back();
+    }
+
+    void pop_front()
+    {
+      P.pop_front();
+    }
+
+    void pop_back()
+    {
+      P.pop_back();
+    }
+};
 
 /// \brief An enumerator algorithm that generates solutions of a condition.
 template <typename Rewriter = data::rewriter, typename DataRewriter = data::rewriter>
@@ -378,13 +475,13 @@ class enumerator_algorithm
 {
   protected:
     // A rewriter
-    const Rewriter& m_rewr;
+    const Rewriter& R;
 
     /// \brief A data specification.
     const data::data_specification& dataspec;
 
     // Needed for enumerate_expressions
-    const DataRewriter& datar;
+    const DataRewriter& r;
 
     // A name generator
     enumerator_identifier_generator& id_generator;
@@ -392,8 +489,12 @@ class enumerator_algorithm
     /// \brief max_count The enumeration is aborted after max_count iterations
     std::size_t m_max_count;
 
-    /// \brief throw_exceptions If true, an exception is thrown when the enumeration is aborted.
-    bool m_throw_exceptions;
+    /// \brief If true, solutions with a non-empty list of variables may be reported.
+    bool m_accept_solutions_with_variables;
+
+#ifdef MCRL2_ENUMERATOR_COUNT_REWRITE_CALLS
+    mutable std::size_t rewrite_calls = 0;
+#endif
 
     std::string print(const data::variable& x) const
     {
@@ -402,89 +503,14 @@ class enumerator_algorithm
       return out.str();
     }
 
-    bool is_finite_set(const data::sort_expression& ) const
+    template <typename Expression, typename MutableSubstitution>
+    inline
+    Expression rewrite(const Expression& phi, MutableSubstitution& sigma) const
     {
-      return false;
-    }
-
-    template <typename EnumeratorListElement>
-    void cannot_enumerate(EnumeratorListElement& e, const std::string& msg) const
-    {
-      e.invalidate();
-      if (m_throw_exceptions)
-      {
-        throw mcrl2::runtime_error(msg);
-      }
-    }
-
-    // add element without additional variables
-    template <typename EnumeratorListElement, typename MutableSubstitution, typename Filter, typename Expression>
-    void add_element(std::deque<EnumeratorListElement>& P,
-                     MutableSubstitution& sigma,
-                     Filter accept,
-                     const data::variable_list& variables,
-                     const Expression& phi,
-                     const EnumeratorListElement& p,
-                     const data::variable& v,
-                     const data::data_expression& e) const
-    {
-      auto phi1 = const_cast<Rewriter&>(m_rewr)(phi, sigma);
-      if (accept(phi1))
-      {
-        P.emplace_back(EnumeratorListElement(variables, phi1, p, v, e));
-        //mCRL2log(log::debug) << "  <add-element> " << P.back() << " with assignment " << v << " := " << e << std::endl;
-      }
-    }
-
-    // add element with additional variables
-    template <typename EnumeratorListElement, typename MutableSubstitution, typename Filter, typename Expression>
-    void add_element(std::deque<EnumeratorListElement>& P,
-                     MutableSubstitution& sigma,
-                     Filter accept,
-                     const data::variable_list& variables,
-                     const data::variable_list& added_variables,
-                     const Expression& phi,
-                     const EnumeratorListElement& p,
-                     const data::variable& v,
-                     const data::data_expression& e) const
-    {
-      auto phi1 = const_cast<Rewriter&>(m_rewr)(phi, sigma);
-      if (accept(phi1))
-      {
-        // Additional variables are put at the end of the list!
-        P.emplace_back(EnumeratorListElement(variables + added_variables, phi1, p, v, e));
-        //mCRL2log(log::debug) << "  <add-element> " << P.back() << " with assignment " << v << " := " << e << std::endl;
-      }
-    }
-
-    // specialization for enumerator_list_element; in this case we are not interested in the substitutions,
-    // and this allows an optimization
-    template <typename MutableSubstitution, typename Filter, typename Expression>
-    void add_element(std::deque<enumerator_list_element<Expression> >& P,
-                     MutableSubstitution& sigma,
-                     Filter accept,
-                     const data::variable_list& variables,
-                     const data::variable_list& added_variables,
-                     const Expression& phi,
-                     const enumerator_list_element<Expression>& p,
-                     const data::variable& v,
-                     const data::data_expression& e) const
-    {
-      auto phi1 = const_cast<Rewriter&>(m_rewr)(phi, sigma);
-      if (accept(phi1))
-      {
-        if (phi1 == phi)
-        {
-          // Discard the added_variables, since we know they do not appear in phi1
-          P.emplace_back(enumerator_list_element<Expression>(variables, phi1, p, v, e));
-        }
-        else
-        {
-          // Additional variables are put at the end of the list!
-          P.emplace_back(enumerator_list_element<Expression>(variables + added_variables, phi1, p, v, e));
-        }
-        //mCRL2log(log::debug) << "  <add-element> " << P.back() << " with assignment " << v << " := " << e << std::endl;
-      }
+#ifdef MCRL2_ENUMERATOR_COUNT_REWRITE_CALLS
+      rewrite_calls++;
+#endif
+      return const_cast<Rewriter&>(R)(phi, sigma);
     }
 
   public:
@@ -492,312 +518,328 @@ class enumerator_algorithm
                          const data::data_specification& dataspec_,
                          const DataRewriter& datar_,
                          enumerator_identifier_generator& id_generator_,
-                         std::size_t max_count = (std::numeric_limits<std::size_t>::max)(),
-                         bool throw_exceptions = false
-                       )
-      : m_rewr(R_), dataspec(dataspec_), datar(datar_), id_generator(id_generator_), m_max_count(max_count), m_throw_exceptions(throw_exceptions)
+                         bool accept_solutions_with_variables,
+                         std::size_t max_count = (std::numeric_limits<std::size_t>::max)()
+    )
+      : R(R_),
+        dataspec(dataspec_),
+        r(datar_),
+        id_generator(id_generator_),
+        m_max_count(max_count),
+        m_accept_solutions_with_variables(accept_solutions_with_variables)
     {}
 
-  private:
-    // enumerator_algorithm(const enumerator_algorithm<Rewriter, DataRewriter>&) = delete;
-    enumerator_algorithm(const enumerator_algorithm<Rewriter, DataRewriter>&)
-    {}
+    enumerator_algorithm(const enumerator_algorithm<Rewriter, DataRewriter>&) = delete;
 
-  public:
+    ~enumerator_algorithm()
+    {
+#ifdef MCRL2_ENUMERATOR_COUNT_REWRITE_CALLS
+      std::cout << "number of enumerator rewrite calls: " << rewrite_calls << std::endl;
+#endif
+    }
+
+    template <typename T>
+    struct always_false
+    {
+      bool operator()(const T&) { return false; }
+    };
+
     /// \brief Enumerates the front element of the todo list P.
+    /// The enumeration is interrupted when report_solution returns true for the reported solution.
     /// \param P The todo list of the algorithm.
     /// \param sigma A mutable substitution that is applied by the rewriter.
-    /// \param accept Elements p for which accept(p) is false are discarded.
+    /// \param reject Elements p for which reject(p) is true are discarded.
+    /// \param accept Elements p for which accept(p) is true are reported as a solution, even if the list of variables of the enumerator element is non-empty.
+    /// \param report_solution A callback function that is called whenever a solution is found.
+    /// It takes an enumerator element as argument.
+    /// If report_solution returns true, the enumeration is interrupted.
+    /// N.B. If the enumeration is resumed after an interruption, the element p that
+    /// was interrupted will be enumerated again.
     /// \pre !P.empty()
-    template <typename EnumeratorListElement, typename MutableSubstitution, typename Filter>
-    void enumerate_front(std::deque<EnumeratorListElement>& P, MutableSubstitution& sigma, Filter accept) const
+    /// \return If the return value is true, enumeration will be interrupted
+    template <typename EnumeratorListElement,
+              typename MutableSubstitution,
+              typename ReportSolution,
+              typename Reject = always_false<typename EnumeratorListElement::expression_type>,
+              typename Accept = always_false<typename EnumeratorListElement::expression_type>
+             >
+    bool enumerate_front(enumerator_queue<EnumeratorListElement>& P,
+                         MutableSubstitution& sigma,
+                         ReportSolution report_solution,
+                         Reject reject = Reject(),
+                         Accept accept = Accept()
+                        ) const
     {
       assert(!P.empty());
+      const auto& p = P.front();
 
-      auto p = P.front();
+      auto add_element = [&](const data::variable_list& variables,
+                             const typename EnumeratorListElement::expression_type& phi,
+                             const data::variable& v,
+                             const data::data_expression& e
+      )
+      {
+        auto phi1 = rewrite(phi, sigma);
+        if (reject(phi1))
+        {
+          return false;
+        }
+        if ((accept(phi1) && m_accept_solutions_with_variables) || variables.empty())
+        {
+          EnumeratorListElement q(variables, phi1, p, v, e);
+          return report_solution(q);
+        }
+        P.push_back(EnumeratorListElement(variables, phi1, p, v, e));
+        return false;
+      };
+
+      auto add_element_with_variables = [&](const data::variable_list& variables,
+                                            const data::variable_list& added_variables,
+                                            const typename EnumeratorListElement::expression_type& phi,
+                                            const data::variable& v,
+                                            const data::data_expression& e
+      )
+      {
+        auto phi1 = rewrite(phi, sigma);
+        if (reject(phi1))
+        {
+          return false;
+        }
+        bool added_variables_empty = added_variables.empty() || (phi1 == phi && m_accept_solutions_with_variables);
+        if ((accept(phi1) && m_accept_solutions_with_variables) || (variables.empty() && added_variables_empty))
+        {
+          EnumeratorListElement q(variables + added_variables, phi1, p, v, e);
+          return report_solution(q);
+        }
+        if (added_variables_empty)
+        {
+          P.push_back(EnumeratorListElement(variables, phi1, p, v, e));
+        }
+        else
+        {
+          P.push_back(EnumeratorListElement(variables + added_variables, phi1, p, v, e));
+        }
+        return false;
+      };
+
       const auto& v = p.variables();
       const auto& phi = p.expression();
-      //mCRL2log(log::debug) << "  <process-element> " << p << std::endl;
-      P.pop_front();
+
+      if (v.empty())
+      {
+        auto phi1 = rewrite(phi, sigma);
+        if (reject(phi1))
+        {
+          return false;
+        }
+        EnumeratorListElement q(v, phi1, p);
+        return report_solution(q);
+      }
 
       const auto& v1 = v.front();
-      const auto& vtail = v.tail();
-      const auto& sort = v1.sort();
+      const auto& v_tail = v.tail();
+      const auto& v1_sort = v1.sort();
 
-      if (data::is_function_sort(sort))
+      if (reject(phi))
       {
-        const function_sort& function = atermpp::down_cast<function_sort>(sort);
+        // skip
+      }
+      else if (data::is_function_sort(v1_sort))
+      {
+        const function_sort& function = atermpp::down_cast<function_sort>(v1_sort);
         if (dataspec.is_certainly_finite(function))
         {
           data_expression_vector function_sorts;
           variable_list function_parameter_list;
-          bool result = detail::compute_finite_function_sorts(function, id_generator, dataspec, datar, function_sorts, function_parameter_list);
-
+          bool result = detail::compute_finite_function_sorts(function, id_generator, dataspec, r, function_sorts, function_parameter_list);
           if (!result)
           {
-            cannot_enumerate(p, "Sort " + data::pp(sort) + " has too many elements to enumerate.");
+            throw mcrl2::runtime_error("Sort " + data::pp(v1_sort) + " has too many elements to enumerate.");
           }
-          const data_expression old_substituted_value = sigma(v1);
+
           for (const data_expression& f: function_sorts)
           {
             sigma[v1] = f;
-            add_element(P, sigma, accept, vtail, phi, p, v1, f);
+            if (add_element(v_tail, phi, v1, f))
+            {
+              sigma[v1] = v1;
+              return true;
+            }
           }
-          sigma[v1] = old_substituted_value;
         }
         else
         {
-          cannot_enumerate(p, "Cannot enumerate elements of function sort " + data::pp(sort) + ".");
+          throw mcrl2::runtime_error("Cannot enumerate elements of function sort " + data::pp(v1_sort) + ".");
         }
       }
-      else if (sort_set::is_set(sort))
+      else if (sort_set::is_set(v1_sort))
       {
-        const sort_expression element_sort = container_sort(sort).element_sort();
+        const sort_expression& element_sort = atermpp::down_cast<container_sort>(v1_sort).element_sort();
         if (dataspec.is_certainly_finite(element_sort))
         {
           const data_expression lambda_term = abstraction(lambda_binder(), { variable(id_generator(), element_sort) }, sort_bool::false_());
           const variable fset_variable(id_generator(), sort_fset::fset(element_sort));
-          const data_expression term = sort_set::constructor(element_sort, lambda_term, fset_variable);
-          const data_expression old_substituted_value = sigma(v1);
-          sigma[v1] = term;
-          add_element(P, sigma, accept, vtail, { fset_variable }, phi, p, v1, term);
-          sigma[v1] = old_substituted_value;
+          data_expression e = sort_set::constructor(element_sort, lambda_term, fset_variable);
+          sigma[v1] = e;
+          if (add_element(v_tail, phi, v1, e))
+          {
+            sigma[v1] = v1;
+            return true;
+          }
         }
         else
         {
-          cannot_enumerate(p, "Cannot enumerate elements of set sort " + data::pp(sort) + ".");
-          return;
+          throw mcrl2::runtime_error("Cannot enumerate elements of set sort " + data::pp(v1_sort) + ".");
         }
       }
-      else if (sort_fset::is_fset(sort))
+      else if (sort_fset::is_fset(v1_sort))
       {
-        const container_sort& fset = atermpp::down_cast<container_sort>(sort);
+        const auto& fset = atermpp::down_cast<container_sort>(v1_sort);
         if (dataspec.is_certainly_finite(fset.element_sort()))
         {
           data_expression_vector set_elements;
-          bool result = detail::compute_finite_set_elements(fset, dataspec, datar, sigma, set_elements, id_generator);
-
+          bool result = detail::compute_finite_set_elements(fset, dataspec, r, sigma, set_elements, id_generator);
           if (!result)
           {
-            cannot_enumerate(p, "Finite set sort " + data::pp(sort) + " has too many elements to enumerate.");
+            throw mcrl2::runtime_error("Finite set sort " + data::pp(v1_sort) + " has too many elements to enumerate.");
           }
-          const data_expression old_substituted_value = sigma(v1);
-          for (const data_expression& set_element: set_elements)
+
+          for (const data_expression& e: set_elements)
           {
-            sigma[v1] = set_element;
-            add_element(P, sigma, accept, vtail, phi, p, v1, set_element);
+            sigma[v1] = e;
+            if (add_element(v_tail, phi, v1, e))
+            {
+              sigma[v1] = v1;
+              return true;
+            }
           }
-          sigma[v1] = old_substituted_value;
         }
         else
         {
-          cannot_enumerate(p, "Cannot enumerate elements of finite set sort " + data::pp(sort) + ".");
-          return;
+          throw mcrl2::runtime_error("Cannot enumerate elements of finite set sort " + data::pp(v1_sort) + ".");
         }
       }
-      else if (sort_bag::is_bag(sort))
+      else if (sort_bag::is_bag(v1_sort))
       {
-        cannot_enumerate(p, "Cannot enumerate elements of bag sort " + data::pp(sort) + ".");
-        return;
+        throw mcrl2::runtime_error("Cannot enumerate elements of bag sort " + data::pp(v1_sort) + ".");
       }
-      else if (sort_fbag::is_fbag(sort))
+      else if (sort_fbag::is_fbag(v1_sort))
       {
-        cannot_enumerate(p, "Cannot enumerate elements of finite bag sort " + data::pp(sort) + ".");
-        return;
+        throw mcrl2::runtime_error("Cannot enumerate elements of finite bag sort " + data::pp(v1_sort) + ".");
       }
       else
       {
-        const function_symbol_vector& C = dataspec.constructors(sort);
+        const function_symbol_vector& C = dataspec.constructors(v1_sort);
         if (!C.empty())
         {
-          for (const function_symbol& constructor: C)
+          for (const function_symbol& c: C)
           {
-            if (data::is_function_sort(constructor.sort()))
+            if (data::is_function_sort(c.sort()))
             {
-              auto const& domain = atermpp::down_cast<data::function_sort>(constructor.sort()).domain();
+              auto const& domain = atermpp::down_cast<data::function_sort>(c.sort()).domain();
               data::variable_list y(domain.begin(), domain.end(), [&](const data::sort_expression& s) { return data::variable(id_generator(), s); });
-              // TODO: We want to apply datar without the substitution sigma, but that is currently an inefficient operation of data::rewriter.
-              data_expression cy = datar(application(constructor, y.begin(), y.end()), sigma);
+              data_expression cy = r(application(c, y.begin(), y.end()));
               sigma[v1] = cy;
-              add_element(P, sigma, accept, vtail, y, phi, p, v1, cy);
-              sigma[v1] = v1;
+              if (add_element_with_variables(v_tail, y, phi, v1, cy))
+              {
+                sigma[v1] = v1;
+                return true;
+              }
             }
             else
             {
-              // TODO: We want to apply datar without the substitution sigma, but that is currently an inefficient operation of data::rewriter.
-              auto const e1 = datar(constructor, sigma);
+              const auto e1 = r(c);
               sigma[v1] = e1;
-              add_element(P, sigma, accept, vtail, phi, p, v1, e1);
-              sigma[v1] = v1;
+              if (add_element(v_tail, phi, v1, e1))
+              {
+                sigma[v1] = v1;
+                return true;
+              }
             }
           }
         }
         else
         {
-          cannot_enumerate(p, "Cannot enumerate elements of sort " + data::pp(sort) + " without constructors.");
-          return;
+          throw mcrl2::runtime_error("Cannot enumerate elements of sort " + data::pp(v1_sort) + " without constructors.");
         }
       }
+      sigma[v1] = v1;
+      return false;
     }
 
-    /// \brief Enumerates the front elements of the todo list P until a solution
-    /// has been found, or until P is empty.
+    /// \brief Enumerates until P is empty. Solutions are reported using the callback function report_solution.
+    /// The enumeration is interrupted when report_solution returns true for the reported solution.
     /// \param P The todo list of the algorithm.
     /// \param sigma A substitution.
-    /// \param accept Elements p for which accept(p) is false are discarded.
+    /// \param reject Elements p for which reject(p) is true are discarded.
+    /// \param accept Elements p for which accept(p) is true are reported as a solution, even if the list of variables of the enumerator element is non-empty.
+    /// \param report_solution A callback function that is called whenever a solution is found.
+    /// It takes an enumerator element as argument.
+    /// If report_solution returns true, the enumeration is interrupted.
+    /// N.B. If the enumeration is resumed after an interruption, the element p that
+    /// was interrupted will be enumerated again.
     /// \return The number of elements that have been processed
-    /// \post Either P.empty() or P.front().is_solution()
-    template <typename EnumeratorListElement, typename MutableSubstitution, typename Filter>
-    std::size_t next(std::deque<EnumeratorListElement>& P, MutableSubstitution& sigma, Filter accept) const
+    template <typename EnumeratorListElement,
+              typename MutableSubstitution,
+              typename ReportSolution,
+              typename Reject = always_false<typename EnumeratorListElement::expression_type>,
+              typename Accept = always_false<typename EnumeratorListElement::expression_type>
+             >
+    std::size_t enumerate_all(enumerator_queue<EnumeratorListElement>& P,
+                              MutableSubstitution& sigma,
+                              ReportSolution report_solution,
+                              Reject reject = Reject(),
+                              Accept accept = Accept()
+    ) const
     {
-      //mCRL2log(log::debug) << "  <next> " << core::detail::print_list(P) << std::endl;
       std::size_t count = 0;
       while (!P.empty())
       {
-        if (P.front().is_solution())
+        if (count++ >= m_max_count)
         {
-          //mCRL2log(log::debug) << "  <solution> " << P.front() << std::endl;
           break;
         }
-        else
+        if (enumerate_front(P, sigma, report_solution, reject, accept))
         {
-          enumerate_front(P, sigma, accept);
-          count++;
-          if (count >= m_max_count)
-          {
-            break;
-          }
+          break;
         }
+        P.pop_front();
       }
       return count;
+    }
+
+    /// \brief Enumerates the element p. Solutions are reported using the callback function report_solution.
+    /// The enumeration is interrupted when report_solution returns true for the reported solution.
+    /// \param p An enumerator element, i.e. an expression with a list of variables.
+    /// \param sigma A substitution.
+    /// \param reject Elements p for which reject(p) is true are discarded.
+    /// \param accept Elements p for which accept(p) is true are reported as a solution, even if the list of variables of the enumerator element is non-empty.
+    /// \param report_solution A callback function that is called whenever a solution is found.
+    /// It takes an enumerator element as argument.
+    /// If report_solution returns true, the enumeration is interrupted.
+    /// N.B. If the enumeration is resumed after an interruption, the element p that
+    /// was interrupted will be enumerated again.
+    /// \return The number of elements that have been processed
+    template <typename EnumeratorListElement,
+              typename MutableSubstitution,
+              typename ReportSolution,
+              typename Reject = always_false<typename EnumeratorListElement::expression_type>,
+              typename Accept = always_false<typename EnumeratorListElement::expression_type>
+    >
+    std::size_t enumerate(const EnumeratorListElement& p,
+                          MutableSubstitution& sigma,
+                          ReportSolution report_solution,
+                          Reject reject = Reject(),
+                          Accept accept = Accept()
+    ) const
+    {
+      enumerator_queue<EnumeratorListElement> P(p);
+      return enumerate_all(P, sigma, report_solution, reject, accept);
     }
 
     std::size_t max_count() const
     {
       return m_max_count;
-    }
-
-    bool throw_exceptions() const
-    {
-      return m_throw_exceptions;
-    }
-};
-
-/// \brief An enumerator algorithm with an iterator interface.
-template <typename Rewriter = data::rewriter, typename EnumeratorListElement = enumerator_list_element_with_substitution<>, typename Filter = data::is_not_false, typename DataRewriter = data::rewriter, typename MutableSubstitution = data::mutable_indexed_substitution<> >
-class enumerator_algorithm_with_iterator: public enumerator_algorithm<Rewriter, DataRewriter>
-{
-  protected:
-
-    Filter m_accept;
-
-  public:
-    typedef enumerator_algorithm<Rewriter, DataRewriter> super;
-
-    /// \brief A class to enumerate solutions for terms.
-    /// \details Solutions are presented as data_expression_lists of the same length as
-    ///          the list of variables for which a solution is sought.
-    class iterator: public boost::iterator_facade<iterator, const EnumeratorListElement, boost::forward_traversal_tag>
-    {
-      protected:
-        enumerator_algorithm_with_iterator<Rewriter, EnumeratorListElement, Filter, DataRewriter, MutableSubstitution>* E;
-        MutableSubstitution* sigma;
-        std::deque<EnumeratorListElement>* P;
-        Filter accept;
-        std::size_t count;
-
-        static std::deque<EnumeratorListElement>& default_deque()
-        {
-          static std::deque<EnumeratorListElement> result;
-          return result;
-        }
-
-      public:
-        iterator(enumerator_algorithm_with_iterator<Rewriter, EnumeratorListElement, Filter, DataRewriter, MutableSubstitution>* E_,
-                 std::deque<EnumeratorListElement>* P_,
-                 MutableSubstitution* sigma_,
-                 Filter accept_ = Filter()
-                )
-          : E(E_), sigma(sigma_), P(P_), accept(accept_), count(0)
-        {
-          count += E->next(*P, *sigma, accept);
-        }
-
-        iterator(Filter accept_ = Filter())
-          : E(nullptr), sigma(nullptr), P(&default_deque()), accept(accept_), count(0)
-        { }
-
-      protected:
-        friend class boost::iterator_core_access;
-
-        void increment()
-        {
-          assert(!P->empty());
-          P->pop_front();
-          count += E->next(*P, *sigma, accept);
-          if (count >= E->max_count())
-          {
-            if (E->throw_exceptions())
-            {
-              std::ostringstream out;
-              out << "enumeration was aborted, since it did not complete within " << E->max_count() << " iterations";
-              throw mcrl2::runtime_error(out.str());
-            }
-            else
-            {
-              P->clear();
-              return;
-            }
-          }
-        }
-
-        bool equal(iterator const& other) const
-        {
-          return P->size() == other.P->size();
-        }
-
-        const EnumeratorListElement& dereference() const
-        {
-          assert(!P->empty());
-          return P->front();
-        }
-    };
-
-    enumerator_algorithm_with_iterator(
-                const Rewriter& R,
-                const data::data_specification& dataspec,
-                const DataRewriter& datar,
-                enumerator_identifier_generator& id_generator,
-                std::size_t max_count = (std::numeric_limits<std::size_t>::max)(),
-                bool throw_exceptions = false,
-                const Filter& f = Filter())
-      : super(R, dataspec, datar, id_generator, max_count, throw_exceptions)
-      , m_accept(f)
-    {}
-
-    /// \brief Returns an iterator that enumerates solutions for variables that satisfy a condition
-    /// \param sigma A mutable substitution that is applied by the rewriter contained in E
-    /// \param P The condition that is solved, together with the list of variables
-    /// Otherwise an invalidated enumerator element is returned when it is dereferenced.
-    iterator begin(MutableSubstitution& sigma, std::deque<EnumeratorListElement>& P)
-    {
-      assert(P.size() == 1);
-      auto& p = P.front();
-      p.expression() = super::m_rewr(p.expression(), sigma);
-      if (m_accept(p.expression()))
-      {
-        return iterator(const_cast<enumerator_algorithm_with_iterator<Rewriter, EnumeratorListElement, Filter, DataRewriter, MutableSubstitution>*>(this), &P, &sigma, m_accept);
-      }
-      else
-      {
-        return end();
-      }
-    }
-
-    const iterator& end()
-    {
-      static iterator result(m_accept);
-      return result;
     }
 };
 
@@ -816,18 +858,22 @@ data_expression_vector enumerate_expressions(const sort_expression& s,
   typedef typename Rewriter::term_type term_type;
   typedef enumerator_list_element_with_substitution<term_type> enumerator_element;
   assert(dataspec.is_certainly_finite(s));
-  enumerator_algorithm_with_iterator<Rewriter, enumerator_element, is_not_false, Rewriter> E(rewr, dataspec, rewr, id_generator);
+
+  bool accept_solutions_with_variables = false;
+  enumerator_algorithm<Rewriter, Rewriter> E(rewr, dataspec, rewr, id_generator, accept_solutions_with_variables);
   data_expression_vector result;
   mutable_indexed_substitution<> sigma;
   const variable v("@var@", s);
-  const variable_list vl= { v };
-  std::deque<enumerator_element> P;
-  P.emplace_back(enumerator_element(vl, sort_bool::true_()));
-  for (auto i = E.begin(sigma, P); i != E.end(); ++i)
-  {
-    i->add_assignments(vl, sigma, rewr);
-    result.push_back(sigma(v));
-  }
+  const variable_list v_list{ v };
+  E.enumerate(enumerator_element(v_list, sort_bool::true_()),
+              sigma,
+              [&](const enumerator_element& p)
+              {
+                p.add_assignments(v_list, sigma, rewr);
+                result.push_back(sigma(v));
+                return false;
+              }
+  );
   return result;
 }
 
@@ -842,7 +888,7 @@ data_expression_vector enumerate_expressions(const sort_expression& s,
                                              const Rewriter& rewr)
 {
   enumerator_identifier_generator id_generator;
-  return enumerate_expressions(s,dataspec, rewr, id_generator);
+  return enumerate_expressions(s, dataspec, rewr, id_generator);
 }
 
 } // namespace data

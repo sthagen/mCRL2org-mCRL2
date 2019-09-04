@@ -25,6 +25,7 @@
 #include "mcrl2/lts/lts_algorithm.h"
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
+#include "mcrl2/pbes/pbessolve_attractors.h"
 #include "mcrl2/pbes/pbessolve_vertex_set.h"
 #include "mcrl2/pbes/structure_graph.h"
 
@@ -40,7 +41,7 @@ std::tuple<std::size_t, std::size_t, vertex_set> get_minmax_rank(const structure
   std::vector<structure_graph::index_type> M; // vertices with minimal rank
   std::size_t N = G.all_vertices().size();
 
-  for (structure_graph::index_type vi = 0; vi < N; vi++)
+  for (std::size_t vi = 0; vi < N; vi++)
   {
     if (!G.contains(vi))
     {
@@ -70,16 +71,35 @@ class solve_structure_graph_algorithm
     // do a sanity check on the computed strategy
     bool check_strategy = false;
 
+    bool use_toms_optimization = false;
+
     // find a successor of u
-    structure_graph::index_type succ(const structure_graph& G, structure_graph::index_type u)
+    static structure_graph::index_type succ(const structure_graph& G, structure_graph::index_type u)
     {
       for (structure_graph::index_type v: G.successors(u))
       {
         return v;
       }
-      return structure_graph::undefined_vertex;
+      return undefined_vertex();
     }
 
+    // find a successor of u in U, or a random one if no successor in U exists
+    static inline
+    structure_graph::index_type succ(const structure_graph& G, structure_graph::index_type u, const vertex_set& U)
+    {
+      auto result = undefined_vertex();
+      for (structure_graph::index_type v: G.successors(u))
+      {
+        if (U.contains(v))
+        {
+          return v;
+        }
+        result = v;
+      }
+      return result;
+    }
+
+  public:
     // computes solve_recursive(G \ A)
     inline
     std::pair<vertex_set, vertex_set> solve_recursive(structure_graph& G, const vertex_set& A)
@@ -91,12 +111,16 @@ class solve_structure_graph_algorithm
       return result;
     }
 
+  protected:
     // pre: G does not contain nodes with decoration true or false.
+    //
+    // N.B. If use_toms_optimization is true, then the oomputed strategy may be incorrect.
+    // So this flag should only be used to compute the solution.
     inline
     std::pair<vertex_set, vertex_set> solve_recursive(structure_graph& G)
     {
-      mCRL2log(log::debug) << "\n--- solve_recursive input ---\n" << G << std::endl;
-      std::size_t N = G.all_vertices().size();
+      mCRL2log(log::debug) << "\n  --- solve_recursive input ---\n" << G << std::endl;
+      std::size_t N = G.extent();
 
       if (G.is_empty())
       {
@@ -107,7 +131,7 @@ class solve_structure_graph_algorithm
       std::size_t m = std::get<0>(q);
       const vertex_set& U = std::get<2>(q);
 
-      int alpha = m % 2; // 0 = disjunctive, 1 = conjunctive
+      std::size_t alpha = m % 2; // 0 = disjunctive, 1 = conjunctive
 
       // set strategy
       for (structure_graph::index_type ui: U.vertices())
@@ -115,11 +139,13 @@ class solve_structure_graph_algorithm
         const auto& u = G.find_vertex(ui);
         if (u.decoration == alpha)
         {
-          auto v = succ(G, ui);
-          if (v != structure_graph::undefined_vertex)
+          // auto v = succ(G, ui); // N.B. this may lead to a wrong strategy!
+          auto v = succ(G, ui, U);
+          if (v != undefined_vertex())
           {
-            mCRL2log(log::debug) << "set initial strategy for node " << ui << " to " << v << std::endl;
-            u.strategy = v;
+            global_strategy<structure_graph>(G).set_strategy(ui, v);
+//            mCRL2log(log::debug) << "set initial strategy for node " << ui << " to " << v << std::endl;
+//            u.strategy = v;
           }
         }
       }
@@ -141,37 +167,42 @@ class solve_structure_graph_algorithm
       vertex_set W[2]   = { vertex_set(N), vertex_set(N) };
       vertex_set W_1[2];
 
-      vertex_set A = compute_attractor_set(G, U, alpha);
+      vertex_set A = attr_default(G, U, alpha);
       std::tie(W_1[0], W_1[1]) = solve_recursive(G, A);
-      vertex_set B = compute_attractor_set(G, W_1[1 - alpha], 1 - alpha);
-      if (W_1[1 - alpha].size() == B.size())
+
+      if (use_toms_optimization)
       {
-        W[alpha] = set_union(A, W_1[alpha]);
-        W[1- alpha] = B;
+        // More efficient than Zielonka, because some recursive calls are skipped.
+        // As a consequence, the computed strategy may be wrong.
+        vertex_set B = attr_default(G, W_1[1 - alpha], 1 - alpha);
+        if (W_1[1 - alpha].size() == B.size())
+        {
+          W[alpha] = set_union(A, W_1[alpha]);
+          W[1 - alpha] = B;
+        }
+        else
+        {
+          std::tie(W[0], W[1]) = solve_recursive(G, B);
+          W[1 - alpha] = set_union(W[1 - alpha], B);
+        }
       }
       else
       {
-        std::tie(W[0], W[1]) = solve_recursive(G, B);
-        W[1 - alpha] = set_union(W[1 - alpha], B);
+         // Original Zielonka version
+         if (W_1[1 - alpha].is_empty())
+         {
+           W[alpha] = set_union(A, W_1[alpha]);
+           W[1 - alpha].clear();
+         }
+         else
+         {
+           vertex_set B = attr_default(G, W_1[1 - alpha], 1 - alpha);
+           std::tie(W[0], W[1]) = solve_recursive(G, B);
+           W[1 - alpha] = set_union(W[1 - alpha], B);
+         }
       }
 
-      // Original Zielonka version
-      //
-      // vertex_set A = compute_attractor_set(G, U, alpha);
-      // std::tie(W_1[0], W_1[1]) = solve_recursive(G, A);
-      // if (W_1[1 - alpha].is_empty())
-      // {
-      //   W[alpha] = set_union(A, W_1[alpha]);
-      //   W[1 - alpha].clear();
-      // }
-      // else
-      // {
-      //   vertex_set B = compute_attractor_set(G, W_1[1 - alpha], 1 - alpha);
-      //   std::tie(W[0], W[1]) = solve_recursive(G, B);
-      //   W[1 - alpha] = set_union(W[1 - alpha], B);
-      // }
-
-      mCRL2log(log::debug) << "\n--- solution for solve_recursive input ---\n" << G;
+      mCRL2log(log::debug) << "\n  --- solution for solve_recursive input ---\n" << G;
       mCRL2log(log::debug) << "   W0 = " << W[0] << std::endl;
       mCRL2log(log::debug) << "   W1 = " << W[1] << std::endl;
       assert(W[0].size() + W[1].size() + G.exclude().count() == N);
@@ -182,14 +213,14 @@ class solve_structure_graph_algorithm
     inline
     std::pair<vertex_set, vertex_set> solve_recursive_extended(structure_graph& G)
     {
-      mCRL2log(log::debug) << "\n--- solve_recursive_extended input ---\n" << G << std::endl;
+      mCRL2log(log::debug) << "\n  --- solve_recursive_extended input ---\n" << G << std::endl;
 
-      std::size_t N = G.all_vertices().size();
+      std::size_t N = G.extent();
       vertex_set Vconj(N);
       vertex_set Vdisj(N);
 
       // find vertices Vconj with decoration false and Vdisj with decoration true
-      for (structure_graph::index_type vi = 0; vi < N; vi++)
+      for (std::size_t vi = 0; vi < N; vi++)
       {
         if (!G.contains(vi))
         {
@@ -209,11 +240,11 @@ class solve_structure_graph_algorithm
       // extend Vconj and Vdisj
       if (!Vconj.is_empty())
       {
-        Vconj = compute_attractor_set(G, Vconj, 1);
+        Vconj = attr_default(G, Vconj, 1);
       }
       if (!Vdisj.is_empty())
       {
-        Vdisj = compute_attractor_set(G, Vdisj, 0);
+        Vdisj = attr_default(G, Vdisj, 0);
       }
 
       // default case
@@ -231,86 +262,89 @@ class solve_structure_graph_algorithm
       }
     }
 
-    inline
-    void check_solve_recursive_solution(const structure_graph& G, const vertex_set& Wdisj, const vertex_set& Wconj)
+    void insert_edge(std::vector<structure_graph::vertex>& V, structure_graph::index_type ui, structure_graph::index_type vi) const
     {
-      mCRL2log(log::debug) << "\n--- check_solve_recursive_solution ---" << std::endl;
+      using utilities::detail::contains;
+      auto& u = V[ui];
+      auto& v = V[vi];
+      if (!contains(u.successors, vi))
+      {
+        u.successors.push_back(vi);
+        v.predecessors.push_back(ui);
+      }
+    }
+
+    void check_solve_recursive_solution(const structure_graph& G, bool is_disjunctive, const vertex_set& Wdisj, const vertex_set& Wconj)
+    {
+      using utilities::detail::contains;
+
+      mCRL2log(log::debug) << "\n--- CHECK STRATEGY ---" << std::endl;
       log_vertex_set(G, Wconj, "Wconj");
       log_vertex_set(G, Wdisj, "Wdisj");
 
       typedef structure_graph::vertex vertex;
+      std::vector<const vertex*> result;
+      structure_graph::index_type init = G.initial_vertex();
+
+      // V contains the vertices of G, but not the edges
+      std::vector<vertex> V = G.all_vertices();
+      for (vertex& v: V)
+      {
+        v.successors.clear();
+        v.predecessors.clear();
+      }
+
+      std::set<structure_graph::index_type> todo = { init };
+      std::set<structure_graph::index_type> done;
+
+      while (!todo.empty())
+      {
+        structure_graph::index_type u = *todo.begin();
+        todo.erase(todo.begin());
+        done.insert(u);
+        if ((is_disjunctive && G.decoration(u) == structure_graph::d_disjunction) || (!is_disjunctive && G.decoration(u) == structure_graph::d_conjunction))
+        {
+          // explore only the strategy edge
+          structure_graph::index_type v = G.strategy(u);
+          insert_edge(V, u, v);
+          if (v != undefined_vertex() && !contains(done, v))
+          {
+            todo.insert(v);
+          }
+        }
+        else
+        {
+          // explore all outgoing edges
+          for (structure_graph::index_type v: G.successors(u))
+          {
+            insert_edge(V, u, v);
+            if (!contains(done, v))
+            {
+              todo.insert(v);
+            }
+          }
+        }
+      }
 
       vertex_set Wconj1;
       vertex_set Wdisj1;
-      structure_graph Gcopy;
 
-      Gcopy = G;
-      for (structure_graph::index_type ui: Wconj.vertices())
-      {
-        vertex& u = Gcopy.find_vertex(ui);
-        if (u.decoration == structure_graph::d_conjunction)
-        {
-          if (u.strategy == structure_graph::undefined_vertex)
-          {
-            throw mcrl2::runtime_error("check_solve_recursive_solution failed: vertex " + std::to_string(ui) + " has no strategy");
-          }
-          u.decoration = structure_graph::d_none;
-
-          for (structure_graph::index_type vi: Gcopy.successors(ui))
-          {
-            vertex& v = Gcopy.find_vertex(vi);
-            v.remove_predecessor(ui);
-          }
-          u.successors.clear();
-
-          // add the edge (u, u.strategy)
-          structure_graph::index_type wi = u.strategy;
-          u.successors.push_back(wi);
-          vertex& w = Gcopy.find_vertex(wi);
-          w.predecessors.push_back(ui);
-        }
-      }
-      Gcopy.exclude() = ~(Wconj.include());
-      log_vertex_set(Gcopy, Wconj, "Wconj after removal of edges");
+      structure_graph Gcopy(V, G.initial_vertex(), G.exclude());
       std::tie(Wdisj1, Wconj1) = solve_recursive_extended(Gcopy);
-      if (!Wdisj1.is_empty() || Wconj1 != Wconj)
+      bool is_disjunctive1;
+      if (Wdisj1.contains(G.initial_vertex()))
       {
-        log_vertex_set(Gcopy, Wconj1, "Wconj1");
-        log_vertex_set(Gcopy, Wdisj1, "Wdisj1");
-        throw mcrl2::runtime_error("check_solve_recursive_solution failed!");
+        is_disjunctive1 = true;
       }
-
-      Gcopy = G;
-      for (structure_graph::index_type ui: Wdisj.vertices())
+      else if (Wconj1.contains(G.initial_vertex()))
       {
-        vertex& u = Gcopy.find_vertex(ui);
-        if (u.decoration == structure_graph::d_disjunction)
-        {
-          if (u.strategy == structure_graph::undefined_vertex)
-          {
-            throw mcrl2::runtime_error("check_solve_recursive_solution failed: vertex " + std::to_string(ui) + " has no strategy");
-          }
-          u.decoration = structure_graph::d_none;
-
-          for (structure_graph::index_type vi: Gcopy.successors(ui))
-          {
-            vertex& v = Gcopy.find_vertex(vi);
-            v.remove_predecessor(ui);
-          }
-          u.successors.clear();
-
-          // add the edge (u, u.strategy)
-          assert(u.strategy != structure_graph::undefined_vertex);
-          structure_graph::index_type wi = u.strategy;
-          u.successors.push_back(wi);
-          vertex& w = Gcopy.find_vertex(wi);
-          w.predecessors.push_back(ui);
-        }
+        is_disjunctive1 = false;
       }
-      Gcopy.exclude() = ~(Wdisj.include());
-      log_vertex_set(Gcopy, Wdisj, "Wdisj after removal of edges");
-      std::tie(Wdisj1, Wconj1) = solve_recursive_extended(Gcopy);
-      if (!Wconj1.is_empty() || Wdisj1 != Wdisj)
+      else
+      {
+        throw mcrl2::runtime_error("No solution found!!!");
+      }
+      if (is_disjunctive != is_disjunctive1)
       {
         log_vertex_set(Gcopy, Wconj1, "Wconj1");
         log_vertex_set(Gcopy, Wdisj1, "Wdisj1");
@@ -319,23 +353,27 @@ class solve_structure_graph_algorithm
     }
 
   public:
-    explicit solve_structure_graph_algorithm(bool check_strategy_ = false)
-      : check_strategy(check_strategy_)
+    explicit solve_structure_graph_algorithm(bool check_strategy_ = false, bool use_toms_optimization_ = false)
+      : check_strategy(check_strategy_),
+        use_toms_optimization(use_toms_optimization_)
     {}
 
     inline
     bool solve(structure_graph& G)
     {
       mCRL2log(log::verbose) << "Solving parity game..." << std::endl;
+      mCRL2log(log::debug) << G << std::endl;
+      assert(G.extent() > 0);
+      assert(G.is_defined());
       auto W = solve_recursive_extended(G);
-      bool result;
+      bool is_disjunctive;
       if (W.first.contains(G.initial_vertex()))
       {
-        result = true;
+        is_disjunctive = true;
       }
       else if (W.second.contains(G.initial_vertex()))
       {
-        result = false;
+        is_disjunctive = false;
       }
       else
       {
@@ -343,55 +381,16 @@ class solve_structure_graph_algorithm
       }
       if (check_strategy)
       {
-        check_solve_recursive_solution(G, W.first, W.second);
+        check_solve_recursive_solution(G, is_disjunctive, W.first, W.second);
       }
-      return result;
+      return is_disjunctive;
     }
 };
-
-inline
-std::set<structure_graph::index_type> find_counter_example_nodes(structure_graph& G, structure_graph::index_type init, bool is_disjunctive)
-{
-  using utilities::detail::contains;
-
-  typedef structure_graph::vertex vertex;
-  std::vector<const vertex*> result;
-
-  std::set<structure_graph::index_type> todo = { init };
-  std::set<structure_graph::index_type> done;
-  while (!todo.empty())
-  {
-    structure_graph::index_type u = *todo.begin();
-    todo.erase(todo.begin());
-    done.insert(u);
-    if ((is_disjunctive && G.decoration(u) == structure_graph::d_disjunction) || (!is_disjunctive && G.decoration(u) == structure_graph::d_conjunction))
-    {
-      // explore only the strategy edge
-      structure_graph::index_type v = G.strategy(u);
-      if (!contains(done, v))
-      {
-        todo.insert(v);
-      }
-    }
-    else
-    {
-      // explore all outgoing edges
-      for (structure_graph::index_type v: G.successors(u))
-      {
-        if (!contains(done, v))
-        {
-          todo.insert(v);
-        }
-      }
-    }
-  }
-  return done;
-}
 
 class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorithm
 {
   protected:
-    lps::specification create_counter_example_lps(structure_graph& G, const std::set<structure_graph::index_type>& V, const lps::specification& lpsspec, const pbes& p, const pbes_equation_index& p_index)
+    static lps::specification create_counter_example_lps(structure_graph& G, const std::set<structure_graph::index_type>& V, const lps::specification& lpsspec, const pbes& p, const pbes_equation_index& p_index)
     {
       lps::specification result = lpsspec;
       result.process().action_summands().clear();
@@ -433,7 +432,7 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
           std::size_t index = 0;
           for (const process::action& a: summand.multi_action().actions())
           {
-            process::action a1(a.label(), data::data_expression_list(&e1[n + index], &e1[n + index + a.arguments().size()]));
+            process::action a1(a.label(), data::data_expression_list(e1.begin() + n + index, e1.begin() + n + index + a.arguments().size()));
             actions.push_back(a1);
             index = index + a.arguments().size();
           }
@@ -455,9 +454,9 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
     /// \brief Solve a pbes for some equation, while constructing a counter example or wittness based on the accompanying linear process.
     /// \param G       A structure graph.
     /// \param lpsspec The original LPS that was used to create the PBES.
-    /// \param p       The pbes to be solved. 
+    /// \param p       The pbes to be solved.
     /// \param p_index The index of the pbes equation to be solved.
-    /// \return A boolean indicating the solution and a linear process that represents the counter example. 
+    /// \return A boolean indicating the solution and a linear process that represents the counter example.
     std::pair<bool, lps::specification> solve_with_counter_example(structure_graph& G, const lps::specification& lpsspec, const pbes& p, const pbes_equation_index& p_index)
     {
       mCRL2log(log::verbose) << "Solving parity game..." << std::endl;
@@ -466,19 +465,9 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       std::tie(Wdisj, Wconj) = solve_recursive_extended(G);
       structure_graph::index_type init = G.initial_vertex();
 
-      if (Wdisj.contains(init))
-      {
-        mCRL2log(log::verbose) << "Extracting witness..." << std::endl;
-        std::set<structure_graph::index_type> W = find_counter_example_nodes(G, init, true);
-        return { true, create_counter_example_lps(G, W, lpsspec, p, p_index) };
-      }
-      else if (Wconj.contains(init))
-      {
-        mCRL2log(log::verbose) << "Extracting counter example..." << std::endl;
-        std::set<structure_graph::index_type> W = find_counter_example_nodes(G, init, false);
-        return { false, create_counter_example_lps(G, W, lpsspec, p, p_index) };
-      }
-      throw mcrl2::runtime_error("No solution found in solve_structure_graph!");
+      mCRL2log(log::verbose) << "Extracting evidence..." << std::endl;
+      std::set<structure_graph::index_type> W = extract_minimal_structure_graph(G, init, Wdisj, Wconj);
+      return { Wdisj.contains(init), create_counter_example_lps(G, W, lpsspec, p, p_index) };
     }
 };
 
@@ -487,7 +476,7 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
   protected:
     // Removes all transitions from ltsspec, except the ones in transition_indices.
     // After that, the unreachable parts of the LTS are removed.
-    inline
+    static inline
     void filter_transitions(lts::lts_lts_t& ltsspec, const std::set<std::size_t>& transition_indices)
     {
       // remove transitions
@@ -504,7 +493,7 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
     }
 
     // modifies ltsspec
-    inline
+    static inline
     void create_counter_example_lts(structure_graph& G, const std::set<structure_graph::index_type>& V, lts::lts_lts_t& ltsspec)
     {
       std::regex re("Z(neg|pos)_(\\d+)_.*");
@@ -529,7 +518,7 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
     lts_solve_structure_graph_algorithm() = default;
 
     /// \brief Solve a boolean equation system while generating a counter example.
-    /// \param G       A structure graph. 
+    /// \param G       A structure graph.
     /// \param ltsspec The original LTS that was used to create the PBES.
     inline
     bool solve_with_counter_example(structure_graph& G, lts::lts_lts_t& ltsspec)
@@ -540,28 +529,18 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       std::tie(Wdisj, Wconj) = solve_recursive_extended(G);
       structure_graph::index_type init = G.initial_vertex();
 
-      if (Wdisj.contains(init))
-      {
-        mCRL2log(log::verbose) << "Extracting witness..." << std::endl;
-        std::set<structure_graph::index_type> W = find_counter_example_nodes(G, init, true);
-        create_counter_example_lts(G, W, ltsspec);
-        return true;
-      }
-      else if (Wconj.contains(init))
-      {
-        mCRL2log(log::verbose) << "Extracting counter example..." << std::endl;
-        std::set<structure_graph::index_type> W = find_counter_example_nodes(G, init, false);
-        create_counter_example_lts(G, W, ltsspec);
-        return false;
-      }
-      throw mcrl2::runtime_error("No solution found in solve_structure_graph!");
+      mCRL2log(log::verbose) << "Extracting evidence..." << std::endl;
+      std::set<structure_graph::index_type> W = extract_minimal_structure_graph(G, init, Wdisj, Wconj);
+      create_counter_example_lts(G, W, ltsspec);
+      return Wdisj.contains(init);
     }
 };
 
 inline
 bool solve_structure_graph(structure_graph& G, bool check_strategy = false)
 {
-  solve_structure_graph_algorithm algorithm(check_strategy);
+  bool use_toms_optimization = !check_strategy;
+  solve_structure_graph_algorithm algorithm(check_strategy, use_toms_optimization);
   return algorithm.solve(G);
 }
 
@@ -573,7 +552,7 @@ std::pair<bool, lps::specification> solve_structure_graph_with_counter_example(s
 }
 
 /// \brief Solve this pbes_system using a structure graph generating a counter example.
-/// \param G       The structure graph. 
+/// \param G       The structure graph.
 /// \param ltsspec The original LTS that was used to create the PBES.
 inline
 bool solve_structure_graph_with_counter_example(structure_graph& G, lts::lts_lts_t& ltsspec)

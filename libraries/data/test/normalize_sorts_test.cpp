@@ -9,11 +9,12 @@
 /// \file normalize_sorts_test.cpp
 /// \brief Test for normalizing sorts.
 
+#define BOOST_TEST_MODULE normalize_sorts_test
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/normalize_sorts.h"
 #include "mcrl2/data/parse.h"
 #include <algorithm>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 #include <iterator>
 #include <set>
 #include <vector>
@@ -62,10 +63,33 @@ void test_apply_knuth_bendix_completion_on_sorts()
   data::normalize_sorts(equations, dataspec);
 }
 
-int test_main(int argc, char* argv[])
+// The specification below led to an infinite loop in January 2019 when applying Knuth-Bendix completion. 
+// The reason was a missing normalisation of the rhs of type equations, leading to a loop. front_doorstate was
+// mapped to rear_doorstate and vice versa. 
+// The specification is not well typed, as there are constants with different types. This test is to 
+// check whether there is no loop, and typechecking never finishes. 
+void test_loop_free_knuth_bendix_completion()
+{
+  std::string DATASPEC =
+    "sort front_doorstate = struct open | closed; \n"
+    "     rear_doorstate  = struct open | closed;\n"    
+    ;
+
+  try 
+  {
+    data_specification dataspec = parse_data_specification(DATASPEC);
+  }
+  catch (mcrl2::runtime_error& e)
+  {
+    // This is ok. A runtime exception is expected. 
+    return;
+  }
+  BOOST_CHECK(false); // No exception is not ok. 
+}
+
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_normalize_sorts();
   test_apply_knuth_bendix_completion_on_sorts();
-
-  return 0;
+  test_loop_free_knuth_bendix_completion();
 }

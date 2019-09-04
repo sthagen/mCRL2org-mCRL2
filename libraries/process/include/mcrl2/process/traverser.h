@@ -20,6 +20,7 @@
 #include "mcrl2/data/traverser.h"
 #include "mcrl2/process/process_specification.h"
 #include "mcrl2/process/untyped_multi_action.h"
+#include "mcrl2/process/timed_multi_action.h"
 
 namespace mcrl2
 {
@@ -73,6 +74,17 @@ struct add_traverser_sort_expressions: public Traverser<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     static_cast<Derived&>(*this).apply(x.actions());
+    static_cast<Derived&>(*this).leave(x);
+  }
+
+  void apply(const process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      static_cast<Derived&>(*this).apply(x.time());
+    }
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -350,10 +362,6 @@ struct add_traverser_sort_expressions: public Traverser<Derived>
 template <typename Derived>
 struct sort_expression_traverser: public add_traverser_sort_expressions<data::sort_expression_traverser, Derived>
 {
-  typedef add_traverser_sort_expressions<data::sort_expression_traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_sort_expressions code ---//
 
@@ -385,6 +393,17 @@ struct add_traverser_data_expressions: public Traverser<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     static_cast<Derived&>(*this).apply(x.actions());
+    static_cast<Derived&>(*this).leave(x);
+  }
+
+  void apply(const process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      static_cast<Derived&>(*this).apply(x.time());
+    }
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -657,10 +676,6 @@ struct add_traverser_data_expressions: public Traverser<Derived>
 template <typename Derived>
 struct data_expression_traverser: public add_traverser_data_expressions<data::data_expression_traverser, Derived>
 {
-  typedef add_traverser_data_expressions<data::data_expression_traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_data_expressions code ---//
 
@@ -953,10 +968,6 @@ struct add_traverser_process_expressions: public Traverser<Derived>
 template <typename Derived>
 struct process_expression_traverser: public add_traverser_process_expressions<core::traverser, Derived>
 {
-  typedef add_traverser_process_expressions<core::traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_process_expressions code ---//
 
@@ -998,6 +1009,17 @@ struct add_traverser_variables: public Traverser<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     static_cast<Derived&>(*this).apply(x.actions());
+    static_cast<Derived&>(*this).leave(x);
+  }
+
+  void apply(const process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      static_cast<Derived&>(*this).apply(x.time());
+    }
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -1274,10 +1296,6 @@ struct add_traverser_variables: public Traverser<Derived>
 template <typename Derived>
 struct variable_traverser: public add_traverser_variables<data::variable_traverser, Derived>
 {
-  typedef add_traverser_variables<data::variable_traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_variables code ---//
 
@@ -1352,6 +1370,17 @@ struct add_traverser_identifier_strings: public Traverser<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     static_cast<Derived&>(*this).apply(x.actions());
+    static_cast<Derived&>(*this).leave(x);
+  }
+
+  void apply(const process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    static_cast<Derived&>(*this).apply(x.actions());
+    if (x.has_time())
+    {
+      static_cast<Derived&>(*this).apply(x.time());
+    }
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -1635,10 +1664,6 @@ struct add_traverser_identifier_strings: public Traverser<Derived>
 template <typename Derived>
 struct identifier_string_traverser: public add_traverser_identifier_strings<data::identifier_string_traverser, Derived>
 {
-  typedef add_traverser_identifier_strings<data::identifier_string_traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_identifier_strings code ---//
 
@@ -1671,6 +1696,13 @@ struct add_traverser_action_labels: public Traverser<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     static_cast<Derived&>(*this).apply(x.expression());
+    static_cast<Derived&>(*this).leave(x);
+  }
+
+  void apply(const process::timed_multi_action& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    static_cast<Derived&>(*this).apply(x.actions());
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -1939,10 +1971,6 @@ struct add_traverser_action_labels: public Traverser<Derived>
 template <typename Derived>
 struct action_label_traverser: public add_traverser_action_labels<core::traverser, Derived>
 {
-  typedef add_traverser_action_labels<core::traverser, Derived> super;
-  using super::enter;
-  using super::leave;
-  using super::apply;
 };
 //--- end generated add_traverser_action_labels code ---//
 

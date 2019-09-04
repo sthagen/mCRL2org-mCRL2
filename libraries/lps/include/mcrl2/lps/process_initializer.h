@@ -12,6 +12,11 @@
 #ifndef MCRL2_LPS_PROCESS_INITIALIZER_H
 #define MCRL2_LPS_PROCESS_INITIALIZER_H
 
+#include <algorithm>
+#include <cassert>
+#include <iterator>
+#include <string>
+#include <utility>
 #include "mcrl2/core/detail/soundness_checks.h"
 #include "mcrl2/data/data_expression.h"
 #include "mcrl2/data/data_specification.h"
@@ -19,11 +24,7 @@
 #include "mcrl2/data/replace.h"
 #include "mcrl2/data/substitutions/assignment_sequence_substitution.h"
 #include "mcrl2/lps/stochastic_distribution.h"
-#include <algorithm>
-#include <cassert>
-#include <iterator>
-#include <string>
-#include <utility>
+#include "mcrl2/process/action_label.h"
 
 namespace mcrl2
 {
@@ -44,7 +45,7 @@ class process_initializer: public atermpp::aterm_appl
     /// \param term A term.
     /// \param check_distribution Check whether the initial state is plain or a state distribution.
     explicit process_initializer(const atermpp::aterm& term, bool check_distribution = true)
-      : atermpp::aterm_appl(term)
+      : atermpp::aterm_appl(atermpp::down_cast<atermpp::aterm_appl>(term))
     {
       assert(core::detail::check_term_LinearProcessInit(*this));
       const lps::stochastic_distribution& dist = atermpp::down_cast<lps::stochastic_distribution>(atermpp::down_cast<atermpp::aterm_appl>(term)[1]);
@@ -117,7 +118,8 @@ inline void swap(process_initializer& t1, process_initializer& t2)
 
 // template function overloads
 std::set<data::variable> find_free_variables(const lps::process_initializer& x);
-
+std::set<process::action_label> find_action_labels(const lps::process_initializer& x);
+ 
 } // namespace lps
 
 } // namespace mcrl2

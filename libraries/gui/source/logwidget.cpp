@@ -55,7 +55,7 @@ void LogWidget::writeMessage(QString level, QString hint, QDateTime timestamp, Q
         m_ui->editOutput->setTextColor(QColor("orange"));
         break;
       default:
-        m_ui->editOutput->setTextColor(Qt::black);
+        setTextEditTextColor(m_ui->editOutput, Qt::black, Qt::white);
         break;
     }
 

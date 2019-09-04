@@ -1,4 +1,4 @@
-// Author(s): Wieger Wesselink
+// Author(s): Maurice Laveaux.
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
 //
@@ -6,86 +6,189 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file mcrl2/atermpp/aterm_appl_iterator.h
-/// \brief Iterator for term_appl.
 
 #ifndef MCRL2_ATERMPP_DETAIL_ATERM_APPL_H
 #define MCRL2_ATERMPP_DETAIL_ATERM_APPL_H
 
-
 #include "mcrl2/atermpp/aterm.h"
+
+#include <array>
+#include <tuple>
 
 namespace atermpp
 {
 
-template <class Term>
-class term_appl;
-
 template <typename Term>
 class term_appl_iterator;
 
-
-/// \cond INTERNAL_DOCS
 namespace detail
 {
 
-template <class Term>
-class _aterm_appl:public _aterm
+/// \brief This class stores a term followed by N arguments. Where N should be equal to
+///        the arity of the function symbol. These arguments do have room reserved for them
+///        during the creation of the _aterm_appl.
+template<std::size_t N = 1>
+class _aterm_appl : public _aterm
 {
-  public:
-    Term        arg[0x1fffff]; /* This value 0x7fffff is completely arbitrary, and should not be used
-                                (therefore it is excessive). Using mallocs an array of the appropriate length is declared, where it is possible that
-                                the array has size 0, i.e. is absent. If the value is small, the clang compiler and static analyser may provides warnings. */
+public:
+
+  /// \brief Constructs a term application with the given symbol and arguments.
+  template<typename ...Terms,
+           typename std::enable_if<are_terms<Terms...>::value>::type* = nullptr,
+           typename std::enable_if<sizeof...(Terms) == N>::type* = nullptr>
+  _aterm_appl(const function_symbol& sym, const Terms& ...arguments)
+    : _aterm(sym),
+      m_arguments{{arguments...}}
+  {
+    assert(N == sym.arity()); // The arity of the function symbol matches.
+  }
+
+  /// \brief constructs a term application with the given symbol and an iterator where the number
+  ///        of elements is equal to the template parameter N.
+  template<typename Iterator,
+           typename std::enable_if<is_iterator<Iterator>::value>::type* = nullptr>
+  _aterm_appl(const function_symbol& sym, Iterator it)
+    : _aterm(sym)
+  {
+    for (std::size_t i = 0; i < N; ++i)
+    {
+      m_arguments[i] = *it;
+      ++it;
+    }
+  }
+
+  /// \brief Constructs a term application with the given symbol and arguments.
+  _aterm_appl(const function_symbol& sym, std::array<unprotected_aterm, N> arguments)
+    : _aterm(sym),
+      m_arguments(arguments)
+  {}
+
+  /// \brief constructs a term application with the given symbol and its arguments from the iterator.
+  template<typename Iterator,
+           typename std::enable_if<is_iterator<Iterator>::value>::type* = nullptr>
+  _aterm_appl(const function_symbol& symbol, Iterator it, bool)
+    : _aterm(symbol)
+  {
+    for (std::size_t i = 0; i < symbol.arity(); ++i)
+    {
+      // Prevent bound checking, the allocator must make sure that symbol.arity() arguments fit.
+      m_arguments.data()[i] = *it;
+      ++it;
+    }
+  }
+
+  /// \returns A reference to the arguments at the ith position.
+  aterm& arg(std::size_t index)
+  {
+    return static_cast<aterm&>(m_arguments.data()[index]);
+  }
+
+  /// \returns A const reference to the arguments at the ith position.
+  const aterm& arg(std::size_t index) const
+  {
+    return static_cast<const aterm&>(m_arguments.data()[index]);
+  }
+
+  /// \brief Convert any known number of arguments aterm_appl<N> to the default _aterm_appl.
+  explicit operator _aterm_appl<1>& ()
+  {
+    return reinterpret_cast<_aterm_appl<1>&>(*this);
+  }
+
+private:
+  std::array<unprotected_aterm, N> m_arguments; /// \brief Array of arguments.
 };
 
-inline
-std::size_t TERM_SIZE_APPL(const std::size_t arity)
+/// A default instantiation for the underlying term application.
+using _term_appl = _aterm_appl<>;
+
+/// \brief This class allocates _aterm_appl objects where the size is based on the arity of
+///        the function symbol.
+/// \details The template T is required to be an object that implicitly converts to an _aterm_appl.
+template<typename T = _term_appl>
+class _aterm_appl_allocator
 {
-  return (sizeof(_aterm)/sizeof(std::size_t))+arity;
-}
+private:
+  /// \returns The size (in bytes) of a class T with arity number of arguments placed at the end.
+  constexpr static std::size_t term_appl_size(std::size_t arity)
+  {
+    return sizeof(T) + (arity - 1) * sizeof(aterm);
+  }
 
+public:
+  using size_type = std::size_t;
+  using pointer = T*;
+  using value_type = T;
 
-template <class Term, class ForwardIterator>
-_aterm* local_term_appl(const function_symbol& sym, const ForwardIterator begin, const ForwardIterator end);
+  template <class U>
+  struct rebind
+  {
+    typedef _aterm_appl_allocator<U> other;
+  };
 
-template <class Term, class InputIterator, class ATermConverter>
-_aterm* local_term_appl_with_converter(const function_symbol& sym, const InputIterator begin, const InputIterator end, const ATermConverter& convert_to_aterm);
+  /// \brief Allocates space for an _aterm_appl where the arity is given by the function symbol.
+  template<typename ForwardIterator>
+  T* allocate_args(const function_symbol& symbol, ForwardIterator)
+  {
+    // We assume that object T contains the _aterm_appl<aterm, 1> at the end and reserve extra space for parameters.
+    char* newTerm = m_packed_allocator.allocate(term_appl_size(symbol.arity()));
+    return reinterpret_cast<T*>(newTerm);
+  }
 
-// inline
-// _aterm* term_appl0(const function_symbol& sym);
+  /// \brief Allocates space for an _aterm_appl where the arity is given by the function symbol.
+  /// \details Assumes that arguments contains symbol.arity() number of terms.
+  T* allocate_args(const function_symbol& symbol, unprotected_aterm*)
+  {
+    // We assume that object T contains the _aterm_appl<aterm, 1> at the end and reserve extra space for parameters.
+    char* newTerm = m_packed_allocator.allocate(term_appl_size(symbol.arity()));
+    return reinterpret_cast<T*>(newTerm);
+  }
 
-template <class Term>
-_aterm* term_appl1(const function_symbol& sym, const Term& arg0);
+  /// \brief Constructs an _aterm_appl with arguments taken from begin, the arity is given by the function symbol.
+  template<typename ForwardIterator>
+  void construct(T* element, const function_symbol& symbol, ForwardIterator begin)
+  {
+    new (element) T(symbol, begin, true);
+  }
 
-template <class Term>
-_aterm* term_appl2(const function_symbol& sym, const Term& arg0, const Term& arg1);
+  /// \brief Specialize destroy for _aterm_appl to only destroy the function symbol. The reference count for the aterm does not have to be decreased.
+  void destroy(T* element)
+  {
+    assert(element != nullptr);
 
-template <class Term>
-_aterm* term_appl3(const function_symbol& sym, const Term& arg0, const Term& arg1, const Term& arg2);
+    // Only destroy the function symbol.
+    _term_appl& term = *element;
+    term.function().~function_symbol();
+  }
 
-template <class Term>
-_aterm* term_appl4(const function_symbol& sym, const Term& arg0, const Term& arg1, const Term& arg2, const Term& arg3);
+  void deallocate(T* element, std::size_t)
+  {
+    assert(element != nullptr);
 
-template <class Term>
-_aterm* term_appl5(const function_symbol& sym, const Term& arg0, const Term& arg1, const Term& arg2, const Term& arg3, const Term& arg4);
+    // Deallocate the memory of this aterm appl.
+    _term_appl& term = *element;
+    m_packed_allocator.deallocate(reinterpret_cast<char*>(element), term_appl_size(term.function().arity()));
+  }
 
-template <class Term>
-_aterm* term_appl6(const function_symbol& sym, const Term& arg0, const Term& arg1, const Term& arg2, const Term& arg3, const Term& arg4, const Term& arg5);
+  // These member functions are to ensure parity with the memory_pool.
+  constexpr std::size_t capacity() const { return 0; }
+  constexpr std::size_t consolidate() const noexcept { return 0; }
+  constexpr bool has_free_slots() const noexcept { return false; }
 
-template <class Term>
-_aterm* term_appl7(const function_symbol& sym, const Term& arg0, const Term& arg1, const Term& arg2, const Term& arg3, const Term& arg4, const Term& arg5, const Term& arg6);
+private:
+  std::allocator<char> m_packed_allocator;
+};
+
+static_assert(sizeof(_term_appl) == sizeof(_aterm) + sizeof(aterm), "Sanity check: aterm_appl size");
 
 template < class Derived, class Base >
 term_appl_iterator<Derived> aterm_appl_iterator_cast(term_appl_iterator<Base> a,
                                                                 typename std::enable_if<
                                                                      std::is_base_of<aterm, Base>::value &&
                                                                      std::is_base_of<aterm, Derived>::value
-                                                                >::type* = nullptr);
-
+>::type* = nullptr);
 
 } // namespace detail
-/// \endcond
-
 } // namespace atermpp
 
 #endif // MCRL2_ATERMPP_DETAIL_ATERM_APPL_H

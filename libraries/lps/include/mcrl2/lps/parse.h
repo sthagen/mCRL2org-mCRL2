@@ -34,7 +34,7 @@ namespace detail
 
 struct multi_action_actions: public process::detail::action_actions
 {
-  multi_action_actions(const core::parser& parser_)
+  explicit multi_action_actions(const core::parser& parser_)
     : process::detail::action_actions(parser_)
   {}
 
@@ -57,7 +57,15 @@ process::untyped_multi_action parse_multi_action_new(const std::string& text)
   bool partial_parses = false;
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   process::untyped_multi_action result = multi_action_actions(p).parse_MultAct(node);
-  p.destroy_parse_node(node);
+  return result;
+}
+
+inline
+multi_action complete_multi_action(process::untyped_multi_action& x, multi_action_type_checker& typechecker, const data::data_specification& data_spec = data::detail::default_specification())
+{
+  multi_action result = lps::typecheck_multi_action(x, typechecker);
+  lps::translate_user_notation(result);
+  lps::normalize_sorts(result, data_spec);
   return result;
 }
 
@@ -72,7 +80,7 @@ multi_action complete_multi_action(process::untyped_multi_action& x, const proce
 
 struct action_rename_actions: public process::detail::action_actions
 {
-  action_rename_actions(const core::parser& parser_)
+  explicit action_rename_actions(const core::parser& parser_)
     : process::detail::action_actions(parser_)
   {}
 
@@ -167,7 +175,6 @@ action_rename_specification parse_action_rename_specification_new(const std::str
   bool partial_parses = false;
   core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
   action_rename_specification result = action_rename_actions(p).parse_ActionRenameSpec(node);
-  p.destroy_parse_node(node);
   return result;
 }
 
@@ -197,6 +204,20 @@ multi_action parse_multi_action(std::stringstream& in, const process::action_lab
   return detail::complete_multi_action(u, action_decls, data_spec);
 }
 
+/// \brief Parses a multi_action from an input stream
+/// \param in An input stream containing a multi_action
+/// \param[in] typechecker Typechecker used to check the action.
+/// \param[in] data_spec The data specification that is used for type checking.
+/// \return The parsed multi_action
+/// \exception mcrl2::runtime_error when the input does not match the syntax of a multi action.
+inline
+multi_action parse_multi_action(std::stringstream& in, multi_action_type_checker& typechecker, const data::data_specification& data_spec = data::detail::default_specification())
+{
+  std::string text = utilities::read_text(in);
+  process::untyped_multi_action u = detail::parse_multi_action_new(text);
+  return detail::complete_multi_action(u, typechecker, data_spec);
+}
+
 /// \brief Parses a multi_action from a string
 /// \param text A string containing a multi_action
 /// \param[in] action_decls A list of allowed action labels that is used for type checking.
@@ -208,6 +229,19 @@ multi_action parse_multi_action(const std::string& text, const process::action_l
 {
   std::stringstream ma_stream(text);
   return parse_multi_action(ma_stream, action_decls, data_spec);
+}
+
+/// \brief Parses a multi_action from a string
+/// \param text A string containing a multi_action
+/// \param[in] typechecker Typechecker used to check the action.
+/// \param[in] data_spec The data specification that is used for type checking.
+/// \return The parsed multi_action
+/// \exception mcrl2::runtime_error when the input does not match the syntax of a multi action.
+inline
+multi_action parse_multi_action(const std::string& text, multi_action_type_checker& typechecker, const data::data_specification& data_spec = data::detail::default_specification())
+{
+  std::stringstream ma_stream(text);
+  return parse_multi_action(ma_stream, typechecker, data_spec);
 }
 
 /// \brief Parses a process specification from an input stream
@@ -232,7 +266,7 @@ action_rename_specification parse_action_rename_specification(std::istream& in, 
 /// \return An action rename specification
 inline
 action_rename_specification parse_action_rename_specification(
-           const std::string& spec_string, 
+           const std::string& spec_string,
            const lps::stochastic_specification& spec)
 {
   std::istringstream in(spec_string);
@@ -293,7 +327,7 @@ void parse_lps<specification>(std::istream& from, specification& result)
 
 /// \brief Parses a stochastic linear process specification from an input stream.
 /// \param from An input stream containing a linear process specification.
-/// \param result An output parameter in which the parsed stochastic process is put. 
+/// \param result An output parameter in which the parsed stochastic process is put.
 /// \return The parsed specification.
 /// \exception non_linear_process if a non-linear sub-expression is encountered.
 /// \exception mcrl2::runtime_error in the following cases:

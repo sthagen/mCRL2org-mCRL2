@@ -566,7 +566,6 @@ void Graph::calcAttrCorrl(
   std::size_t sizeNodes    = 0;
   std::size_t domIdx1      = 0;
   std::size_t domIdx2      = 0;
-  vector< int >::iterator it;
   vector< std::size_t > toErase;
 
   // init vars
@@ -1773,6 +1772,7 @@ void Graph::updateBundles()
       }
 
       temp[idxFr][idxTo]->addEdge(edges[i]);
+      edges[i]->setBundle(temp[idxFr][idxTo]);
     }
   }
 

@@ -15,6 +15,7 @@
 #include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/pbes.h"
 #include "mcrl2/pbes/pbes_rewriter_type.h"
+#include "mcrl2/pbes/print.h"
 #include "mcrl2/pbes/replace.h"
 #include "mcrl2/pbes/rewriters/data_rewriter.h"
 #include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
@@ -64,27 +65,6 @@ class pbes_eqelm_algorithm
     /// \brief Used for determining if a vertex has been visited before.
     std::map<core::identifier_string, bool> m_discovered;
 
-    // TODO: design a more generic solution for printing sets
-    std::string print(const core::identifier_string& x) const
-    {
-      return core::pp(x);
-    }
-    template <typename Set>
-    std::string print_set(const Set& s) const
-    {
-      std::ostringstream out;
-      out << "{ ";
-      for (auto i = s.begin(); i != s.end(); ++i)
-      {
-        if (i != s.begin())
-        {
-          out << ", ";
-        }
-        out << print(atermpp::deprecated_cast<core::identifier_string>(*i));
-      }
-      return out.str();
-    }
-
     /// \brief Puts all parameters of the same sort in the same equivalence set.
     std::vector<equivalence_class> compute_equivalence_sets(const propositional_variable& X) const
     {
@@ -118,7 +98,7 @@ class pbes_eqelm_algorithm
           {
             out << ", ";
           }
-          out << print_set(*j);
+          out << core::detail::print_set(*j);
         }
         out << " ]" << std::endl;
       }
@@ -131,7 +111,7 @@ class pbes_eqelm_algorithm
       std::ostringstream out;
       for (auto i = m_edges.begin(); i != m_edges.end(); ++i)
       {
-        out << i->first << " -> " << print_set(i->second) << std::endl;
+        out << i->first << " -> " << core::detail::print_set(i->second) << std::endl;
       }
       return out.str();
     }
@@ -145,7 +125,7 @@ class pbes_eqelm_algorithm
         out << "  vertex " << i->first << ": ";
         for (auto j = i->second.begin(); j != i->second.end(); ++j)
         {
-          out << print_set(*j) << " ";
+          out << core::detail::print_set(*j) << " ";
         }
         out << std::endl;
       }
@@ -156,7 +136,7 @@ class pbes_eqelm_algorithm
     void log_todo_list(const std::set<core::identifier_string>& todo, const std::string& msg = "") const
     {
       mCRL2log(log::debug) << msg;
-      mCRL2log(log::debug) << print_set(todo) << "\n";
+      mCRL2log(log::debug) << core::detail::print_set(todo) << "\n";
     }
 
     /// \brief Returns true if the vertex X should propagate its values to Y
@@ -241,9 +221,10 @@ class pbes_eqelm_algorithm
       {
         core::identifier_string X = eqn.variable().name();
         data::mutable_map_substitution<> sigma = compute_substitution(X);
+
         if (!sigma.empty())
         {
-          eqn.formula() = pbes_system::replace_variables_capture_avoiding(eqn.formula(), sigma, data::substitution_variables(sigma));
+          eqn.formula() = pbes_system::replace_variables_capture_avoiding(eqn.formula(), sigma);
         }
       }
 
@@ -259,8 +240,10 @@ class pbes_eqelm_algorithm
           {
             to_be_removed[X].push_back(index_of(*k, m_parameters[X]));
           }
+          std::sort(to_be_removed[X].begin(), to_be_removed[X].end());
         }
       }
+
       pbes_system::algorithms::remove_parameters(p, to_be_removed);
     }
 
@@ -318,7 +301,7 @@ class pbes_eqelm_algorithm
       // propagate constraints over the edges until the todo list is empty
       while (!todo.empty())
       {
-        mCRL2log(log::debug) << "todo list = " << print_set(todo) << "\n";
+        mCRL2log(log::debug) << "todo list = " << core::detail::print_set(todo) << "\n";
         mCRL2log(log::verbose) << "--- vertices ---\n" << print_vertices();
 
         core::identifier_string X = *todo.begin();
@@ -328,7 +311,7 @@ class pbes_eqelm_algorithm
         // create a substitution function that corresponds to cX
         data::mutable_map_substitution<> vX = compute_substitution(X);
         const std::set<propositional_variable_instantiation>& edges = m_edges[X];
-        for (const auto & Ye : edges)
+        for (const auto& Ye : edges)
         {
           // propagate the equivalence relations in X over the edge Ye
           if (evaluate_guard(X, Ye))

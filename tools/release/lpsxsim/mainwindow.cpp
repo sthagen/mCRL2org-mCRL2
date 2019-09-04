@@ -7,6 +7,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "mainwindow.h"
+
+#include "mcrl2/utilities/platform.h"
+
 #include <QApplication>
 #include <QEventLoop>
 #include <QInputDialog>
@@ -214,15 +217,6 @@ void MainWindow::updateSimulation()
     }
     else
     {
-#ifdef __APPLE_CC__
-#ifdef __GNUG__
-      /* This is a workaround for a compiler bug in                          *
-       *   i686-apple-darwin9-g++-4.0.1 (GCC) 4.0.1 (Apple Inc. build 5493)  *
-       * TODO: Remove this code when this compiler is no longer supported    *
-       *       by mCRL2                                                      */
-      mCRL2log(debug) << (i - 1) << std::endl;
-#endif // __GNUG__
-#endif // __APPLE_CC__
       m_ui.traceTable->item(i, 1)->setText(m_trace[i - 1].transitions[m_trace[i - 1].transitionNumber].action);
       m_ui.traceTable->item(i, 2)->setText(renderStateChange(m_trace[i - 1].state, m_trace[i].state));
     }
@@ -280,18 +274,29 @@ void MainWindow::setTauPrioritization()
 
 void MainWindow::openSpecification(QString filename)
 {
-  Simulation *simulation = new Simulation(filename, m_atermThread, m_strategy, m_do_not_use_dummies);
-  if (!simulation->initialized())
+  if (m_newSimulation && !m_newSimulation->initialized())
   {
-    simulation->deleteLater();
-    return;
+    /* refresh the thread to allow running a new simulation */
+    m_atermThread->terminate();
+    m_atermThread->deleteLater();
+    m_atermThread = new QThread;
+    m_atermThread->start();
+    m_newSimulation->deleteLater();
   }
+  m_newSimulation = new Simulation(m_strategy);
+  m_newSimulation->moveToThread(m_atermThread);
+  connect(m_newSimulation, SIGNAL(initialisationDone()), this, SLOT(onInitializedSimulation()));
+  QMetaObject::invokeMethod(m_newSimulation, "init", Qt::QueuedConnection, Q_ARG(QString, filename), Q_ARG(bool, m_do_not_use_dummies));
+  m_ui.statusBar->showMessage("Initializing simulation...");
+}
 
+void MainWindow::onInitializedSimulation()
+{
   if (m_simulation)
   {
     m_simulation->deleteLater();
   }
-  m_simulation = simulation;
+  m_simulation = m_newSimulation;
   m_selectedState = 0;
 
   QStringList parameters = m_simulation->parameters();
@@ -314,6 +319,8 @@ void MainWindow::openSpecification(QString filename)
   m_ui.actionPlayTrace->setEnabled(true);
   m_ui.actionRandomPlay->setEnabled(true);
   m_ui.actionStop->setEnabled(false);
+
+  m_ui.statusBar->clearMessage();
 }
 
 void MainWindow::selectState(int state)

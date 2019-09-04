@@ -252,7 +252,7 @@ class prob_bisim_partitioner_bem
 
     // create tree structure to group action states based on the outgoing transitions
     std::size_t max_block_size = 0;
-    tree_type* max_block;
+    tree_type* max_block = nullptr;
     std::deque<tree_type> tree_nodes;
     std::vector<tree_type*> leaves;
     tree_type v0;
@@ -835,7 +835,8 @@ bool destructive_probabilistic_bisimulation_compare_bem(
     initial_probabilistic_state_key_l1);
 }
 
-}
-}
-}
+}  // namespace detail
+}  // namespace lts
+}  // namespace mcrl2
+
 #endif // _LIBLTS_PBISIM_BEM_H

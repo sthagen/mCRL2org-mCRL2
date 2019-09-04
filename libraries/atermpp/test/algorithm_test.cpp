@@ -9,12 +9,13 @@
 /// \file algorithm_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE algorithm_test
 #include <vector>
 #include <iostream>
 #include <iterator>
 #include <set>
 #include <string>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_io.h"
 #include "mcrl2/atermpp/aterm_int.h"
@@ -36,8 +37,8 @@ struct is_f
 
 void test_algorithm()
 {
-  aterm_appl a (read_term_from_string("h(g(x),f(y),p(a(x,y),q(f(z))))"));
-  aterm_appl b (read_term_from_string("h(g(x),p(a(x,y),q(g(z))))"));
+  aterm_appl a (read_appl_from_string("h(g(x),f(y),p(a(x,y),q(f(z))))"));
+  aterm_appl b (read_appl_from_string("h(g(x),p(a(x,y),q(g(z))))"));
 
   aterm_appl t = find_if(a, is_f());
   BOOST_CHECK(t == read_term_from_string("f(y)"));
@@ -79,7 +80,7 @@ struct for_each_proc
 
 void test_for_each()
 {
-  aterm_appl t (read_term_from_string("h(g(x),f(y))"));
+  aterm_appl t (read_appl_from_string("h(g(x),f(y))"));
   std::set<std::string> names;
   atermpp::for_each(t, for_each_proc(names));
   for (std::set<std::string>::iterator i = names.begin(); i != names.end(); ++i)
@@ -96,8 +97,8 @@ void test_for_each()
 void test_operators()
 {
   {
-    aterm_appl a1 (read_term_from_string("a1"));
-    aterm_appl a2 (read_term_from_string("a2"));
+    aterm_appl a1 (read_appl_from_string("a1"));
+    aterm_appl a2 (read_appl_from_string("a2"));
     bool b = (a1 < a2);
     std::clog << "b = " << (b?"true":"false") << std::endl;
   }
@@ -110,25 +111,23 @@ void test_operators()
   }
 
   {
-    aterm_int a1 (read_term_from_string("1"));
-    aterm_int a2 (read_term_from_string("2"));
+    aterm_int a1 = read_int_from_string("1");
+    aterm_int a2 = read_int_from_string("2");
     bool b = (a1 < a2);
     std::clog << "b = " << (b?"true":"false") << std::endl;
   }
 
   {
-    aterm_list a1 (read_term_from_string("[1,2]"));
-    aterm_list a2 (read_term_from_string("[3,2]"));
+    aterm_list a1 = read_list_from_string("[1,2]");
+    aterm_list a2 = read_list_from_string("[3,2]");
     bool b = (a1 < a2);
     std::clog << "b = " << (b?"true":"false") << std::endl;
   }
 }
 
-int test_main(int argc, char* argv[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_algorithm();
   test_operators();
   test_for_each();
-
-  return 0;
 }

@@ -9,10 +9,11 @@
 /// \file find_test.cpp
 /// \brief Test for find functions.
 
+#define BOOST_TEST_MODULE find_test
 #include "mcrl2/bes/find.h"
 #include "mcrl2/bes/parse.h"
 #include <algorithm>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 #include <iterator>
 #include <set>
 #include <vector>
@@ -54,38 +55,6 @@ std::set<boolean_variable> my_find_variables(Container const& container)
 }
 
 void test_my_search()
-{
-  std::string bes1 =
-    "pbes              \n"
-    "                  \n"
-    "nu X1 = X2 && X1; \n"
-    "mu X2 = X1 || X2; \n"
-    "                  \n"
-    "init X1;          \n"
-    ;
-  boolean_equation_system b;
-  std::stringstream from(bes1);
-  from >> b;
-
-  std::set<boolean_variable> v;
-
-  BOOST_CHECK(search_boolean_variable(b, boolean_variable("X1")));
-  BOOST_CHECK(search_boolean_variable(b, boolean_variable("X2")));
-  BOOST_CHECK(!search_boolean_variable(b, boolean_variable("X3")));
-
-  boolean_equation eq = b.equations().front();
-  BOOST_CHECK(search_boolean_variable(eq, boolean_variable("X1")));
-  BOOST_CHECK(search_boolean_variable(eq, boolean_variable("X2")));
-  BOOST_CHECK(!search_boolean_variable(eq, boolean_variable("X3")));
-
-  boolean_expression x = eq.formula();
-  BOOST_CHECK(search_boolean_variable(x, boolean_variable("X1")));
-  BOOST_CHECK(search_boolean_variable(x, boolean_variable("X2")));
-  BOOST_CHECK(!search_boolean_variable(x, boolean_variable("X3")));
-
-}
-
-void test_search()
 {
   std::string bes1 =
     "pbes              \n"
@@ -215,12 +184,10 @@ void test_bnd_occ()
 
 }
 
-int test_main(int argc, char* argv[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_my_find();
   test_find();
   test_my_search();
   test_bnd_occ();
-
-  return EXIT_SUCCESS;
 }

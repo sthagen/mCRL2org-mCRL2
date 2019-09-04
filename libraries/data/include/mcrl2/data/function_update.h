@@ -56,7 +56,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e).name() == function_update_name();
+          return atermpp::down_cast<function_symbol>(e).name() == function_update_name();
         }
         return false;
       }
@@ -81,11 +81,7 @@ namespace mcrl2 {
       inline
       bool is_function_update_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_function_update_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_function_update_function_symbol(atermpp::down_cast<application>(e).head());
       }
       /// \brief Give all system defined mappings for function_update
       /// \param s A sort expression
@@ -104,7 +100,7 @@ namespace mcrl2 {
       /// \pre arg1 is defined for e
       /// \return The argument of e that corresponds to arg1
       inline
-      data_expression arg1(const data_expression& e)
+      const data_expression& arg1(const data_expression& e)
       {
         assert(is_function_update_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -116,7 +112,7 @@ namespace mcrl2 {
       /// \pre arg2 is defined for e
       /// \return The argument of e that corresponds to arg2
       inline
-      data_expression arg2(const data_expression& e)
+      const data_expression& arg2(const data_expression& e)
       {
         assert(is_function_update_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -128,7 +124,7 @@ namespace mcrl2 {
       /// \pre arg3 is defined for e
       /// \return The argument of e that corresponds to arg3
       inline
-      data_expression arg3(const data_expression& e)
+      const data_expression& arg3(const data_expression& e)
       {
         assert(is_function_update_application(e));
         return atermpp::down_cast<const application >(e)[2];

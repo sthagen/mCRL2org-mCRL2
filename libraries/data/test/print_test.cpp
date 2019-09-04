@@ -6,6 +6,7 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#define BOOST_TEST_MODULE print_test
 #include <sstream>
 
 #include <boost/test/included/unit_test_framework.hpp>
@@ -445,7 +446,7 @@ BOOST_AUTO_TEST_CASE(test_mod)
   left = atermpp::down_cast<application>(sort_int::left(x));
   std::cout << "left = " << left << " " << data::pp(left) << std::endl;
   BOOST_CHECK(data::detail::is_minus(left));
-  std::cout << "left_precedence(left) = " << left_precedence(left) << std::endl;
+  std::cout << "precedence(left) = " << precedence(left) << std::endl;
 
   BOOST_CHECK(data::sort_nat::is_nat(x.sort()));
   BOOST_CHECK(data::sort_int::is_mod_application(x));
@@ -453,7 +454,7 @@ BOOST_AUTO_TEST_CASE(test_mod)
   left1 = atermpp::down_cast<application>(detail::remove_numeric_casts(left));
   std::cout << "left1 = " << left1 << " " << data::pp(left1) << std::endl;
   BOOST_CHECK(data::detail::is_minus(left1));
-  std::cout << "left_precedence(left1) = " << left_precedence(left1) << std::endl;
+  std::cout << "precedence(left1) = " << precedence(left1) << std::endl;
 
   BOOST_CHECK(data::pp(x) == "(2 - 1) mod 3");
   std::cout << "x = " << x << " " << data::pp(x) << std::endl;
@@ -532,7 +533,7 @@ BOOST_AUTO_TEST_CASE(test_precedence)
 {
   data::data_expression x = parse_data_expression("exists b:Bool. true");
   BOOST_CHECK(is_exists(x));
-  BOOST_CHECK(left_precedence(x) == 1);
+  BOOST_CHECK(precedence(x) == 1);
 
   data::variable a("a", sort_real::real_());
   data::variable b("b", sort_real::real_());
@@ -542,7 +543,29 @@ BOOST_AUTO_TEST_CASE(test_precedence)
   BOOST_CHECK(py == "-(a + b)");
 }
 
-boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
+// The test case below tests whether an excessive amount of
+// memory is required when printing terms. 
+BOOST_AUTO_TEST_CASE(printing_terms_takes_a_lot_of_memory)
 {
-  return nullptr;
+   const std::string text(
+    "sort S;\n"
+    "cons d0:S;\n"
+    "     f:S -> S;\n"
+  );
+
+  data::data_specification spec(data::parse_data_specification(text));
+
+  data_expression f = parse_function_symbol("f: S -> S",text);
+  std::cerr << f << "\n";
+  data_expression t = parse_data_expression("d0",spec);
+  std::cerr << t << "\n";
+
+  for(size_t i=0; i<40; ++i)
+  // for(size_t i=0; i<40000000; ++i)
+  {
+    t=application(f,t);
+    std::cerr << t << "\n";
+  }
+  std::cerr << "Print term " << data::pp(t) << "\n";;
 }
+

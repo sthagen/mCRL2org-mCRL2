@@ -20,7 +20,9 @@
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/rewriter_tool.h"
 #include "mcrl2/pbes/anonymize.h"
+#include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/detail/pbes_command.h"
+#include "mcrl2/pbes/normalize.h"
 #include "mcrl2/pbes/pbesinst_lazy.h"
 #include "mcrl2/pbes/pbesinst_structure_graph.h"
 #include "mcrl2/pbes/rewrite.h"
@@ -31,7 +33,10 @@
 #include "mcrl2/pbes/rewriters/quantifiers_inside_rewriter.h"
 #include "mcrl2/pbes/rewriters/simplify_quantifiers_rewriter.h"
 #include "mcrl2/pbes/rewriters/simplify_rewriter.h"
+#include "mcrl2/pbes/io.h"
+#include "mcrl2/pbes/srf_pbes.h"
 #include "mcrl2/pbes/stategraph.h"
+#include "mcrl2/pbes/unify_parameters.h"
 #include "mcrl2/utilities/detail/io.h"
 #include "mcrl2/utilities/detail/transform_tool.h"
 #include "mcrl2/utilities/input_output_tool.h"
@@ -49,11 +54,25 @@ struct anonymize_pbes_command: public pbes_system::detail::pbes_command
     : pbes_system::detail::pbes_command("anonymize", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::anonymize(pbesspec);
     pbes_system::save_pbes(pbesspec, output_filename);
+  }
+};
+
+struct is_well_typed_command: public pbes_system::detail::pbes_command
+{
+  is_well_typed_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
+    : pbes_system::detail::pbes_command("is-well-typed", input_filename, output_filename, options)
+  {}
+
+  void execute() override
+  {
+    pbes_system::detail::pbes_command::execute();
+    bool result = pbesspec.is_well_typed();
+    utilities::detail::write_text(output_filename, result ? "true\n" : "false\n");
   }
 };
 
@@ -64,7 +83,7 @@ struct rewrite_pbes_data_rewriter_command: public pbes_system::detail::pbes_rewr
     : pbes_system::detail::pbes_rewriter_command("pbes-data-rewriter", input_filename, output_filename, options, strategy)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     data::rewriter r(pbesspec.data(), strategy);
@@ -80,7 +99,7 @@ struct rewrite_pbes_enumerate_quantifiers_rewriter_command: public pbes_system::
     : pbes_system::detail::pbes_rewriter_command("pbes-enumerate-quantifiers-rewriter", input_filename, output_filename, options, strategy)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     data::rewriter r(pbesspec.data(), strategy);
@@ -96,7 +115,7 @@ struct rewrite_pbes_simplify_rewriter_command: public pbes_system::detail::pbes_
     : pbes_system::detail::pbes_command("pbes-simplify-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::simplify_rewriter R;
@@ -111,7 +130,7 @@ struct rewrite_pbes_simplify_data_rewriter_command: public pbes_system::detail::
     : pbes_system::detail::pbes_rewriter_command("pbes-simplify-data-rewriter", input_filename, output_filename, options, strategy)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     data::rewriter r(pbesspec.data(), strategy);
@@ -127,7 +146,7 @@ struct rewrite_pbes_simplify_quantifiers_rewriter_command: public pbes_system::d
     : pbes_system::detail::pbes_command("pbes-simplify-quantifiers-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::simplify_quantifiers_rewriter R;
@@ -142,7 +161,7 @@ struct rewrite_pbes_simplify_quantifiers_data_rewriter_command: public pbes_syst
     : pbes_system::detail::pbes_rewriter_command("pbes-simplify-quantifiers-data-rewriter", input_filename, output_filename, options, strategy)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     data::rewriter r(pbesspec.data(), strategy);
@@ -158,7 +177,7 @@ struct rewrite_pbes_one_point_rule_rewriter_command: public pbes_system::detail:
     : pbes_system::detail::pbes_command("pbes-one-point-rule-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::one_point_rule_rewriter R;
@@ -173,7 +192,7 @@ struct rewrite_pbes_quantifiers_inside_rewriter_command: public pbes_system::det
     : pbes_system::detail::pbes_command("pbes-quantifiers-inside-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::quantifiers_inside_rewriter R;
@@ -188,7 +207,7 @@ struct rewrite_pbes_data2pbes_rewriter_command: public pbes_system::detail::pbes
     : pbes_system::detail::pbes_command("data-to-pbes-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbes_system::data2pbes_rewriter R;
@@ -203,7 +222,7 @@ struct stategraph_local_command: public pbes_system::detail::pbes_command
     : pbes_system::detail::pbes_command("stategraph-local", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbesstategraph_options options;
@@ -219,12 +238,48 @@ struct stategraph_global_command: public pbes_system::detail::pbes_command
     : pbes_system::detail::pbes_command("stategraph-global", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     pbes_system::detail::pbes_command::execute();
     pbesstategraph_options options;
     options.use_global_variant = false;
     stategraph(pbesspec, options);
+    pbes_system::detail::save_pbes(pbesspec, output_filename);
+  }
+};
+
+struct unify_parameters_command: public pbes_system::detail::pbes_command
+{
+  unify_parameters_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
+    : pbes_system::detail::pbes_command("unify-parameters", input_filename, output_filename, options)
+  {}
+
+  void execute() override
+  {
+    pbes_system::detail::pbes_command::execute();
+    pbes_system::unify_parameters(pbesspec);
+    pbes_system::detail::save_pbes(pbesspec, output_filename);
+  }
+};
+
+struct standard_recursive_form_command: public pbes_system::detail::pbes_command
+{
+  standard_recursive_form_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
+    : pbes_system::detail::pbes_command("srf", input_filename, output_filename, options)
+  {}
+
+  void execute() override
+  {
+    pbes_system::detail::pbes_command::execute();
+    pbes_system::algorithms::normalize(pbesspec);
+    pbes_system::algorithms::instantiate_global_variables(pbesspec);
+    pbes_system::srf_pbes p = pbes2srf(pbesspec);
+    unify_parameters(p);
+    pbesspec = p.to_pbes();
+    if (!pbesspec.is_well_typed())
+    {
+      throw mcrl2::runtime_error("the PBES is not well typed!");
+    }
     pbes_system::detail::save_pbes(pbesspec, output_filename);
   }
 };
@@ -246,6 +301,8 @@ class pbestransform_tool: public transform_tool<rewriter_tool<input_output_tool>
     void add_commands(const std::vector<std::string>& options) override
     {
       add_command(std::make_shared<anonymize_pbes_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<is_well_typed_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<standard_recursive_form_command>(input_filename(), output_filename(), options));
       add_command(std::make_shared<rewrite_pbes_data2pbes_rewriter_command>(input_filename(), output_filename(), options));
       add_command(std::make_shared<rewrite_pbes_data_rewriter_command>(input_filename(), output_filename(), options, rewrite_strategy()));
       add_command(std::make_shared<rewrite_pbes_enumerate_quantifiers_rewriter_command>(input_filename(), output_filename(), options, rewrite_strategy()));
@@ -257,6 +314,7 @@ class pbestransform_tool: public transform_tool<rewriter_tool<input_output_tool>
       add_command(std::make_shared<rewrite_pbes_simplify_rewriter_command>(input_filename(), output_filename(), options));
       add_command(std::make_shared<stategraph_global_command>(input_filename(), output_filename(), options));
       add_command(std::make_shared<stategraph_local_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<unify_parameters_command>(input_filename(), output_filename(), options));
     }
 };
 

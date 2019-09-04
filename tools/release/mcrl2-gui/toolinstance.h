@@ -14,9 +14,11 @@
 #include "ui_toolinstance.h"
 
 #include "mcrl2/gui/persistentfiledialog.h"
+#include "mcrl2/gui/utilities.h"
 
 #include "toolinformation.h"
 #include "optionvalue.h"
+#include "multiprocess.h"
 
 class ToolInstance : public QWidget
 {
@@ -28,12 +30,12 @@ class ToolInstance : public QWidget
 
     ToolInformation information() { return m_info; }
     QString executable();
-    QString arguments();
+    QStringList arguments();
 
   public slots:
     void onStateChange(QProcess::ProcessState state);
-    void onStandardOutput();
-    void onStandardError();
+    void onOutputLog(const QByteArray &outText);
+    void onErrorLog(const QByteArray &outText);
     void onRun();
     void onAbort();
     void onSave();
@@ -46,7 +48,8 @@ class ToolInstance : public QWidget
     Ui::ToolInstance m_ui;
 
     QList<OptionValue*> m_optionValues;
-    QProcess m_process;
+    QProcess* m_process;
+    QMultiProcess* m_mprocess;
 
     FilePicker* m_pckFileOut;
     FilePicker* m_pckFileIn;

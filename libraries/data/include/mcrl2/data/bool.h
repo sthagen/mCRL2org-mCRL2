@@ -87,7 +87,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == true_();
+          return atermpp::down_cast<function_symbol>(e) == true_();
         }
         return false;
       }
@@ -119,7 +119,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == false_();
+          return atermpp::down_cast<function_symbol>(e) == false_();
         }
         return false;
       }
@@ -162,7 +162,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == not_();
+          return atermpp::down_cast<function_symbol>(e) == not_();
         }
         return false;
       }
@@ -184,11 +184,7 @@ namespace mcrl2 {
       inline
       bool is_not_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_not_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_not_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier &&
@@ -218,7 +214,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == and_();
+          return atermpp::down_cast<function_symbol>(e) == and_();
         }
         return false;
       }
@@ -241,11 +237,7 @@ namespace mcrl2 {
       inline
       bool is_and_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_and_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_and_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier ||
@@ -275,7 +267,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == or_();
+          return atermpp::down_cast<function_symbol>(e) == or_();
         }
         return false;
       }
@@ -298,11 +290,7 @@ namespace mcrl2 {
       inline
       bool is_or_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_or_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_or_function_symbol(atermpp::down_cast<application>(e).head());
       }
 
       /// \brief Generate identifier =>
@@ -332,7 +320,7 @@ namespace mcrl2 {
       {
         if (is_function_symbol(e))
         {
-          return function_symbol(e) == implies();
+          return atermpp::down_cast<function_symbol>(e) == implies();
         }
         return false;
       }
@@ -355,11 +343,7 @@ namespace mcrl2 {
       inline
       bool is_implies_application(const atermpp::aterm_appl& e)
       {
-        if (is_application(e))
-        {
-          return is_implies_function_symbol(atermpp::down_cast<application>(e).head());
-        }
-        return false;
+        return is_application(e) && is_implies_function_symbol(atermpp::down_cast<application>(e).head());
       }
       /// \brief Give all system defined mappings for bool_
       /// \return All system defined mappings for bool_
@@ -379,7 +363,7 @@ namespace mcrl2 {
       /// \pre left is defined for e
       /// \return The argument of e that corresponds to left
       inline
-      data_expression left(const data_expression& e)
+      const data_expression& left(const data_expression& e)
       {
         assert(is_and_application(e) || is_or_application(e) || is_implies_application(e));
         return atermpp::down_cast<const application >(e)[0];
@@ -391,7 +375,7 @@ namespace mcrl2 {
       /// \pre right is defined for e
       /// \return The argument of e that corresponds to right
       inline
-      data_expression right(const data_expression& e)
+      const data_expression& right(const data_expression& e)
       {
         assert(is_and_application(e) || is_or_application(e) || is_implies_application(e));
         return atermpp::down_cast<const application >(e)[1];
@@ -403,7 +387,7 @@ namespace mcrl2 {
       /// \pre arg is defined for e
       /// \return The argument of e that corresponds to arg
       inline
-      data_expression arg(const data_expression& e)
+      const data_expression& arg(const data_expression& e)
       {
         assert(is_not_application(e));
         return atermpp::down_cast<const application >(e)[0];

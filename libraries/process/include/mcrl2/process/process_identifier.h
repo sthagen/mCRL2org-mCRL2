@@ -75,11 +75,10 @@ class process_identifier: public atermpp::aterm_appl
 
     /// \brief Constructor.
     process_identifier(const std::string& name, const data::variable_list& variables)
-      : atermpp::aterm_appl(atermpp::aterm_appl(core::detail::function_symbol_ProcVarId(),
-          core::identifier_string(name),
-          variables,
-          atermpp::aterm_int(core::index_traits<process_identifier, process_identifier_key_type, 2>::insert(std::make_pair(name, variables)))
-        ))
+      : atermpp::aterm_appl(core::detail::function_symbol_ProcVarId(),
+                            core::identifier_string(name),
+                            variables,
+                            atermpp::aterm_int(core::index_traits<process_identifier, process_identifier_key_type, 2>::insert(std::make_pair(name, variables))))
     {}
 //--- end user section process_identifier ---//
 };

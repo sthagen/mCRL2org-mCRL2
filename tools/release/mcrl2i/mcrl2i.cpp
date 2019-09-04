@@ -18,7 +18,7 @@
 #include <cassert>
 
 #include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
@@ -253,8 +253,8 @@ class mcrl2i_tool: public rewriter_tool<input_tool>
       enumerator_type enumerator(rewr, spec, rewr, id_generator, 10000, true);
 
       data::mutable_indexed_substitution<> sigma;
-      std::deque<enumerator_list_element_with_substitution<> >
-           enumerator_deque(1, enumerator_list_element_with_substitution<>(variable_list(vars.begin(), vars.end()), term));
+      data::enumerator_queue<enumerator_list_element_with_substitution<> >
+           enumerator_deque(enumerator_list_element_with_substitution<>(variable_list(vars.begin(), vars.end()), term));
       for (enumerator_type::iterator i = enumerator.begin(sigma, enumerator_deque); i != enumerator.end(); ++i)
       {
         i->add_assignments(vars,sigma,rewr);
@@ -314,7 +314,7 @@ class mcrl2i_tool: public rewriter_tool<input_tool>
           context_variables = p.global_variables();
           return p.data();
         }
-        catch (mcrl2::runtime_error)
+        catch (const mcrl2::runtime_error&)
         {
           try
           {

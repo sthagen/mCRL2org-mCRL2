@@ -82,8 +82,7 @@ class bisim_partitioner
      * internal, which is detected using the function is_tau, then it is only returned
      * if t!=t' or preserve_divergence=true. This effectively removes all inert transitions.
      * Duplicates are removed from the transitions in the new lts.
-     * Note that the number of states nor the initial state are not adapted by this method.
-     * These must be set separately.
+     * Also the number of states and the initial state are adapted by this method.
      *
      * \pre The bisimulation equivalence classes have been computed.
      * \param[in] branching Causes non internal transitions to be removed.
@@ -135,7 +134,7 @@ class bisim_partitioner
         {
           --i;
           const std::size_t new_index=get_eq_class(i);
-          new_labels[new_index]=aut.state_label(i)+new_labels[new_index];
+          new_labels[new_index] = new_labels[new_index] + aut.state_label(i);
         }
 
         aut.set_num_states(num_eq_classes());
@@ -726,9 +725,9 @@ class bisim_partitioner
     }
     void order_recursively_on_tau_reachability(
       const state_type s,
-      std::map < state_type, std::vector < state_type > > &inert_transition_map,
-      std::vector < non_bottom_state > &new_non_bottom_states,
-      std::set < state_type > &visited)
+      std::map < state_type, std::vector < state_type > >& inert_transition_map,
+      std::vector < non_bottom_state >& new_non_bottom_states,
+      std::set < state_type >& visited)
     {
       if (inert_transition_map.count(s)>0) // The state s is a bottom state. We need not to investigate these.
       {

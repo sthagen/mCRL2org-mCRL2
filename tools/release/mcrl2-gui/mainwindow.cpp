@@ -43,11 +43,25 @@ MainWindow::MainWindow(QWidget *parent) :
 
   createToolMenu();
 
+  fileMenu->addSeparator();
+  fileMenu->addAction(QString("Open mcrl2ide"), this, SLOT(onOpenIDE()));
+
   m_state = saveState();
   QSettings settings("mCRL2", "mCRL2-gui");
   restoreGeometry(settings.value("geometry").toByteArray());
   restoreState(settings.value("windowState").toByteArray());
   m_ui.treeFiles->restore(settings);
+}
+
+void MainWindow::onOpenIDE()
+{
+  QDir appDir = QDir(QCoreApplication::applicationDirPath());
+  QString path = appDir.absoluteFilePath("mcrl2ide");
+  if (!QProcess::startDetached(path))
+  {
+    QMessageBox::warning(this, "mCRL2-gui", "Failed to start mrl2ide: could "
+      "not find its executable");
+  }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

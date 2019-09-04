@@ -9,12 +9,9 @@
 /// \file simplifier.h
 
 
-#ifndef MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_H
-#define MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_H
+#ifndef MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_H
+#define MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_H
 
-#include "mcrl2/data/linear_inequalities.h"
-#include "mcrl2/data/merge_data_specifications.h"
-#include "mcrl2/data/parse.h"
 #include "mcrl2/data/rewriter.h"
 
 #include "simplifier_mode.h"
@@ -45,14 +42,14 @@ protected:
 
   virtual data_expression simplify_expression(const data_expression& expr) = 0;
 
-  data_expression apply_data_expression(const data_expression& expr)
+  data_expression apply_data_expression(const data_expression& expr, const mutable_indexed_substitution<>& sigma)
   {
     if(expr == sort_bool::true_() || expr == sort_bool::false_())
     {
       return expr;
     }
     // Rewrite the expression to some kind of normal form using BDDs
-    data_expression rewritten = rewr(proving_rewr(expr));
+    data_expression rewritten = rewr(proving_rewr(expr,sigma));
     // Check the cache
     std::map< data_expression, data_expression >::const_iterator res = cache.find(rewritten);
     if(res != cache.end())
@@ -77,9 +74,9 @@ protected:
     return simpl;
   }
 
-  lambda apply_lambda(const lambda& expr)
+  lambda apply_lambda(const lambda& expr, const mutable_indexed_substitution<>& sigma)
   {
-    return lambda(expr.variables(), apply_data_expression(expr.body()));
+    return lambda(expr.variables(), apply_data_expression(expr.body(), sigma));
   }
 
 public:
@@ -90,7 +87,13 @@ public:
 
   data_expression apply(const data_expression& expr)
   {
-    return is_lambda(expr) ? apply_lambda(expr) : apply_data_expression(expr);
+    const mutable_indexed_substitution<> sigma;
+    return apply(expr, sigma);
+  }
+
+  data_expression apply(const data_expression& expr, const mutable_indexed_substitution<>& sigma)
+  {
+    return is_lambda(expr) ? apply_lambda(expr, sigma) : apply_data_expression(expr,sigma);
   }
 };
 
@@ -100,4 +103,4 @@ simplifier* get_simplifier_instance(const simplifier_mode& mode, const rewriter&
 } // namespace mcrl2
 } // namespace data
 
-#endif // MCRL2_LPSSYMBOLICBISIM_SIMPLIFIER_H
+#endif // MCRL2_PBESSYMBOLICBISIM_SIMPLIFIER_H

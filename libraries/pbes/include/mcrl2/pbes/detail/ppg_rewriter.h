@@ -13,6 +13,7 @@
 #ifndef MCRL2_PBES_DETAIL_PPG_REWRITER_H
 #define MCRL2_PBES_DETAIL_PPG_REWRITER_H
 
+#include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/join.h"
 #include "mcrl2/pbes/pbes_functions.h"
 #include "mcrl2/pbes/traverser.h"
@@ -64,7 +65,7 @@ struct fresh_variable_name_generator
 };
 
 /// \cond INTERNAL_DOCS
-/// \brief Visitor for checking if a pbes object is a PPG.
+/// \brief Traverser that rewrites the given PBES to PPG format.
 struct ppg_rewriter: public pbes_expression_traverser<ppg_rewriter>
 {
   typedef pbes_expression_traverser<ppg_rewriter> super;
@@ -78,7 +79,6 @@ struct ppg_rewriter: public pbes_expression_traverser<ppg_rewriter>
     UNDETERMINED
   };
 
-  bool result;
   std::vector<pbes_equation> equations;
   std::stack<expression_mode> mode_stack;
   std::stack<fixpoint_symbol> symbol_stack;
@@ -89,18 +89,17 @@ struct ppg_rewriter: public pbes_expression_traverser<ppg_rewriter>
 
   template <typename Container>
   ppg_rewriter(const Container& equations)
-    : result(true),
-      name_generator(equations)
+    : name_generator(equations)
   {}
 
-  void enter(const not_&)
+  void apply(const not_& x)
   {
-    throw std::runtime_error("operation not should not occur");
+    throw mcrl2::runtime_error("Unexpected negation in PPG rewriter: " + pp(x));
   }
 
-  void enter(const imp& /*x*/)
+  void apply(const imp& x)
   {
-    throw std::runtime_error("operation imp should not occur");
+    throw mcrl2::runtime_error("Unexpected implication in PPG rewriter: " + pp(x));
   }
 
   void enter(const data::data_expression& x)
@@ -427,8 +426,9 @@ struct ppg_rewriter: public pbes_expression_traverser<ppg_rewriter>
 /// \param x a PBES
 /// \return a PPG.
 inline
-pbes to_ppg(const pbes& x)
+pbes to_ppg(pbes x)
 {
+  algorithms::normalize(x);
   ppg_rewriter f(x.equations());
   f.apply(x);
   pbes result(

@@ -147,6 +147,22 @@ class lts: public LTS_BASE
       return m_nstates;
     }
 
+    /** \brief Provides the state labels of an LTS.
+     ** \return A reference to the state label vector of the LTS.
+    */
+    std::vector<STATE_LABEL_T>& state_labels()
+    {
+      return m_state_labels;
+    }
+
+    /** \brief Provides the state labels of an LTS.
+     ** \return A reference to the state label vector of the LTS.
+    */
+    const std::vector<STATE_LABEL_T>& state_labels() const
+    {
+      return m_state_labels;
+    }
+
     /** \brief Gets the number of state labels of this LTS.
      *  \details As states do not need to have state labels,
      *  the number of state labels can differ from the number of
@@ -286,7 +302,7 @@ class lts: public LTS_BASE
     void set_action_label(const labels_size_type action, const ACTION_LABEL_T& label)
     {
       assert(action<m_action_labels.size());
-      assert(action==0 == (label==ACTION_LABEL_T::tau_action())); // a tau action is always stored at index 0.
+      assert((action==0) == (label==ACTION_LABEL_T::tau_action())); // a tau action is always stored at index 0.
       m_action_labels[action] = label;
     }
 

@@ -16,6 +16,7 @@
 #include "mcrl2/lps/detail/lps_io.h"
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/pbes/detail/pbes_io.h"
+#include "mcrl2/pbes/pbessolve_options.h"
 #include "mcrl2/pbes/pbesinst_structure_graph.h"
 #include "mcrl2/pbes/pbesinst_structure_graph2.h"
 #include "mcrl2/pbes/solve_structure_graph.h"
@@ -45,16 +46,11 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
   protected:
     typedef rewriter_tool<pbes_input_tool<input_tool>> super;
 
-    search_strategy m_search_strategy;
-
-    // for doing a consistency check on the computed strategy
-    bool m_check_strategy = false;
+    pbessolve_options options;
 
     std::string lpsfile;
     std::string ltsfile;
     std::string evidence_file;
-
-    int m_strategy = 0; // can be 0, 1, 2, 3 or 4
 
     void add_options(utilities::interface_description& desc) override
     {
@@ -62,56 +58,65 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
       desc.add_hidden_option("check-strategy", "do a sanity check on the computed strategy", 'c');
       desc.add_option("search",
                  utilities::make_enum_argument<search_strategy>("SEARCH")
-                   .add_value(breadth_first, true)
-                   .add_value(depth_first),
-                 "use search strategy SEARCH:",
+                   .add_value_desc(breadth_first, "Leads to smaller counter examples", true)
+                   .add_value_desc(depth_first, ""),
+                 "Use search strategy SEARCH:",
                  'z');
       desc.add_option("file",
-                 utilities::make_optional_argument("NAME", "name"),
+                 utilities::make_file_argument("NAME"),
                  "The file containing the LPS or LTS that was used to generate the PBES using lps2pbes -c. If this "
                  "option is set, a counter example or witness for the encoded property will be generated. The "
                  "extension of the file should be .lps in case of an LPS file, in all other cases it is assumed to "
                  "be an LTS.",
                  'f');
+      desc.add_option("prune-todo-list", "Prune the todo list periodically.");
       desc.add_option("evidence-file",
-                      utilities::make_optional_argument("NAME", "name"),
+                      utilities::make_file_argument("NAME"),
                       "The file to which the evidence is written. If not set, a default name will be chosen.");
       desc.add_option("strategy",
-                  utilities::make_optional_argument("STRATEGY", "0"),
-                      "use strategy STRATEGY:\n"
-                      "  '0' Compute all boolean equations which can be"
-                      " reached from the initial state, without"
-                      " optimization. This is is the most data efficient"
-                      " option per generated equation. (default)\n"
-                      "  '1' In addition to 0, remove self loops.\n"
-                      "  '2' Optimize by immediately substituting the right"
-                      " hand sides for already investigated variables that"
-                      " are true or false when generating an expression."
-                      " This is as memory efficient as 0.\n"
-                      "  '3' In addition to 2, also substitute variables that"
-                      " are true or false into an already generated right"
-                      " hand side. This can mean that certain variables"
-                      " become unreachable (e.g. X0 in X0 and X1, when X1"
-                      " becomes false, assuming X0 does not occur elsewhere."
-                      " It will be maintained which variables have become"
-                      " unreachable as these do not have to be investigated."
-                      " Depending on the PBES, this can reduce the size of"
-                      " the generated BES substantially but requires a"
-                      " larger memory footprint.\n"
-                      "  '4' In addition to 3, investigate for generated"
-                      " variables whether they occur on a loop, such that"
-                      " they can be set to true or false, depending on the"
-                      " fixed point symbol. This can increase the time"
-                      " needed to generate an equation substantially.",
-                 's');
+                      utilities::make_enum_argument<int>("STRATEGY")
+                        .add_value_desc(0, "No on-the-fly solving is applied", true)
+                        .add_value_desc(1, "Propagate solved equations using an attractor.")
+                        .add_value_desc(2, "Detect winning loops.")
+                        .add_value_desc(3, "Solve subgames using a fatal attractor.")
+                        .add_value_desc(4, "Solve subgames using the solver.")
+        ,"Use solving strategy STRATEGY. Strategies 1-4 periodically apply on-the-fly solving, which may lead to early termination.",
+                      's');
+      desc.add_hidden_option("long-strategy",
+                  utilities::make_enum_argument<int>("STRATEGY")
+                    .add_value_desc(0, "Do not apply any optimizations.")
+                    .add_value_desc(1, "Remove self loops.")
+                    .add_value_desc(2, "Propagate solved equations using substitution.")
+                    .add_value_desc(3, "Propagate solved equations using an attractor.")
+                    .add_value_desc(4, "Detect winning loops using a fatal attractor.")
+                    .add_value_desc(5, "Solve subgames using a fatal attractor (local version).")
+                    .add_value_desc(6, "Solve subgames using a fatal attractor (original version).")
+                    .add_value_desc(7, "Solve subgames using the solver.")
+                    .add_value_desc(8, "Detect winning loops (original version)."
+                      " N.B. This optimization does not work correctly in combination with counter examples."
+                      " It may also cause stack overflow."
+                     )
+                    ,"use strategy STRATEGY (N.B. This is a developer option that overrides --strategy)",
+                 'l');
+      desc.add_hidden_option("no-replace-constants-by-variables", "Do not move constant expressions to a substitution.");
+      desc.add_hidden_option("aggressive", "Apply optimizations 4 and 5 at every iteration.");
+      desc.add_hidden_option("prune-todo-alternative", "Use a variation of todo list pruning.");
     }
 
 
     void parse_options(const utilities::command_line_parser& parser) override
     {
       super::parse_options(parser);
-      m_check_strategy = parser.options.count("check-strategy") > 0;
-      if (parser.options.count("file") > 0)
+
+      options.check_strategy = parser.has_option("check-strategy");
+      options.replace_constants_by_variables = !parser.has_option("no-replace-constants-by-variables");
+      options.aggressive = parser.has_option("aggressive");
+      options.prune_todo_list = parser.has_option("prune-todo-list");
+      options.prune_todo_alternative = parser.has_option("prune-todo-alternative");
+      options.exploration_strategy = parser.option_argument_as<mcrl2::pbes_system::search_strategy>("search");
+      options.rewrite_strategy = rewrite_strategy();
+
+      if (parser.has_option("file"))
       {
         std::string filename = parser.option_argument("file");
         if (file_extension(filename) == "lps")
@@ -123,15 +128,47 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
           ltsfile = filename;
         }
       }
-      if (parser.options.count("evidence-file") > 0)
+      if (parser.has_option("evidence-file"))
       {
         evidence_file = parser.option_argument("evidence-file");
       }
-      m_search_strategy = parser.option_argument_as<mcrl2::pbes_system::search_strategy>("search");
-      m_strategy = parser.option_argument_as<int>("strategy");
-      if (m_strategy < 0 || m_strategy > 4)
+
+      if (parser.has_option("long-strategy"))
       {
-        throw mcrl2::runtime_error("An invalid value " + std::to_string(m_strategy) + " was specified for the strategy option.");
+        options.optimization = parser.option_argument_as<int>("long-strategy");
+      }
+      else
+      {
+        options.optimization = parser.option_argument_as<int>("strategy");
+        if (options.optimization == 0)
+        {
+          options.optimization = 2;
+        }
+        else if (options.optimization == 1)
+        {
+          options.optimization = 3;
+        }
+        else if (options.optimization == 2)
+        {
+          options.optimization = 4;
+        }
+        else if (options.optimization == 3)
+        {
+          options.optimization = 6;
+        }
+        else if (options.optimization == 4)
+        {
+          options.optimization = 7;
+        }
+      }
+
+      if (options.optimization < 0 || options.optimization > 8)
+      {
+        throw mcrl2::runtime_error("Invalid strategy " + std::to_string(options.optimization));
+      }
+      if (options.prune_todo_list && options.optimization < 2)
+      {
+        mCRL2log(log::warning) << "Option --prune-todo-list has no effect for strategies less than 2." << std::endl;
       }
     }
 
@@ -151,16 +188,12 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
               "which is then solved using Zielonka's algorithm. "
               "It supports the generation of a witness or counter "
               "example for the property encoded by the PBES."
-             ),
-      m_search_strategy(breadth_first)
+             )
     {}
 
     template <typename PbesInstAlgorithm>
-    void run_algorithm(const pbes_system::pbes& pbesspec)
+    void run_algorithm(PbesInstAlgorithm& algorithm, const pbes_system::pbes& pbesspec, structure_graph& G)
     {
-      structure_graph G;
-
-      PbesInstAlgorithm algorithm(pbesspec, G, rewrite_strategy(), m_search_strategy, m_strategy);
       mCRL2log(log::verbose) << "Generating parity game..." << std::endl;
       timer().start("instantiation");
       algorithm.run();
@@ -204,7 +237,7 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
       else
       {
         timer().start("solving");
-        bool result = solve_structure_graph(G, m_check_strategy);
+        bool result = solve_structure_graph(G, options.check_strategy);
         timer().finish("solving");
         std::cout << (result ? "true" : "false") << std::endl;
       }
@@ -215,13 +248,16 @@ class pbessolve_tool: public rewriter_tool<pbes_input_tool<input_tool>>
       pbes_system::pbes pbesspec = pbes_system::detail::load_pbes(input_filename());
       pbes_system::algorithms::normalize(pbesspec);
 
-      if (m_strategy <= 1)
+      structure_graph G;
+      if (options.optimization <= 1)
       {
-        run_algorithm<pbesinst_structure_graph_algorithm>(pbesspec);
+        pbesinst_structure_graph_algorithm algorithm(options, pbesspec, G);
+        run_algorithm<pbesinst_structure_graph_algorithm>(algorithm, pbesspec, G);
       }
       else
       {
-        run_algorithm<pbesinst_structure_graph_algorithm2>(pbesspec);
+        pbesinst_structure_graph_algorithm2 algorithm(options, pbesspec, G);
+        run_algorithm<pbesinst_structure_graph_algorithm2>(algorithm, pbesspec, G);
       }
       return true;
     }

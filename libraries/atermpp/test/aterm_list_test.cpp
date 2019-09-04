@@ -9,9 +9,10 @@
 /// \file aterm_list_test.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE aterm_list_test
 #include <sstream>
 #include <algorithm>
-#include <boost/test/minimal.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_io.h"
 #include "mcrl2/atermpp/aterm_int.h"
@@ -31,7 +32,7 @@ struct counter
 
   void operator()(const atermpp::aterm& t)
   {
-    m_sum += aterm_int(t).value();
+    m_sum += down_cast<aterm_int>(t).value();
   }
 };
 
@@ -51,7 +52,7 @@ struct func
 
 void test_aterm_list()
 {
-  aterm_list q (read_term_from_string("[1,2,3,4]"));
+  aterm_list q = read_list_from_string("[1,2,3,4]");
   aterm_list r = reverse(q); // r == [4,3,2,1]
 
   BOOST_CHECK(r == read_term_from_string("[4,3,2,1]"));
@@ -77,15 +78,15 @@ void test_aterm_list()
   std::for_each(r.begin(), r.end(), counter(sum));
   BOOST_CHECK(sum == 10);
 
-  aterm_list v (read_term_from_string("[1,2,3,4]"));
-  aterm_list w (read_term_from_string("[0,1,2,3,4]"));
+  aterm_list v = read_list_from_string("[1,2,3,4]");
+  aterm_list w = read_list_from_string("[0,1,2,3,4]");
   BOOST_CHECK(w.tail() == v);
   w.pop_front();
   BOOST_CHECK(w == v);
 
   // test concatenation
   {
-    aterm_list a (read_term_from_string("[1,2,3]"));
+    aterm_list a = read_list_from_string("[1,2,3]");
     BOOST_CHECK(a + a == read_term_from_string("[1,2,3,1,2,3]"));
   }  
 }
@@ -121,15 +122,15 @@ void test_initializer_list()
 void test_list_with_apply_filter()
 {
   std::vector<aterm_list> v;
-  aterm_list l1(read_term_from_string("[1,2,3,4]"));
+  aterm_list l1= read_list_from_string("[1,2,3,4]");
   v.push_back(l1);
-  aterm_list l2(read_term_from_string("[1,3,7]"));
+  aterm_list l2= read_list_from_string("[1,3,7]");
   v.push_back(l2);
-  aterm_list l3(read_term_from_string("[1,2,3,7,4]"));
+  aterm_list l3= read_list_from_string("[1,2,3,7,4]");
   v.push_back(l3);
-  aterm_list l4(read_term_from_string("[1,7]"));
+  aterm_list l4= read_list_from_string("[1,7]");
   v.push_back(l4);
-  aterm_list l5(read_term_from_string("[1,7,9,10,12,13,15,15,16]"));
+  aterm_list l5= read_list_from_string("[1,7,9,10,12,13,15,15,16]");
   v.push_back(l5);
 
   // Remove the first element of each list. Only add resulting lists with a length larger than 2.
@@ -155,13 +156,11 @@ void test_concatenation()
   BOOST_CHECK(l2+l1 == l1+l2);
 }
 
-int test_main(int, char*[])
+BOOST_AUTO_TEST_CASE(test_main)
 {
   test_aterm_list();
   test_set_operations();
   test_initializer_list();
   test_list_with_apply_filter();
   test_concatenation();
-
-  return 0;
 }

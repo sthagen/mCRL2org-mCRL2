@@ -12,6 +12,7 @@
 #ifndef MCRL2_PBES_PBESSOLVE_VERTEX_SET_H
 #define MCRL2_PBES_PBESSOLVE_VERTEX_SET_H
 
+#include <algorithm>
 #include <deque>
 #include "mcrl2/pbes/structure_graph.h"
 
@@ -145,6 +146,8 @@ struct vertex_set
 
     vertex_set() = default;
 
+    vertex_set(const vertex_set& other) = default;
+
     explicit vertex_set(std::size_t N)
             : m_include(N)
     {
@@ -175,6 +178,19 @@ struct vertex_set
         m *= 2;
       }
       m_include.resize(m);
+    }
+
+    // truncate the size to n
+    void truncate(std::size_t n)
+    {
+      if (m_include.size() > n)
+      {
+        m_include = boost::dynamic_bitset<>(n);
+        for (auto u: m_vertices)
+        {
+          m_include[u] = true;
+        }
+      }
     }
 
     bool is_empty() const
@@ -262,15 +278,75 @@ vertex_set set_union(const vertex_set& V, const vertex_set& W)
   return result;
 }
 
-inline
-vertex_set set_difference(const vertex_set& V, const vertex_set& W)
+// VertexSet can be either vertex_set or deque_vertex_set
+template <typename VertexSet>
+vertex_set set_intersection(const VertexSet& V, const vertex_set& W)
 {
   vertex_set result(V.extent());
   for (structure_graph::index_type v: V.vertices())
   {
-    result.insert(v);
+    if (W.contains(v))
+    {
+      result.insert(v);
+    }
   }
   return result;
+}
+
+inline
+vertex_set set_minus(const vertex_set& V, const vertex_set& W)
+{
+  vertex_set result(V.extent());
+  for (structure_graph::index_type v: V.vertices())
+  {
+    if (!W.contains(v))
+    {
+      result.insert(v);
+    }
+  }
+  return result;
+}
+
+struct lazy_union
+{
+  const vertex_set& A;
+  const vertex_set& B;
+
+  lazy_union(const vertex_set& A_, const vertex_set& B_)
+    : A(A_), B(B_)
+  {}
+
+  bool contains(structure_graph::index_type u) const
+  {
+    return A.contains(u) || B.contains(u);
+  }
+};
+
+inline
+std::ostream& operator<<(std::ostream& out, const lazy_union& V)
+{
+  return out << "(" << V.A << " U " << V.B << ")";
+}
+
+inline
+bool is_subset_of(const vertex_set& V, const vertex_set& W)
+{
+  return V.include().is_subset_of(W.include());
+}
+
+// returns a successor of u that is in A, or undefined_index if not found
+template <typename StructureGraph, typename VertexSet>
+structure_graph::index_type find_successor_in(const StructureGraph& G, structure_graph::index_type u, const VertexSet& A)
+{
+  for (auto v: G.successors(u))
+  {
+    if (A.contains(v))
+    {
+      return v;
+    }
+  }
+  mCRL2log(log::debug) << "No successor found for node " << u << " in " << A << std::endl;
+  return undefined_vertex();
 }
 
 template <typename StructureGraph>
@@ -281,96 +357,214 @@ void log_vertex_set(const StructureGraph& G, const vertex_set& V, const std::str
   {
     mCRL2log(log::debug) << "  " << v << " " << G.find_vertex(v) << std::endl;
   }
-  // mCRL2log(log::debug) << "\n";
-  // mCRL2log(log::debug) << "exclude = " << G.exclude() << "\n";
 }
 
-// Returns true if the vertex u satisfies the conditions for being added to the attractor set A.
-// alpha = 0: disjunctive
-// alpha = 1: conjunctive
-template <typename StructureGraph>
-bool is_attractor(const StructureGraph& G, typename StructureGraph::index_type u, const vertex_set& A, int alpha)
+// strategy vector that resizes automatically
+class strategy_vector
 {
-  if (G.decoration(u) != alpha)
-  {
-    return true;
-  }
-  if (G.decoration(u) != (1 - alpha))
-  {
-    for (auto v: G.successors(u))
+  protected:
+    mutable std::vector<structure_graph::index_type> m_strategy;
+
+    // resize to at least n elements
+    void resize(std::size_t n) const
     {
-      if (!(A.contains(v)))
+      std::size_t m = m_strategy.size();
+      if (m < 16)
       {
-        return false;
+        m = 16;
+      }
+      while (m < n)
+      {
+        m *= 2;
+      }
+      m_strategy.resize(m, undefined_vertex());
+    }
+
+  public:
+    structure_graph::index_type operator[](std::size_t i) const
+    {
+      if (i >= m_strategy.size())
+      {
+        resize(i + 1);
+      }
+      return m_strategy[i];
+    }
+
+    structure_graph::index_type& operator[](std::size_t i)
+    {
+      if (i >= m_strategy.size())
+      {
+        resize(i + 1);
+      }
+      return m_strategy[i];
+    }
+
+    std::size_t size() const
+    {
+      return m_strategy.size();
+    }
+
+    // truncate the size to n
+    void truncate(std::size_t n)
+    {
+      if (m_strategy.size() > n)
+      {
+        m_strategy.erase(m_strategy.begin() + n, m_strategy.end());
+        m_strategy.shrink_to_fit();
       }
     }
-    return true;
-  }
-  return false;
+
+    const std::vector<structure_graph::index_type>& strategy() const
+    {
+      return m_strategy;
+    }
+};
+
+inline
+std::ostream& operator<<(std::ostream& out, const strategy_vector& tau_alpha)
+{
+  return out << core::detail::print_list(tau_alpha.strategy());
 }
 
-// Computes the conjunctive attractor set, by extending A.
-// alpha = 0: disjunctive
-// alpha = 1: conjunctive
-// StructureGraph is either structure_graph or simple_structure_graph
-template <typename StructureGraph>
-vertex_set compute_attractor_set(const StructureGraph& G, vertex_set A, int alpha)
+inline
+std::string print_strategy_vector(const vertex_set& S_alpha, const strategy_vector& tau_alpha)
 {
-  // utilities::chrono_timer timer;
-  // std::size_t A_size = A.size();
-
-  // put all predecessors of elements in A in todo
-  deque_vertex_set todo(G.all_vertices().size());
-  for (auto u: A.vertices())
+  std::ostringstream out;
+  bool first = true;
+  for (structure_graph::index_type u: S_alpha.vertices())
   {
-    for (auto v: G.predecessors(u))
+    if (tau_alpha[u] != undefined_vertex())
     {
-      if (!A.contains(v))
+      if (!first)
+      {
+        out << ", ";
+      }
+      out << u << " -> " << tau_alpha[u];
+      first = false;
+    }
+  }
+  return out.str();
+}
+
+template <typename StructureGraph>
+std::set<structure_graph::index_type> extract_minimal_structure_graph(StructureGraph& G, typename StructureGraph::index_type init, const vertex_set& S0, const vertex_set& S1)
+{
+  using utilities::detail::contains;
+
+  typedef structure_graph::vertex vertex;
+  std::vector<const vertex*> result;
+
+  std::set<structure_graph::index_type> todo = { init };
+  std::set<structure_graph::index_type> done;
+  while (!todo.empty())
+  {
+    structure_graph::index_type u = *todo.begin();
+    todo.erase(todo.begin());
+    done.insert(u);
+    if ((S0.contains(u) && G.decoration(u) == structure_graph::d_disjunction) || (S1.contains(u) && G.decoration(u) == structure_graph::d_conjunction))
+    {
+      // explore only the strategy edge
+      structure_graph::index_type v = G.strategy(u);
+      assert (v != undefined_vertex());
+      if (!contains(done, v))
       {
         todo.insert(v);
       }
     }
-  }
-
-  while (!todo.is_empty())
-  {
-    // N.B. Use a breadth first search, to minimize counter examples
-    auto u = todo.pop_front();
-
-    if (is_attractor(G, u, A, 1 - alpha))
+    else
     {
-      // set strategy
-      if (G.decoration(u) != (1 - alpha))
+      // explore all outgoing edges
+      for (structure_graph::index_type v: G.successors(u))
       {
-        for (auto w: G.successors(u))
-        {
-          if ((A.contains(w)))
-          {
-            mCRL2log(log::debug) << "set strategy for node " << u << " to " << w << std::endl;
-            G.find_vertex(u).strategy = w;
-            break;
-          }
-        }
-        if (G.strategy(u) == structure_graph::undefined_vertex)
-        {
-          mCRL2log(log::debug) << "Error: no strategy for node " << u << std::endl;
-        }
-      }
-
-      A.insert(u);
-
-      for (auto v: G.predecessors(u))
-      {
-        if (!A.contains(v) && !todo.contains(v))
+        if (!contains(done, v))
         {
           todo.insert(v);
         }
       }
     }
   }
+  mCRL2log(log::debug) << "Extracted minimal structure graph " << core::detail::print_set(done) << std::endl;
+  return done;
+}
 
-  // mCRL2log(log::verbose) << "computed attractor set, alpha = " << alpha << ", size before = " << A_size << ", size after = " << A.size() << ", time = " << timer.elapsed() << std::endl;
-  return A;
+template <typename StructureGraph>
+std::set<structure_graph::index_type> extract_minimal_structure_graph(
+  StructureGraph& G,
+  typename StructureGraph::index_type init,
+  const vertex_set& S0,
+  const vertex_set& S1,
+  const strategy_vector& tau0,
+  const strategy_vector& tau1
+)
+{
+  using utilities::detail::contains;
+
+  typedef structure_graph::vertex vertex;
+  std::vector<const vertex*> result;
+
+  std::set<structure_graph::index_type> todo = { init };
+  std::set<structure_graph::index_type> done;
+  while (!todo.empty())
+  {
+    structure_graph::index_type u = *todo.begin();
+    todo.erase(todo.begin());
+    done.insert(u);
+    if (S0.contains(u) && G.decoration(u) == structure_graph::d_disjunction)
+    {
+      // explore only the strategy edge
+      structure_graph::index_type v = tau0[u];
+      assert (v != undefined_vertex());
+      if (!contains(done, v))
+      {
+        todo.insert(v);
+      }
+    }
+    else if (S1.contains(u) && G.decoration(u) == structure_graph::d_conjunction)
+    {
+      // explore only the strategy edge
+      structure_graph::index_type v = tau1[u];
+      assert (v != undefined_vertex());
+      if (!contains(done, v))
+      {
+        todo.insert(v);
+      }
+    }
+    else
+    {
+      // explore all outgoing edges
+      for (structure_graph::index_type v: G.successors(u))
+      {
+        if (!contains(done, v))
+        {
+          todo.insert(v);
+        }
+      }
+    }
+  }
+  mCRL2log(log::debug) << "\nExtracted minimal structure graph " << core::detail::print_set(done) << std::endl;
+  return done;
+}
+
+template <typename StructureGraph>
+std::set<structure_graph::index_type> extract_minimal_structure_graph(StructureGraph& G, typename StructureGraph::index_type init, bool is_disjunctive)
+{
+  std::size_t n = G.extent();
+
+  vertex_set all(n);
+  for (std::size_t i = 0; i < n; i++)
+  {
+    all.insert(i);
+  }
+  vertex_set empty(n);
+
+  if (is_disjunctive)
+  {
+    return extract_minimal_structure_graph(G, init, all, empty);
+  }
+  else
+  {
+    return extract_minimal_structure_graph(G, init, empty, all);
+  }
 }
 
 } // namespace pbes_system

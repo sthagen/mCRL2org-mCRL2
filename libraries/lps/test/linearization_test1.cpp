@@ -9,6 +9,7 @@
 /// \file linearization_test1.cpp
 /// \brief Add your file description here.
 
+#define BOOST_TEST_MODULE linearization_test1
 #include <boost/test/included/unit_test_framework.hpp>
 
 #ifndef MCRL2_SKIP_LONG_TESTS
@@ -494,6 +495,20 @@ BOOST_AUTO_TEST_CASE(various_case_26)
   run_linearisation_test_case(various_case_26);
 }
 
+// The following testcase exhibits a problem that occurred with sorts without explicit elements.
+// See bug report #1553. 
+BOOST_AUTO_TEST_CASE(bug_report_1553)
+{
+  const std::string report_1553=
+    "act  a: D;\n"
+    "sort D;\n"
+    "\n"
+    "proc X1 = sum d: D. a(d) . X1;\n"
+    "\n"
+    "init sum d1: D. a(d1) . X1;\n";
+  run_linearisation_test_case(report_1553);
+}
+
 #else // ndef MCRL2_SKIP_LONG_TESTS
 
 BOOST_AUTO_TEST_CASE(skip_linearization_test)
@@ -501,9 +516,4 @@ BOOST_AUTO_TEST_CASE(skip_linearization_test)
 }
 
 #endif // ndef MCRL2_SKIP_LONG_TESTS
-
-boost::unit_test::test_suite* init_unit_test_suite(int, char*[])
-{
-  return nullptr;
-}
 

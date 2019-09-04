@@ -12,6 +12,7 @@
 #include <QWidget>
 #include <QDateTime>
 #include "mcrl2/utilities/logger.h"
+#include "mcrl2/gui/utilities.h"
 
 using namespace mcrl2::log;
 
@@ -45,7 +46,7 @@ class LogWidget: public QWidget
   Q_OBJECT
 
   public:
-    LogWidget(QWidget *parent = 0);
+    LogWidget(QWidget *parent = nullptr);
     ~LogWidget();
      virtual QSize sizeHint () const { return m_sizeHint.isValid() ? m_sizeHint : QWidget::sizeHint(); }
      void setSizeHint(QSize sizeHint) { m_sizeHint = sizeHint; }

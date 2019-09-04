@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-#~ Copyright 2013, 2014 Mark Geelen.
-#~ Copyright 2014, 2015 Wieger Wesselink.
-#~ Distributed under the Boost Software License, Version 1.0.
-#~ (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
+# Copyright 2013, 2014 Mark Geelen.
+# Copyright 2014, 2015 Wieger Wesselink.
+# Distributed under the Boost Software License, Version 1.0.
+# (See accompanying file LICENSE_1_0.txt or http://www.boost.org/LICENSE_1_0.txt)
 
 from subprocess import  PIPE
 import os.path
 import re
-import shutil
 from text_utility import read_text
 
 def is_list_of(l, types):
@@ -30,7 +29,7 @@ class Node:
         return 'Node(label = {0}, type = {1}, value = {2})'.format(self.label, self.type, self.value)
 
     def filename(self):
-        return '{}.{}'.format(self.label, self.type.lower())
+        return '{}.{}'.format(self.label, self.type)
 
 class Tool(object):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
@@ -51,18 +50,10 @@ class Tool(object):
             # How to suppress crash notification dialog?, Raymond Chen Jan 14,2004 -
             import ctypes
             SEM_NOGPFAULTERRORBOX = 0x0002 # From MSDN
-            ctypes.windll.kernel32.SetErrorMode(SEM_NOGPFAULTERRORBOX);
+            ctypes.windll.kernel32.SetErrorMode(SEM_NOGPFAULTERRORBOX)
             self.subprocess_flags = 0x8000000 #win32con.CREATE_NO_WINDOW?
         else:
             self.subprocess_flags = 0
-
-    def can_execute(self):
-        if self.executed:
-            return False
-        for i in self.input_nodes:
-            if i.value == None:
-                return False
-        return True
 
     # Raises an exception if the execution was aborted or produced an error
     def check_execution(self, process, timeout, memlimit, returncode):
@@ -74,39 +65,65 @@ class Tool(object):
             raise popen.MemoryExceededError(process.max_virtual_memory)
         if returncode != 0:
             print('warning: tool {} ended with return code {}'.format(self.name, returncode))
+        if platform.system() == 'Windows' and returncode == -1073740777:
+            raise popen.ToolRuntimeError('Tool {} failed with the return code STATUS_INVALID_CRUNTIME_PARAMETER (0xC0000417)'.format(self.name))
         if platform.system() == 'Windows' and returncode == -1073741571:
             raise popen.StackOverflowError(self.name)
         if platform.system() == 'Linux' and returncode == -11:
             raise popen.SegmentationFault(self.name)
         if self.stderr and 'error' in self.stderr:
-            raise RuntimeError('Tool {} failed: {}'.format(self.name, self.stderr))
+            raise popen.ToolRuntimeError('Tool {} failed: {}'.format(self.name, self.stderr))
 
-    def arguments(self, runpath = None):
-        if not runpath:
-            runpath = os.getcwd()
-        args = [os.path.join(runpath, node.filename()) for node in self.input_nodes]
-        args = args + [os.path.join(runpath, node.filename()) for node in self.output_nodes if node.type != 'Bool']
-        return args
+    # If no_paths is True, then all paths in the command are excluded
+    def arguments(self, working_directory = None, no_paths = False):
+        if not working_directory:
+            working_directory = os.getcwd()
+        input_filenames = [node.filename() for node in self.input_nodes]
+        output_filenames = [node.filename() for node in self.output_nodes if node.type != 'Bool']
+        filenames = input_filenames + output_filenames
+        if not no_paths:
+            filenames = [os.path.join(working_directory, filename) for filename in filenames]
+        return filenames
 
     def assign_outputs(self):
         for node in self.output_nodes:
-            if node.type == 'TEXT':
+            if node.type == 'text':
                 text = read_text(node.filename())
                 node.value = text
             else:
                 node.value = 'executed'
 
+    # value[key] is an integer
     def parse_number(self, text, key, regex):
         m = re.search(regex, text)
         if m != None:
             self.value[key] = int(m.group(1))
 
+    # value[key] is an integer
     def parse_numbers(self, text, key1, key2, regex):
         m = re.search(regex, text)
         if m != None:
             self.value[key1] = int(m.group(1))
             self.value[key2] = int(m.group(2))
 
+    # value[key] is a set of strings
+    # All occurrences of regex are processed
+    def parse_action(self, text, key, regex):
+        for m in re.finditer(regex, text):
+            if not key in self.value:
+                self.value[key] = set([])
+            self.value[key].add(m.group(1))
+
+    # value[key] is a boolean
+    # multiple regular expressions are checked
+    def parse_boolean_regexes(self, text, key, regexes):
+        result = False
+        for regex in regexes:
+            if re.search(regex, text, re.DOTALL) != None:
+                result = True
+        self.value[key] = result
+
+    # value[key] is a boolean
     def parse_boolean(self, text, key, regex, negated_regex = None):
         if negated_regex:
             m = re.search(negated_regex, text, re.DOTALL)
@@ -142,7 +159,6 @@ class Tool(object):
         self.parse_boolean(text, 'is-closed'                  , 'is closed', 'is not closed')
         self.parse_boolean(text, 'is-well-formed'             , 'well formed', 'not well formed')
         self.parse_boolean(text, 'is-well-typed'              , 'is well typed', 'is not well typed')
-        self.parse_boolean(text, 'has-deadlock'               , 'deadlock-detect: deadlock found')
         self.parse_boolean(text, 'result'                     , r'LTSs are strongly bisimilar', 'LTSs are not strongly bisimilar')
         self.parse_boolean(text, 'result'                     , r'LTSs are branching bisimilar', 'LTSs are not branching bisimilar')
         self.parse_boolean(text, 'result'                     , r'LTSs are equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)', 'LTSs are not equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)')
@@ -155,10 +171,18 @@ class Tool(object):
         self.parse_boolean(text, 'result'                     , r'LTSs are weak trace equivalent', 'LTSs are not weak trace equivalent')
         self.parse_boolean(text, 'result'                     , r'LTSs are equal', 'LTSs are not equal')
         self.parse_boolean(text, 'result'                     , r'is included in', 'is not included in')
+        self.parse_action(text, 'actions'                     , r"Detected action '(\w+)'")
+        self.parse_action(text, 'actions'                     , r"Action '(\w+)' found")
+        self.parse_boolean_regexes(text, 'has-deadlock'       , [r'deadlock-detect: deadlock found', r'Deadlock found'])
+        self.parse_boolean_regexes(text, 'has-divergence'     , [r'divergence-detect: divergence found', r'Divergent state found'])
+        self.parse_boolean(text, 'has-nondeterminism'         , r'Nondeterministic state found')
 
-    def command(self, runpath = None):
-        args = self.arguments(runpath)
-        name = os.path.join(self.toolpath, self.name)
+    # If no_paths is True, then all paths in the command are excluded
+    def command(self, working_directory = None, no_paths = False):
+        args = self.arguments(working_directory, no_paths)
+        name = self.name
+        if not no_paths:
+            name = os.path.join(self.toolpath, name)
         return ' '.join([name] + args + self.args)
 
     def check_exists(self, name):
@@ -224,13 +248,10 @@ class Lps2PbesTool(Tool):
         assert len(output_nodes) == 1
         super(Lps2PbesTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
 
-    def arguments(self, runpath = None):
-        if not runpath:
-            runpath = os.getcwd()
-        return [os.path.join(runpath, self.input_nodes[0].filename()),
-                '-f' + os.path.join(runpath, self.input_nodes[1].filename()),
-                os.path.join(runpath, self.output_nodes[0].filename())
-               ]
+    def arguments(self, working_directory = None, no_paths = False):
+        args = super(Lps2PbesTool, self).arguments(working_directory, no_paths)
+        args.insert(1, '-f')
+        return args
 
 class Lts2PbesTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
@@ -238,13 +259,10 @@ class Lts2PbesTool(Tool):
         assert len(output_nodes) == 1
         super(Lts2PbesTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
 
-    def arguments(self, runpath = None):
-        if not runpath:
-            runpath = os.getcwd()
-        return [os.path.join(runpath, self.input_nodes[0].filename()),
-                '-f' + os.path.join(runpath, self.input_nodes[1].filename()),
-                os.path.join(runpath, self.output_nodes[0].filename())
-               ]
+    def arguments(self, working_directory = None, no_paths = False):
+        args = super(Lts2PbesTool, self).arguments(working_directory, no_paths)
+        args.insert(1, '-f')
+        return args
 
 class Lts2LpsTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
@@ -252,39 +270,46 @@ class Lts2LpsTool(Tool):
         assert len(output_nodes) == 1
         super(Lts2LpsTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
 
-    def arguments(self, runpath = None):
-        if not runpath:
-            runpath = os.getcwd()
-        return [os.path.join(runpath, self.input_nodes[0].filename()),
-                '-l' + os.path.join(runpath, self.input_nodes[1].filename()),
-                os.path.join(runpath, self.output_nodes[0].filename())
-               ]
+    def arguments(self, working_directory = None, no_paths = False):
+        args = super(Lts2LpsTool, self).arguments(working_directory, no_paths)
+        args.insert(1, '-l')
+        return args
 
 class Lps2LtsTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
         super(Lps2LtsTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
 
-    def parse_output(self):
-        super(Lps2LtsTool, self).parse_output()
-        # The tool lps2lts does not print a message if no deadlock is found...
-        if '-D' in self.args and not 'has-deadlock' in self.value:
-            self.value['has-deadlock'] = False
+    def assign_outputs(self):
+        self.value['has-deadlock'] = None
+        self.value['has-nondeterminism'] = None
+        self.value['has-divergence'] = None
+        self.value['actions'] = set([])
+        super(Lps2LtsTool, self).assign_outputs()
+
+class GenerateLtsTool(Tool):
+    def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
+        super(GenerateLtsTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
+
+    def assign_outputs(self):
+        self.value['has-deadlock'] = None
+        self.value['has-nondeterminism'] = None
+        self.value['has-divergence'] = None
+        self.value['actions'] = set([])
+        super(GenerateLtsTool, self).assign_outputs()
 
 class PbesSolveTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
         super(PbesSolveTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
 
-    def arguments(self, runpath = None):
-        # no counter example generation
-        if len(self.input_nodes) == 1:
-            return super(PbesSolveTool, self).arguments(runpath)
+    def arguments(self, working_directory = None, no_paths = False):
+        args = super(PbesSolveTool, self).arguments(working_directory, no_paths)
 
         # counter example generation
-        if not runpath:
-            runpath = os.getcwd()
-        return [os.path.join(runpath, self.input_nodes[0].filename()),
-                '-f' + os.path.join(runpath, self.input_nodes[1].filename())
-               ]
+        if len(self.input_nodes) > 1:
+            args[1] = '--file={}'.format(args[1])
+        if len(self.output_nodes) > 0:
+            args[2] = '--evidence-file={}'.format(args[2])
+        return args
 
     def assign_outputs(self):
         text = self.stdout.strip() + self.stderr.strip()
@@ -297,11 +322,8 @@ class PbesSolveTool(Tool):
             value = None
         self.value['solution'] = value
 
-        # move the generated evidence LPS to the designated output node
+        # mark the evidence file as executed
         if len(self.output_nodes) == 1:
-            pbesfile = self.input_nodes[0].filename()
-            evidence_file = pbesfile + '.evidence.lps'
-            shutil.move(evidence_file, self.output_nodes[0].filename())
             self.output_nodes[0].value = 'executed'
 
 class ToolFactory(object):
@@ -312,10 +334,12 @@ class ToolFactory(object):
             return Lts2PbesTool(label, name, toolpath, input_nodes, output_nodes, args)
         elif name == 'lps2lts':
             return Lps2LtsTool(label, name, toolpath, input_nodes, output_nodes, args)
+        elif 'generatelts' in name:
+            return GenerateLtsTool(label, name, toolpath, input_nodes, output_nodes, args)
         elif name == 'lts2lps':
             return Lts2LpsTool(label, name, toolpath, input_nodes, output_nodes, args)
         elif name in ['pbespgsolve', 'pbes2bool', 'bessolve']:
             return SolveTool(label, name, toolpath, input_nodes, output_nodes, args)
-        elif name in ['pbessolve']:
+        elif name in ['pbessolve', 'pbessymbolicbisim']:
             return PbesSolveTool(label, name, toolpath, input_nodes, output_nodes, args)
         return Tool(label, name, toolpath, input_nodes, output_nodes, args)

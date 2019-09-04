@@ -16,7 +16,6 @@
 
 #include "mcrl2/atermpp/aterm_appl.h"
 #include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/detail/precedence.h"
 #include "mcrl2/core/print.h"
 #include "mcrl2/modal_formula/action_formula.h"
 #include "mcrl2/modal_formula/regular_formula.h"
@@ -1247,56 +1246,6 @@ inline void swap(mu& t1, mu& t2)
 }
 //--- end generated classes ---//
 
-inline int left_precedence(const mu&)     { return 41; }
-inline int left_precedence(const nu&)     { return 41; }
-inline int left_precedence(const forall&) { return 42; }
-inline int left_precedence(const exists&) { return 42; }
-inline int left_precedence(const imp&)    { return 43; }
-inline int left_precedence(const or_&)    { return 44; }
-inline int left_precedence(const and_&)   { return 45; }
-inline int left_precedence(const must&)   { return 46; }
-inline int left_precedence(const may&)    { return 46; }
-inline int left_precedence(const not_&)   { return 47; }
-inline int left_precedence(const state_formula& x)
-{
-  if      (is_mu(x))     { return left_precedence(static_cast<const mu&>(x)); }
-  else if (is_nu(x))     { return left_precedence(static_cast<const nu&>(x)); }
-  else if (is_forall(x)) { return left_precedence(static_cast<const forall&>(x)); }
-  else if (is_exists(x)) { return left_precedence(static_cast<const exists&>(x)); }
-  else if (is_imp(x))    { return left_precedence(static_cast<const imp&>(x)); }
-  else if (is_or(x))     { return left_precedence(static_cast<const or_&>(x)); }
-  else if (is_and(x))    { return left_precedence(static_cast<const and_&>(x)); }
-  else if (is_must(x))   { return left_precedence(static_cast<const must&>(x)); }
-  else if (is_may(x))    { return left_precedence(static_cast<const may&>(x)); }
-  else if (is_not(x))    { return left_precedence(static_cast<const not_&>(x)); }
-  return core::detail::precedences::max_precedence;
-}
-
-inline int right_precedence(const mu& x)     { return (std::max)(left_precedence(x), left_precedence(static_cast<const mu&>(x).operand())); }
-inline int right_precedence(const nu& x)     { return (std::max)(left_precedence(x), left_precedence(static_cast<const nu&>(x).operand())); }
-inline int right_precedence(const forall& x) { return (std::max)(left_precedence(x), left_precedence(static_cast<const forall&>(x).body())); }
-inline int right_precedence(const exists& x) { return (std::max)(left_precedence(x), left_precedence(static_cast<const exists&>(x).body())); }
-inline int right_precedence(const state_formula& x)
-{
-       if (is_mu(x)    ) { return right_precedence(static_cast<const mu&>(x)); }
-  else if (is_nu(x)    ) { return right_precedence(static_cast<const nu&>(x)); }
-  else if (is_forall(x)) { return right_precedence(static_cast<const forall&>(x)); }
-  else if (is_exists(x)) { return right_precedence(static_cast<const exists&>(x)); }
-  return left_precedence(x);
-}
-
-inline const state_formula& unary_operand(const not_& x) { return x.operand(); }
-inline const state_formula& unary_operand(const must& x) { return x.operand(); }
-inline const state_formula& unary_operand(const may& x)  { return x.operand(); }
-inline const state_formula& unary_operand(const nu& x)   { return x.operand(); }
-inline const state_formula& unary_operand(const mu& x)   { return x.operand(); }
-inline const state_formula& binary_left(const and_& x)   { return x.left(); }
-inline const state_formula& binary_right(const and_& x)  { return x.right(); }
-inline const state_formula& binary_left(const or_& x)    { return x.left(); }
-inline const state_formula& binary_right(const or_& x)   { return x.right(); }
-inline const state_formula& binary_left(const imp& x)    { return x.left(); }
-inline const state_formula& binary_right(const imp& x)   { return x.right(); }
-
 namespace algorithms {
     bool is_timed(const state_formula& x);
 } // namespace algorithms
@@ -1316,6 +1265,7 @@ std::set<data::sort_expression> find_sort_expressions(const state_formulas::stat
 std::set<data::variable> find_all_variables(const state_formulas::state_formula& x);
 std::set<data::variable> find_free_variables(const state_formulas::state_formula& x);
 std::set<core::identifier_string> find_identifiers(const state_formulas::state_formula& x);
+std::set<process::action_label> find_action_labels(const state_formulas::state_formula& x);
 bool find_nil(const state_formulas::state_formula& x);
 
 } // namespace state_formulas

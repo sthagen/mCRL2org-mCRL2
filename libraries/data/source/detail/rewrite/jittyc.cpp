@@ -30,6 +30,7 @@
 #include "mcrl2/utilities/detail/memory_utility.h"
 #include "mcrl2/utilities/basename.h"
 #include "mcrl2/utilities/logger.h"
+#include "mcrl2/utilities/stopwatch.h"
 #include "mcrl2/atermpp/algorithm.h"
 #include "mcrl2/core/print.h"
 #include "mcrl2/core/detail/function_symbols.h"
@@ -1173,7 +1174,7 @@ class RewriterCompilingJitty::ImplementTree
     }
     else
     {
-      s << "static_cast<data_expression>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << "))";
+      s << "static_cast<const data_expression&>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << "))";
       result_type << "data_expression";
       return;
     }
@@ -1202,7 +1203,7 @@ class RewriterCompilingJitty::ImplementTree
     }
     if (rewr)
     {
-      s << "static_cast<data_expression>(this_rewriter->" << rewriter_function << "("
+      s << "static_cast<const data_expression&>(this_rewriter->" << rewriter_function << "("
            "this_rewriter->binding_variable_list_get(" << m_rewriter.binding_variable_list_index(a.variables()) << "), ";
       calc_inner_term(s, a.body(), startarg, nnfvars, true, result_type);
       s << ", true, sigma(this_rewriter)))";
@@ -1596,7 +1597,7 @@ class RewriterCompilingJitty::ImplementTree
 
       m_stream << m_padding 
                << "const data_expression& result" << auxiliary_method_name_index << "= auxiliary_function_to_reduce_bracket_nesting" << auxiliary_method_name_index << "("
-               << brackets.current_data_arguments.top() << ");\n";
+               << brackets.current_data_arguments.top() << ",this_rewriter);\n";
       m_stream << m_padding 
                << "if (result" << auxiliary_method_name_index << " != data_expression()) { return result" << auxiliary_method_name_index << "; }\n";
 
@@ -2621,6 +2622,7 @@ void RewriterCompilingJitty::BuildRewriteSystem()
    rewriter_so = std::shared_ptr<uncompiled_library>(new uncompiled_library(compile_script));
 
   mCRL2log(verbose) << "using '" << compile_script << "' to compile rewriter." << std::endl;
+  stopwatch time;
 
   jittyc_eqns.clear();
   for(std::set < data_equation >::const_iterator it = rewrite_rules.begin(); it != rewrite_rules.end(); ++it)
@@ -2631,7 +2633,8 @@ void RewriterCompilingJitty::BuildRewriteSystem()
   std::string cpp_file = generate_cpp_filename(reinterpret_cast<std::size_t>(this));
   generate_code(cpp_file);
 
-  mCRL2log(verbose) << "compiling " << cpp_file << "..." << std::endl;
+  mCRL2log(verbose) << "generated " << cpp_file << " in " << time.time() << "ms, compiling..." << std::endl;
+  time.reset();
 
   try
   {
@@ -2643,7 +2646,7 @@ void RewriterCompilingJitty::BuildRewriteSystem()
     throw mcrl2::runtime_error(std::string("Could not compile rewriter: ") + e.what());
   }
 
-  mCRL2log(verbose) << "loading rewriter..." << std::endl;
+  mCRL2log(verbose) << "compiled in " << time.time() << "ms, loading rewriter..." << std::endl;
 
   bool (*init)(rewriter_interface*, RewriterCompilingJitty* this_rewriter);
   rewriter_interface interface = { mcrl2::utilities::get_toolset_version(), "Unknown error when loading rewriter.", this, NULL, NULL };
@@ -2695,12 +2698,11 @@ RewriterCompilingJitty::RewriterCompilingJitty(
   made_files = false;
   rewrite_rules.clear();
 
-  const data_equation_vector& l=data_spec.equations();
-  for (data_equation_vector::const_iterator j=l.begin(); j!=l.end(); ++j)
+  for (const data_equation& e: data_spec.equations())
   {
-    if (data_equation_selector(*j))
+    if (data_equation_selector(e))
     {
-      const data_equation rule=*j;
+      const data_equation rule=e;
       try
       {
         CheckRewriteRule(rule);
@@ -2710,9 +2712,9 @@ RewriterCompilingJitty::RewriterCompilingJitty(
           // data_equation_selector.add_function_symbols(rule.lhs());
         }
       }
-      catch (std::runtime_error& e)
+      catch (std::runtime_error& error)
       {
-        mCRL2log(warning) << e.what() << std::endl;
+        mCRL2log(warning) << error.what() << std::endl;
       }
     }
   }

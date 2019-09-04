@@ -71,6 +71,7 @@ process::process_equation_vector
 process::process_specification
 pbes_system::pbes_equation_vector
 pbes_system::pbes
+pbes_system::pbes_expression
 state_formulas::state_formula
 '''
 
@@ -79,6 +80,7 @@ data::data_expression
 data::data_equation
 lps::multi_action
 pbes_system::pbes
+pbes_system::pbes_expression
 process::action
 process::process_expression
 process::process_specification
@@ -132,6 +134,7 @@ pbes_system::pbes
 pbes_system::pbes_expression
 pbes_system::pbes_equation
 process::action
+process::process_specification
 state_formulas::state_formula
 '''
 
@@ -152,6 +155,13 @@ lps::specification
 lps::stochastic_specification
 process::process_specification
 pbes_system::pbes_expression
+state_formulas::state_formula
+'''
+
+FIND_ACTION_LABELS_CLASSNAMES = '''
+lps::linear_process
+lps::process_initializer
+lps::specification
 state_formulas::state_formula
 '''
 
@@ -253,6 +263,9 @@ generate_traverser_overloads(classnames, 'find_propositional_variable_instantiat
 
 classnames = FIND_IDENTIFIERS_CLASSNAMES.strip().split()
 generate_traverser_overloads(classnames, 'find_identifiers', 'std::set<core::identifier_string>', code_map)
+
+classnames = FIND_ACTION_LABELS_CLASSNAMES.strip().split()
+generate_traverser_overloads(classnames, 'find_action_labels', 'std::set<process::action_label>', code_map)
 
 classnames = SEARCH_VARIABLE_CLASSNAMES.strip().split()
 generate_search_variable_overloads(classnames, 'search_variable', 'bool', code_map)

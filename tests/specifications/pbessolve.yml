@@ -1,8 +1,8 @@
 nodes:
   l1:
-    type: PbesSpec
+    type: pbesspec
   l2:
-    type: PBES
+    type: pbes
 
 tools:
   t1:
@@ -18,27 +18,47 @@ tools:
   t3:
     input: [l2]
     output: []
-    args: [-s1]
+    args: [-l1]
     name: pbessolve
   t4:
     input: [l2]
     output: []
-    args: [-s2]
+    args: [-l2]
     name: pbessolve
   t5:
     input: [l2]
     output: []
-    args: [-s3]
+    args: [-l3]
     name: pbessolve
   t6:
     input: [l2]
     output: []
-    args: [-s4]
+    args: [-l4, --aggressive, --prune-todo-list]
     name: pbessolve
   t7:
+    input: [l2]
+    output: []
+    args: [-l5, --aggressive, --prune-todo-list]
+    name: pbessolve
+  t8:
+    input: [l2]
+    output: []
+    args: [-l6, --aggressive, --prune-todo-list]
+    name: pbessolve
+  t9:
+    input: [l2]
+    output: []
+    args: [-l7, --aggressive, --prune-todo-list]
+    name: pbessolve
+  t10:
+    input: [l2]
+    output: []
+    args: [-l2, --aggressive, --prune-todo-list]
+    name: pbessolve
+  t11:
     input: [l2]
     output: []
     args: []
     name: pbespgsolve
 result: |
-  result = t2.value['solution'] == t3.value['solution'] == t4.value['solution'] == t5.value['solution'] == t6.value['solution'] == t7.value['solution']
+  result = t2.value['solution'] == t3.value['solution'] == t4.value['solution'] == t5.value['solution'] == t6.value['solution'] == t7.value['solution'] == t8.value['solution'] == t9.value['solution'] == t10.value['solution'] == t11.value['solution']

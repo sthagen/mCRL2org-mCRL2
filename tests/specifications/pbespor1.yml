@@ -1,0 +1,39 @@
+nodes:
+  l1:
+    type: pbesspec
+  l2:
+    type: pbes
+  l3:
+    type: pbes
+  l4:
+    type: pbes
+
+tools:
+  t1:
+    input: [l1]
+    output: [l2]
+    args: []
+    name: txt2pbes
+  t2:
+    input: [l2]
+    output: [l3]
+    args: []
+    name: pbespor
+  t3:
+    input: [l3]
+    output: [l4]
+    args: []
+    name: pbesstategraph
+  t4:
+    input: [l2]
+    output: []
+    args: []
+    name: pbessolve
+  t5:
+    input: [l4]
+    output: []
+    args: []
+    name: pbessolve
+result: |
+  result = t4.value['solution'] == t5.value['solution']
+

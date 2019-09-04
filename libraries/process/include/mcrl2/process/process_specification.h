@@ -38,6 +38,7 @@ void normalize_sorts(process_specification& x, const data::sort_specification& s
 void translate_user_notation(process::process_specification& x);
 std::set<data::sort_expression> find_sort_expressions(const process::process_specification& x);
 std::set<core::identifier_string> find_identifiers(const process::process_specification& x);
+std::set<data::variable> find_free_variables(const process::process_specification& x);
 
 /// \brief Test for a process specification expression
 /// \param x A term
@@ -73,13 +74,13 @@ class process_specification
     void construct_from_aterm(const atermpp::aterm_appl& t)
     {
       atermpp::aterm_appl::iterator i = t.begin();
-      m_data            = data::data_specification(atermpp::aterm_appl(*i++));
-      m_action_labels   = static_cast<process::action_label_list>(atermpp::aterm_appl(*i++)[0]);
-      data::variable_list global_variables = static_cast<data::variable_list>(atermpp::aterm_appl(*i++)[0]);
+      m_data            = data::data_specification(atermpp::down_cast<atermpp::aterm_appl>(*i++));
+      m_action_labels   = atermpp::down_cast<process::action_label_list>(atermpp::down_cast<atermpp::aterm_appl>(*i++)[0]);
+      data::variable_list global_variables = atermpp::down_cast<data::variable_list>(atermpp::down_cast<atermpp::aterm_appl>(*i++)[0]);
       m_global_variables = std::set<data::variable>(global_variables.begin(),global_variables.end());
-      process_equation_list l = static_cast<process_equation_list>(atermpp::aterm_appl(*i++)[0]);
-      atermpp::aterm_appl init = atermpp::aterm_appl(*i);
-      m_initial_process = process_expression(atermpp::aterm_appl(init[0]));
+      process_equation_list l = atermpp::down_cast<process_equation_list>(atermpp::down_cast<atermpp::aterm_appl>(*i++)[0]);
+      atermpp::aterm_appl init = atermpp::down_cast<atermpp::aterm_appl>(*i);
+      m_initial_process = process_expression(atermpp::down_cast<atermpp::aterm_appl>(init[0]));
       m_equations       = std::vector<process_equation>(l.begin(), l.end());
     }
 
@@ -212,7 +213,7 @@ class process_specification
       {
         throw mcrl2::runtime_error("Input stream does not contain a process specification");
       }
-      construct_from_aterm(atermpp::aterm_appl(t));
+      construct_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
     }
 
     /// \brief Writes the process specification to a stream.

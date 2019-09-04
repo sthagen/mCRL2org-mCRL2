@@ -28,7 +28,8 @@
 #include "mcrl2/data/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/data/rewriters/quantifiers_inside_rewriter.h"
 #include "mcrl2/pbes/detail/ppg_rewriter.h"
-#include "mcrl2/pg/ParityGame.h"
+#include "mcrl2/pbes/structure_graph.h"
+#include "mcrl2/pbes/structure_graph_builder.h"
 #include "mcrl2/smt/cvc4.h"
 #include "mcrl2/smt/solver.h"
 #include "mcrl2/smt/translation_error.h"
@@ -54,20 +55,26 @@ class dependency_graph_partition
 {
   typedef block block_t;
   typedef pbes_system::detail::ppg_equation equation_type_t;
+  typedef pbes_system::structure_graph::index_type sg_index_t;
 
 protected:
   const pbes_system::detail::ppg_pbes m_spec;
 
   data_manipulators m_dm;
-  bool m_early_termination;
 
   std::list< block_t >      m_proof_blocks;
   std::list< block_t >      m_other_blocks;
-  std::map< block_t, block_t > m_strategy;
 
   split_cache<block>* m_block_cache;
   split_cache<subblock>* m_subblock_cache;
-  std::map< pbes_system::detail::ppg_equation, priority_t > m_rank_map;
+  std::map< pbes_system::detail::ppg_equation, std::size_t > m_rank_map;
+
+  pbes_system::structure_graph& m_structure_graph;
+  pbes_system::detail::manual_structure_graph_builder m_sg_builder;
+  std::vector<block_t> m_block_index;
+
+  bool m_early_termination;
+  bool m_randomize;
 
   bool is_valid_approximation(const block_t& src, bool is_positive_pg) const
   {
@@ -76,10 +83,10 @@ protected:
 
   bool is_in_strategy(const block_t& src, const block_t& dest) const
   {
-    auto find_result = m_strategy.find(src);
-    // If there is no winning strategy in src, then m_strategy does not contain
-    // src and all outgoing transitions from src have to be considered.
-    return find_result == m_strategy.end() || find_result->second == dest;
+    // If there is no winning strategy in src, then all outgoing transitions
+    // from src have to be considered.
+    sg_index_t strat = m_structure_graph.strategy(src.index);
+    return strat == pbes_system::undefined_vertex() || strat == dest.index;
   }
 
   /**
@@ -127,9 +134,56 @@ protected:
       m_block_cache->insert_transition(split_result.second, phi_l_copy, false);
 
       m_proof_blocks.push_front(split_result.first);
+      block_t& new_pos_block = m_proof_blocks.front();
       m_proof_blocks.push_front(split_result.second);
+      block_t& new_neg_block = m_proof_blocks.front();
+
+      update_structure_graph(new_pos_block, new_neg_block);
     }
     return true;
+  }
+
+  void update_structure_graph(block_t& new_pos_block, block_t& new_neg_block)
+  {
+    new_neg_block.index = m_sg_builder.insert_vertex(new_neg_block.is_conjunctive(), new_neg_block.rank(m_rank_map));
+    m_block_index.resize(new_neg_block.index + 1);
+    m_block_index[new_neg_block.index] = new_neg_block;
+    m_block_index[new_pos_block.index] = new_pos_block;
+    // Investigate the predecessors of the parent block
+    for(sg_index_t pred: m_structure_graph.all_predecessors(new_pos_block.index))
+    {
+      if(!m_block_index[pred].has_transition(new_pos_block))
+      {
+        m_sg_builder.remove_edge(pred, new_pos_block.index);
+      }
+      if(m_block_index[pred].has_transition(new_neg_block))
+      {
+        m_sg_builder.insert_edge(pred, new_neg_block.index);
+      }
+    }
+    // Investigate the successors of the parent block
+    for(sg_index_t succ: m_structure_graph.all_successors(new_pos_block.index))
+    {
+      if(!new_pos_block.has_transition(m_block_index[succ]))
+      {
+        m_sg_builder.remove_edge(new_pos_block.index, succ);
+      }
+      if(new_neg_block.has_transition(m_block_index[succ]))
+      {
+        m_sg_builder.insert_edge(new_neg_block.index, succ);
+      }
+    }
+    // Check for a self loop on new_neg_block
+    if(new_neg_block.has_transition(new_neg_block))
+    {
+      m_sg_builder.insert_edge(new_neg_block.index, new_neg_block.index);
+    }
+    // Update the initial vertex if necessary
+    if(m_structure_graph.initial_vertex() == new_pos_block.index && new_neg_block.contains_state(m_spec.initial_state()))
+    {
+      m_sg_builder.set_initial_state(new_neg_block.index);
+    }
+    m_sg_builder.finalize();
   }
 
   std::vector<subblock> make_subblock_list() const
@@ -153,26 +207,12 @@ protected:
   bool refine_step(bool use_optimisations, bool is_positive_pg)
   {
     std::vector<subblock> subblocks = make_subblock_list();
-    // Sorting the blocks within the BFS layers such that the following splits will be tried first:
-    // - In the case of a negative proof graph, conjunctive nodes are split first
-    // - In the case of a positive proof graph, disjunctive nodes are split first
-    m_proof_blocks.sort([is_positive_pg](const block_t& b1, const block_t& b2)
-                          {
-                            return b1.bfs_level < b2.bfs_level || (b1.bfs_level == b2.bfs_level && ((is_positive_pg && !b1.is_conjunctive() && b2.is_conjunctive()) || (!is_positive_pg && b1.is_conjunctive() && !b2.is_conjunctive())));
-                          });
     for(const block_t& phi_k: m_proof_blocks)
     {
       if(use_optimisations && is_valid_approximation(phi_k, is_positive_pg))
       {
         continue;
       }
-      // Sort the blocks within their BFS layers such that edges present in the proof graph
-      // are tried as splitters first.
-      std::list<block_t> proof_blocks(m_proof_blocks);
-      proof_blocks.sort([&](const block_t& b1, const block_t& b2)
-                          {
-                            return b1.bfs_level < b2.bfs_level || (b1.bfs_level == b2.bfs_level && is_in_strategy(phi_k,b1) && !is_in_strategy(phi_k,b2));
-                          });
       for(const block_t& phi_l: m_proof_blocks)
       {
         if(split_block(phi_k, phi_l, subblocks, use_optimisations))
@@ -207,12 +247,16 @@ protected:
    * \param only_check_proof_blocks Set to true when reachability should only be checked
    * within m_proof_blocks
    */
-  void find_reachable_blocks(const bool& only_check_proof_blocks)
+  void find_reachable_blocks(const bool only_check_proof_blocks)
   {
-    std::list<block_t> unreachable(m_proof_blocks.begin(),m_proof_blocks.end());
+    std::vector<block_t> unreachable(m_proof_blocks.begin(),m_proof_blocks.end());
     if(!only_check_proof_blocks)
     {
       unreachable.insert(unreachable.end(), m_other_blocks.begin(), m_other_blocks.end());
+    }
+    if(m_randomize)
+    {
+      std::random_shuffle(unreachable.begin(), unreachable.end());
     }
     std::queue<block_t> open_set;
 
@@ -235,7 +279,7 @@ protected:
       open_set.pop();
 
       // Look for possible successors of block in the set of unreachable blocks
-      for(std::list<block_t>::iterator i = unreachable.begin(); i != unreachable.end();)
+      for(auto i = unreachable.begin(); i != unreachable.end();)
       {
         if(block.has_transition(*i))
         {
@@ -268,57 +312,15 @@ protected:
         // we can really throw away the unreachable blocks.
         m_other_blocks.push_front(block);
       }
-      // split_logger->mark_deleted(rewr(block));
       mCRL2log(log::verbose) << "  block " << i << "\n" << pp(block);
       i++;
     }
   }
 
-  /**
-   * \brief Build the BES that follows from the current
-   * partition.
-   * \detail Build the BES that contains one variable for each
-   * block in the partition. If the partition is stable,
-   * then this BES is bisimilar to the original PBES.
-   */
-  // template <typename Container>
-  // bes::boolean_equation_system make_bes(const Container& blocks, typename atermpp::enable_if_container<Container, block_t>::type* = nullptr)
-  // {
-  //   //TODO fix bug where variables are sorted according to BFS layer and not according
-  //   // to the order in the original PBES.
-  //   // This may result in a BES with a different solution.
-  //   set_identifier_generator id_gen;
-  //   std::map< block_t, bes::boolean_variable > var_map;
-  //   for(const block_t& block: blocks)
-  //   {
-  //     var_map.insert(std::make_pair(block, bes::boolean_variable(id_gen(std::string(block.name())))));
-  //   }
-  //
-  //   std::vector< bes::boolean_equation > equations;
-  //   for(const block_t& src: blocks)
-  //   {
-  //     std::set<bes::boolean_expression> right_hand_side;
-  //     for(const block_t& dest: blocks)
-  //     {
-  //       if(src.has_transition(dest))
-  //       {
-  //         right_hand_side.insert(var_map[dest]);
-  //       }
-  //     }
-  //
-  //     bes::boolean_expression rhs_expr = src.is_conjunctive() ? bes::join_and(right_hand_side.begin(), right_hand_side.end()) : bes::join_or(right_hand_side.begin(), right_hand_side.end());
-  //     equations.emplace_back(src.fixpoint_symbol(), var_map[src], rhs_expr);
-  //   }
-  //
-  //   // Search for the initial block
-  //   const block_t& initial_block = find_initial_block(blocks);
-  //   return bes::boolean_equation_system(equations, var_map[initial_block]);
-  // }
-
   void make_rank_map()
   {
     pbes_system::fixpoint_symbol previous_symbol(pbes_system::fixpoint_symbol::nu());
-    priority_t rank = 0;
+    std::size_t rank = 0;
     for(const equation_type_t& eq: m_spec.equations())
     {
       if(eq.symbol() != previous_symbol)
@@ -331,26 +333,24 @@ protected:
   }
 
   inline
-  void make_pg(ParityGame& pg, const std::list<block>& blocks) const
+  void make_initial_structure_graph()
   {
-    StaticGraph::edge_list edges;
-    ParityGameVertex* node_attributes = new ParityGameVertex[blocks.size()];
-    int src_index = 0;
-    for(const auto& src: blocks)
+    m_block_index.resize(m_proof_blocks.size());
+    for(block& b: m_proof_blocks)
     {
-      node_attributes[src_index].player = src.is_conjunctive() ? player_t::PLAYER_ODD : player_t::PLAYER_EVEN;
-      node_attributes[src_index].priority = src.rank(m_rank_map);
-
+      b.index = m_sg_builder.insert_vertex(b.is_conjunctive(), b.rank(m_rank_map));
+      m_block_index[b.index] = b;
+    }
+    for(const block& src: m_proof_blocks)
+    {
       bool has_outgoing_edge = false;
-      int dest_index = 0;
-      for(const auto& dest: blocks)
+      for(const block& dest: m_proof_blocks)
       {
         if(src.has_transition(dest))
         {
-          edges.emplace_back(src_index, dest_index);
+          m_sg_builder.insert_edge(src.index, dest.index);
           has_outgoing_edge = true;
         }
-        dest_index++;
       }
 
       if(!has_outgoing_edge)
@@ -359,24 +359,21 @@ protected:
         // a summand to either X_true or X_false in every right-hand side
         throw mcrl2::runtime_error("Did not find an outgoing edge for the block " + pp(src));
       }
-      src_index++;
     }
-
-    StaticGraph underlying_graph;
-    underlying_graph.assign(edges, StaticGraph::EdgeDirection::EDGE_BIDIRECTIONAL);
-    pg.assign(underlying_graph, node_attributes);
+    m_sg_builder.set_initial_state(find_initial_block(m_proof_blocks).index);
+    m_sg_builder.finalize();
   }
 
   /**
    * \brief Print the current partition to stdout
    */
   template <typename Container>
-  void print_partition(const Container& blocks, typename atermpp::enable_if_container<Container, block_t>::type* = nullptr)
+  void print_partition(const Container& blocks, typename atermpp::enable_if_container<Container, block_t>::type* = nullptr) const
   {
     int i = 0;
     for(const block_t& block: blocks)
     {
-      mCRL2log(log::verbose) << YELLOW(THIN) << "  block " << i << "\n" << NORMAL << block;
+      mCRL2log(log::verbose) << YELLOW(THIN) << "  block " << i << NORMAL << " index: " << block.index << "\n" << block;
       ++i;
     }
   }
@@ -423,10 +420,15 @@ protected:
 
 public:
 
-  dependency_graph_partition(const pbes_system::detail::ppg_pbes& spec, const rewriter& r, const rewriter& pr, const simplifier_mode& simpl_mode, bool fine_initial, bool early_termination)
+  dependency_graph_partition(const pbes_system::detail::ppg_pbes& spec,
+    const rewriter& r, const rewriter& pr, const simplifier_mode& simpl_mode,
+    pbes_system::structure_graph& sg, bool fine_initial, bool early_termination, bool randomize)
   : m_spec(spec)
   , m_dm(r, pr, spec.data())
+  , m_structure_graph(sg)
+  , m_sg_builder(sg)
   , m_early_termination(early_termination)
+  , m_randomize(randomize)
   {
     m_dm.contains_reals = false;
     for(const equation_type_t& eq: m_spec.equations())
@@ -439,26 +441,18 @@ public:
     m_subblock_cache = new split_cache<subblock>();
     make_initial_partition(fine_initial);
     make_rank_map();
+    make_initial_structure_graph();
     print_partition(m_proof_blocks);
-    // Make sure the initial block is the first in the list
-    const block_t& initial_block = find_initial_block(m_proof_blocks);
-    m_proof_blocks.erase(std::find(m_proof_blocks.begin(), m_proof_blocks.end(), initial_block));
-    m_proof_blocks.push_front(initial_block);
   }
 
-  std::list< block_t > get_proof_blocks()
+  std::size_t size() const
   {
-    return m_proof_blocks;
+    return m_proof_blocks.size() + m_other_blocks.size();
   }
 
-  std::list< block_t > get_other_blocks()
+  void set_proof(const std::set< sg_index_t >& proof_nodes)
   {
-    return m_other_blocks;
-  }
-
-  void set_proof(const std::set< std::size_t >& proof_nodes, const std::vector< std::size_t >& strategy)
-  {
-    // Move all the blocks to the other set while keeping the order m_proof_block ++ m_other_blocks
+    // Move all the blocks to the other set while keeping the order m_proof_blocks ++ m_other_blocks
     std::vector< block_t > all_blocks(m_proof_blocks.begin(), m_proof_blocks.end());
     // all_blocks.swap(m_proof_blocks);
     all_blocks.insert(all_blocks.end(), m_other_blocks.begin(), m_other_blocks.end());
@@ -466,48 +460,26 @@ public:
     m_other_blocks.clear();
 
     // Move the requested blocks to the main set
-    std::size_t i = 0;
-    m_strategy.clear();
     for(const block_t& b: all_blocks)
     {
-      if(proof_nodes.find(i) != proof_nodes.end())
+      if(proof_nodes.find(b.index) != proof_nodes.end())
       {
         m_proof_blocks.push_back(b);
-        if(strategy[i] != (std::size_t) -1)
-        {
-          // There is a winning strategy in node i by going to strategy[i]
-          m_strategy.insert(std::make_pair(b, all_blocks[strategy[i]]));
-        }
       }
       else
       {
         m_other_blocks.push_back(b);
       }
-      i++;
     }
   }
 
-  void get_reachable_pg(ParityGame& pg)
-  {
-    make_pg(pg, m_proof_blocks);
-  }
-
-  void print()
+  void print() const
   {
     mCRL2log(log::verbose) << GREEN(THIN) << "Partition proof blocks:" << NORMAL << std::endl;
     print_partition(m_proof_blocks);
     mCRL2log(log::verbose) << GREEN(THIN) << "Partition other blocks:" << NORMAL << std::endl;
     print_partition(m_other_blocks);
   }
-
-  // void save_bes()
-  // {
-  //   const bes::boolean_equation_system& bes = make_bes(m_proof_blocks);
-  //   std::ofstream out;
-  //   out.open("out.bes");
-  //   bes.save(out);
-  //   out.close();
-  // }
 
   /**
    * Refine the partition num_steps times
@@ -535,10 +507,6 @@ public:
       {
         break;
       }
-      // if(num_steps == 0)
-      // {
-      //   make_bes(m_proof_blocks);
-      // }
       // Check reachability only in m_proof_blocks.
       // Blocks that are not reachable in there will
       // be moved to m_other_blocks, because it is not
@@ -555,6 +523,10 @@ public:
     {
       mCRL2log(log::verbose) << "Final partition:" << std::endl;
       print_partition(m_proof_blocks);
+    }
+    if(num_steps == 0)
+    {
+      mCRL2log(log::info) << "Number of iterations " << num_iterations+1 << std::endl;
     }
     return num_iterations == 0;
   }

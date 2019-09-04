@@ -14,10 +14,11 @@
 #include <functional>
 
 #include "mcrl2/utilities/input_output_tool.h"
+#include "mcrl2/utilities/indexed_set.h"
+
 #include "mcrl2/bes/pbes_input_output_tool.h"
 #include "mcrl2/utilities/execution_timer.h"
 
-#include "mcrl2/atermpp/indexed_set.h"
 #include "mcrl2/bes/detail/bes_algorithm.h"
 #include "mcrl2/bes/boolean_equation_system.h"
 #include "mcrl2/bes/parse.h"
@@ -25,6 +26,7 @@
 #include "mcrl2/bes/normal_forms.h"
 #include "mcrl2/bes/find.h"
 #include "mcrl2/bes/io.h"
+#include "mcrl2/bes/join.h"
 #include "mcrl2/process/process_expression.h"
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/detail/liblts_bisim.h"
@@ -242,8 +244,8 @@ class bes_reduction_algorithm: public detail::bes_algorithm
       m_lts.set_num_states(statecount, false);
       m_lts.set_initial_state(initial_state);
 
-      atermpp::indexed_set<process::action> labs(100,50);
-      labs.put(process::action(process::action_label(core::identifier_string("tau"), data::sort_expression_list()), data::data_expression_list()));  // Take care that the internal action has number 1.
+      utilities::indexed_set<process::action> labs;
+      labs.insert(process::action(process::action_label(core::identifier_string("tau"), data::sort_expression_list()), data::data_expression_list()));  // Take care that the internal action has number 1.
 
       for (const boolean_equation& i: m_bes.equations())
       {
@@ -265,7 +267,7 @@ class bes_reduction_algorithm: public detail::bes_algorithm
           std::size_t label_index = labs.index(t);
           if (label_index == atermpp::npos)
           {
-            std::pair<std::size_t, bool> put_result = labs.put(t);
+            std::pair<std::size_t, bool> put_result = labs.insert(t);
             label_index = put_result.first;
             m_lts.add_action(mcrl2::lts::action_label_string(t.label().name()));
           }
@@ -324,7 +326,7 @@ class bes_reduction_algorithm: public detail::bes_algorithm
           if (label_index == atermpp::npos)
           {
             assert(label.str()!="tau");
-            std::pair<int, bool> put_result = labs.put(t);
+            std::pair<std::size_t, bool> put_result = labs.insert(t);
             label_index = put_result.first;
             m_lts.add_action(mcrl2::lts::action_label_string(t.label().name()));
           }

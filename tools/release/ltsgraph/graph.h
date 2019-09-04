@@ -21,12 +21,14 @@
 
 #include "mcrl2/lts/lts.h"
 #include "mcrl2/lts/state_label_empty.h"
-
-#include <cmath>
+#include "mcrl2/gui/glu.h"
 
 #include <QReadWriteLock>
-#include <utility>
 #include <QVector3D>
+#include <QString>
+
+#include <utility>
+#include <cmath>
 
 namespace Graph
 {
@@ -102,7 +104,7 @@ class Node
     Node(QVector3D  pos,
          const bool anchored,
          const bool locked,
-         const float& selected)
+         const float selected)
       : m_pos(pos),
         m_anchored(anchored),
         m_locked(locked),
@@ -164,7 +166,7 @@ class Node
 class NodeWithColor : public Node
 {
   protected:
-    GLfloat m_color[3];       ///< The (painted) color of the node.
+    QVector3D m_color;       ///< The (painted) color of the node.
 
   public:
 
@@ -172,48 +174,24 @@ class NodeWithColor : public Node
     NodeWithColor()=default;
 
     /// \brief Constructor
-    NodeWithColor(const QVector3D& pos)
+    NodeWithColor(QVector3D pos)
       : Node(pos)
-    {
-      m_color[0]=0.0f;
-      m_color[1]=0.0f;
-      m_color[2]=0.0f;
-    }
+    {}
 
     /// \brief Constructor
     NodeWithColor(
-      const QVector3D& pos,
-      const bool anchored,
-      const bool locked,
-      const float& selected,
-      const GLfloat& color0,
-      const GLfloat& color1,
-      const GLfloat& color2)
-      : Node(pos, anchored, locked, selected)
-    {
-      m_color[0]=color0;
-      m_color[1]=color1;
-      m_color[2]=color2;
-    }
+      QVector3D pos,
+      bool anchored,
+      bool locked,
+      float selected,
+      QVector3D color)
+      : Node(pos, anchored, locked, selected),
+        m_color(color)
+    {}
 
     /// \brief Get the color.
-    GLfloat* color()
-    {
-      return m_color;
-    }
-
-    /// \brief Get the color.
-    const GLfloat& color(std::size_t i) const
-    {
-      return m_color[i];
-    }
-
-    /// \brief Get a reference to the color.
-    GLfloat& color(std::size_t i)
-    {
-      return m_color[i];
-    }
-
+    QVector3D& color() { return m_color; }
+    const QVector3D& color() const { return m_color; }
 };
 
 
@@ -224,7 +202,6 @@ class NodeWithColor : public Node
 struct LabelString
 {
   protected:
-    bool m_isTau;             ///< Indicates that the label is tau.
     QString m_label;          ///< The string representation of the label.
 
   public:
@@ -233,14 +210,8 @@ struct LabelString
 
     /// \brief Constructor. If isTau is true, set the label to the the greek symbol tau.
     LabelString(bool isTau, const QString& label)
-      : m_isTau(isTau), m_label(isTau?QChar(0x03C4):label)
+      : m_label(isTau ? QChar(0x03C4) : label)
     {}
-
-    /// \brief Get whether this label is equal to tau.
-    bool is_tau() const
-    {
-      return m_isTau;
-    }
 
     /// \brief Get the label in this string.
     const QString& label() const
@@ -263,22 +234,19 @@ class LabelNode : public NodeWithColor
     LabelNode() = default;
 
     /// \brief Constructor
-    LabelNode(const QVector3D& p, const std::size_t labelindex)
+    LabelNode(QVector3D p, std::size_t labelindex)
       : NodeWithColor(p), m_labelindex(labelindex)
     {}
 
     /// \brief Constructor
-    LabelNode(const QVector3D& pos,
+    LabelNode(QVector3D pos,
               bool anchored,
               bool locked,
-              const float& selected,
-              const GLfloat& color0,
-              const GLfloat& color1,
-              const GLfloat& color2,
-              const std::size_t labelindex)
-      : NodeWithColor(pos,anchored,locked,selected,color0,color1,color2), m_labelindex(labelindex)
-    {
-    }
+              float selected,
+              QVector3D color,
+              std::size_t labelindex)
+      : NodeWithColor(pos, anchored, locked, selected, color), m_labelindex(labelindex)
+    {}
 
     /// \brief Get the value of labelindex.
     std::size_t labelindex() const
@@ -304,7 +272,7 @@ class NodeNode : public NodeWithColor
 
   protected:
     bool m_is_probabilistic;  ///< Indicates that this is a probabilistic state.
-    bool m_active;            ///< Indicates that this node was activated (see toggleActive).
+    bool m_active;            ///< Indicates that this node was activated in exploration mode (see toggleActive).
 
   public:
     /// \brief Default constructor.
@@ -316,24 +284,19 @@ class NodeNode : public NodeWithColor
     {
       if (!m_is_probabilistic) // Color action states white (probabilistic states remain black)
       {
-        m_color[0]=1.0f;
-        m_color[1]=1.0f;
-        m_color[2]=1.0f;
+        m_color = QVector3D(1.0f, 1.0f, 1.0f);
       }
     }
 
     /// \brief Constructor
-    NodeNode(const QVector3D& pos,
+    NodeNode(QVector3D pos,
              bool anchored,
              bool locked,
-             const float& selected,
-             const GLfloat& color0,
-             const GLfloat& color1,
-             const GLfloat& color2,
+             float selected,
+             QVector3D color,
              bool is_probabilistic)
-      : NodeWithColor(pos,anchored,locked,selected,color0,color1,color2), m_is_probabilistic(is_probabilistic)
-    {
-    }
+      : NodeWithColor(pos, anchored, locked, selected, color), m_is_probabilistic(is_probabilistic)
+    {}
 
     /// \brief Get whether the node is probabilistic.
     bool is_probabilistic() const
@@ -354,7 +317,7 @@ class NodeNode : public NodeWithColor
     }
 };
 
-class Selection;
+class Exploration;
 class Information;
 
 /**
@@ -369,14 +332,16 @@ class Information;
 // Todo: see if graph is locked as required throughout the application.
 class Graph
 {
-    friend class Selection;
+    friend class Exploration;
 
   private:
-    Selection* m_sel;               ///< The selection of the current graph (or null).
+    Exploration* m_exploration;     ///< The exploration of the current graph (or null).
     mcrl2::lts::lts_type m_type;    ///< The type of the current graph.
     QString m_empty;                ///< Empty string that is returned as label if none present.
     QReadWriteLock m_lock;          ///< Lock protecting the structure from being changed while rendering and simulating
     bool m_stable;                  ///< When true, the graph is considered stable, spring forces should not be applied.
+    QVector3D m_clip_min;
+    QVector3D m_clip_max;
 
     std::vector<NodeNode> m_nodes;                  ///< Vector containing all graph nodes.
     std::vector<Node> m_handles;                    ///< Vector containing all handles.
@@ -454,22 +419,25 @@ class Graph
      * @param max The maximum coordinates for any node.
      */
     void clip(const QVector3D& min, const QVector3D& max);
+    const QVector3D& getClipMin() const;
+    const QVector3D& getClipMax() const;
 
-    void makeSelection(); ///< Creates a new empty selection (overwriting existing).
-    void discardSelection(); ///< Discards the current selection (when present).
+    void makeExploration(); ///< Creates a new empty exploration (overwriting existing).
+    void discardExploration(); ///< Discards the current exploration (when present).
 
     /**
-     * @brief Toggles the state of a node between active and inactive.
-     *        Active nodes add their related nodes to the current selection.
+     * @brief Toggles the state of a node between open and closed.
+     *        For open nodes, all successors are added to the current exploration.
      * @param index The index of the node.
      */
-    void toggleActive(std::size_t index);
+    void toggleOpen(std::size_t index);
     /**
-     * @brief Returns whether a given node should be toggled active or inactive.
-     *        A node that leaves unconnected components or the selection empty should not be toggled inactive.
+     * @brief Returns whether a given node can be closed.
+     * @detail When closing the node would leave disconnected components in the
+     * exploration, it is not allowed to close that node.
      * @param index The index of the node.
      */
-    bool isToggleable(std::size_t index);
+    bool isClosable(std::size_t index);
 
     void setStable(bool stable); ///< @brief Sets whether this graph is stable. (guarded)
 
@@ -491,15 +459,21 @@ class Graph
      */
     const QString& stateLabelstring(std::size_t labelindex) const;
 
+    /// Accessors
 
-    // Getters and setters
-    Edge edge(std::size_t index) const;
-    NodeNode& node(std::size_t index);
     Node& handle(std::size_t edge);
-    LabelNode& transitionLabel(std::size_t edge);
+    NodeNode& node(std::size_t index);
     LabelNode& stateLabel(std::size_t index);
-    bool isTau(std::size_t labelindex) const;
-    bool isBridge(std::size_t index) const; ///< Returns whether a given node forms a bridge in the selection
+    LabelNode& transitionLabel(std::size_t edge);
+
+    /// Getters
+
+    const Edge& edge(std::size_t index) const;
+    const Node& handle(std::size_t edge) const;
+    const NodeNode& node(std::size_t index) const;
+    const LabelNode& stateLabel(std::size_t index) const;
+    const LabelNode& transitionLabel(std::size_t edge) const;
+    bool isBridge(std::size_t index) const; ///< Returns whether a given node forms a bridge in the exploration
 
     std::size_t initialState() const;
     std::size_t edgeCount() const;
@@ -507,11 +481,11 @@ class Graph
     std::size_t transitionLabelCount() const;
     std::size_t stateLabelCount() const;
 
-    bool hasSelection() const;                ///< Returns whether a portion of the graph is selected
-    std::size_t selectionEdge(std::size_t index) const; ///< Returns the edge index for a certain edge in the selection
-    std::size_t selectionNode(std::size_t index) const; ///< Returns the node index for a certain node in the selection
-    std::size_t selectionEdgeCount() const;        ///< Returns the number of edges in the selection
-    std::size_t selectionNodeCount() const;        ///< Returns the number of nodes in the selection
+    bool hasExploration() const;                ///< Returns whether a portion of the graph is selected
+    std::size_t explorationEdge(std::size_t index) const; ///< Returns the edge index for a certain edge in the exploration
+    std::size_t explorationNode(std::size_t index) const; ///< Returns the node index for a certain node in the exploration
+    std::size_t explorationEdgeCount() const;        ///< Returns the number of edges in the exploration
+    std::size_t explorationNodeCount() const;        ///< Returns the number of nodes in the exploration
 
     const bool& stable() const ///< @brief Gets whether this graph is stable.
     {

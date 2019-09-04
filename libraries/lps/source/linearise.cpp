@@ -34,9 +34,6 @@
 #include <memory>
 #include <algorithm>
 
-// ATermpp libraries
-#include "mcrl2/atermpp/indexed_set.h"
-
 // linear process libraries.
 #include "mcrl2/lps/detail/ultimate_delay.h"
 #include "mcrl2/lps/linearise.h"
@@ -45,6 +42,7 @@
 #include "mcrl2/lps/constelm.h"
 #include "mcrl2/utilities/exception.h"
 #include "mcrl2/lps/find.h"
+#include "mcrl2/lps/replace_capture_avoiding_with_an_identifier_generator.h"
 
 //mCRL2 data
 #include "mcrl2/data/structured_sort.h"
@@ -53,9 +51,10 @@
 #include "mcrl2/data/representative_generator.h"
 #include "mcrl2/data/function_sort.h"
 #include "mcrl2/data/replace.h"
-#include "mcrl2/data/substitutions/map_substitution.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
+#include "mcrl2/data/substitutions/maintain_variables_in_rhs.h"
 #include "mcrl2/data/fourier_motzkin.h"
+#include "mcrl2/data/enumerator.h" 
 
 //mCRL2 processes
 #include "mcrl2/process/find.h"
@@ -112,7 +111,7 @@ class objectdatatype
     bool constructor;
     process_expression representedprocess;
     process_identifier process_representing_action; /* for actions target sort is used to
-                                   indicate the process representing this action. */
+                                                       indicate the process representing this action. */
     process_expression processbody;
     std::set <variable> free_variables;
     bool free_variables_defined;
@@ -211,11 +210,10 @@ class specification_basic_type
     bool timeIsBeingUsed;
     bool stochastic_operator_is_being_used;
     bool fresh_equation_added;
-    std::deque < objectdatatype > objectdata; // This is a double ended queue to guarantee that the objects will not
-                                              // be moved to another place when the object data structure grows. This
-                                              // is because objects in this datatype  are passed around by reference.
+    std::map < aterm, objectdatatype > objectdata; // It is important to guarantee that the objects will not
+                                                   // be moved to another place when the object data structure grows. This
+                                                   // is because objects in this datatype  are passed around by reference.
 
-    indexed_set<aterm_appl> objectIndexTable;
     set_identifier_generator fresh_identifier_generator;
     std::vector < enumeratedtype > enumeratedtypes;
     stackoperations* stack_operations_list;
@@ -237,12 +235,11 @@ class specification_basic_type
       stochastic_operator_is_being_used(false),
       fresh_equation_added(false)
     {
-      objectIndexTable=indexed_set<aterm_appl>(1024,75);
-
       // find_identifiers does not find the identifiers in the enclosed data specification.
       fresh_identifier_generator.add_identifiers(process::find_identifiers(procspec));
       // So, the identifiers in the data type must be added explicitly.
       fresh_identifier_generator.add_identifiers(data::find_identifiers(ds.equations()));
+      fresh_identifier_generator.add_identifiers(data::find_identifiers(ds.user_defined_aliases()));
       fresh_identifier_generator.add_identifiers(data::find_identifiers(ds.sorts()));
       fresh_identifier_generator.add_identifiers(data::find_identifiers(ds.constructors()));
       fresh_identifier_generator.add_identifiers(data::find_identifiers(ds.mappings()));
@@ -258,7 +255,7 @@ class specification_basic_type
       terminationAction=action(action_label(fresh_identifier_generator("Terminate"),sort_expression_list()),data_expression_list());
       terminatedProcId=process_identifier(fresh_identifier_generator("Terminated**"), variable_list());
 // /* Changed delta() to DeltaAtZero on 24/12/2006. Moved back in spring 2007, as this introduces unwanted time constraints. */
-      insertProcDeclaration(
+      insert_process_declaration(
         terminatedProcId,
         variable_list(),
         seq(terminationAction,delta()),
@@ -326,24 +323,20 @@ class specification_basic_type
       return RewriteTerm(at(t).time_stamp())==data::sort_real::real_(0);
     }
 
+    /***************** temporary helper function to compare substitutions ******************/
 
-    /*****************  store and retrieve basic objects  ******************/
-
-    std::size_t addObject(const aterm_appl& o, bool& b)
+    template <class Expression, class Substitution>
+    Expression replace_variables_capture_avoiding_alt(const Expression& e, Substitution& sigma)
     {
-      std::pair<std::size_t, bool> result=objectIndexTable.put(o);
-      if (objectdata.size()<=result.first)
-      {
-        objectdata.resize(result.first+1);
-      }
-      b=result.second;
-      return result.first;
+      return data::replace_variables_capture_avoiding_with_an_identifier_generator(e, sigma, fresh_identifier_generator);
     }
 
-    std::size_t objectIndex(const aterm_appl& o) const
+
+    /*****************  retrieve basic objects  ******************/
+
+    void detail_check_objectdata(const aterm_appl& o) const
     {
-      std::size_t result=objectIndexTable.index(o);
-      if (result==atermpp::npos)
+      if (objectdata.count(o)==0)
       {
         if (is_process_identifier(o))
         {
@@ -354,8 +347,18 @@ class specification_basic_type
           throw mcrl2::runtime_error("Fail to recognize " + process::pp(o) + ". This is an internal error in the lineariser. ");
         }
       }
-      return result;
     }
+    objectdatatype& objectIndex(const aterm_appl& o) 
+    {
+      detail_check_objectdata(o);
+      return objectdata.find(o)->second;
+    } 
+
+    const objectdatatype& objectIndex(const aterm_appl& o) const
+    {
+      detail_check_objectdata(o);
+      return objectdata.find(o)->second;
+    } 
 
     void addString(const identifier_string& str)
     {
@@ -455,9 +458,9 @@ class specification_basic_type
     data_expression_list getarguments(const action_list& multiAction)
     {
       data_expression_list result;
-      for (action_list::const_iterator l=multiAction.begin(); l!=multiAction.end(); ++l)
+      for (const action& a: multiAction)
       {
-        result=reverse(l->arguments()) + result;
+        result=reverse(a.arguments()) + result;
       }
       return reverse(result);
     }
@@ -466,9 +469,9 @@ class specification_basic_type
     {
       action_list result;
       data_expression_list::const_iterator e_walker=args.begin();
-      for (process::action_label_list::const_iterator l=actionIds.begin() ; l!=actionIds.end() ; ++l)
+      for (const process::action_label& l: actionIds)
       {
-        std::size_t arity=l->sorts().size();
+        std::size_t arity=l.sorts().size();
         data_expression_list temp_args;
         for (std::size_t i=0 ; i< arity; ++i,++e_walker)
         {
@@ -476,59 +479,63 @@ class specification_basic_type
           temp_args.push_front(*e_walker);
         }
         temp_args=reverse(temp_args);
-        result.push_front(action(*l,temp_args));
+        result.push_front(action(l,temp_args));
       }
       assert(e_walker==args.end());
       return reverse(result);
     }
 
-    std::size_t addMultiAction(const process_expression& multiAction, bool& isnew)
+    objectdatatype& addMultiAction(const process_expression& multiAction, bool& isnew)
     {
       const process::action_label_list actionnames=getnames(multiAction);
-      std::size_t n=addObject((aterm_appl)(aterm_list)actionnames,isnew);
+
+      isnew=(objectdata.count(actionnames)==0);
 
       if (isnew)
       {
+        objectdatatype object;
+              
         // tempvar is needed as objectdata can change during a call
         // of getparameters.
         const variable_list templist=getparameters(multiAction);
-        objectdata[n].parameters=templist;
-        objectdata[n].object=multiact;
+        object.parameters=templist;
+        object.object=multiact;
         // must separate assignment below as
         // objectdata may change as a side effect of make
         // multiaction.
-        const action_list tempvar=makemultiaction(actionnames, data_expression_list(objectdata[n].parameters));
-        objectdata[n].processbody=action_list_to_process(tempvar);
-        objectdata[n].free_variables=std::set<variable>(objectdata[n].parameters.begin(), objectdata[n].parameters.end());
-        objectdata[n].free_variables_defined=true;
+        const action_list tempvar=makemultiaction(actionnames, variable_list_to_data_expression_list(object.parameters));
+        object.processbody=action_list_to_process(tempvar);
+        object.free_variables=std::set<variable>(object.parameters.begin(), object.parameters.end());
+        object.free_variables_defined=true;
+        
+        objectdata[actionnames]=object;
       }
-      return n;
+      return objectdata.find(actionnames)->second;
     }
 
-    const std::set<variable>& get_free_variables(const std::size_t n)
+    const std::set<variable>& get_free_variables(objectdatatype& object)
     {
-      if (!objectdata[n].free_variables_defined)
+      if (!object.free_variables_defined)
       {
-        objectdata[n].free_variables=find_free_variables_process(objectdata[n].processbody);
-        objectdata[n].free_variables_defined=true;
+        object.free_variables=find_free_variables_process(object.processbody);
+        object.free_variables_defined=true;
       }
-      return objectdata[n].free_variables;
+      return object.free_variables;
     }
 
     void insertvariable(const variable& var, const bool mustbenew)
     {
       addString(var.name());
 
-      bool isnew=false;
-      std::size_t n=addObject(var.name(),isnew);
-
-      if ((!isnew) && mustbenew)
+      if (objectdata.count(var.name())>0  && mustbenew)
       {
         throw mcrl2::runtime_error("Variable " + data::pp(var) + " already exists. ");
       }
 
-      objectdata[n].objectname=var.name();
-      objectdata[n].object=variable_;
+      objectdatatype object;
+      object.objectname=var.name();
+      object.object=variable_;
+      objectdata[var.name()]=object;
     }
 
     void insertvariables(const variable_list& vars, const bool mustbenew)
@@ -696,22 +703,23 @@ class specification_basic_type
 
     /************ storeact ****************************************************/
 
-    std::size_t insertAction(const action_label& actionId)
+    objectdatatype& insertAction(const action_label& actionId)
     {
-      bool isnew=false;
-      std::size_t n=addObject(actionId,isnew);
-
-      if (isnew==0)
+      if (objectdata.count(actionId)>0)
       {
         throw mcrl2::runtime_error("Action " + process::pp(actionId) + " is added twice. This is an internal error in the lineariser. Please report. ");
       }
 
       const identifier_string& str=actionId.name();
       addString(str);
-      objectdata[n].objectname=str;
-      objectdata[n].object=act;
-      objectdata[n].process_representing_action=process_identifier();
-      return n;
+
+      objectdatatype object;
+      object.objectname=str;
+      object.object=act;
+      object.process_representing_action=process_identifier();
+      
+      objectdata[actionId]=object;
+      return objectdata.find(actionId)->second;
     }
 
     void storeact(const process::action_label_list& acts)
@@ -724,9 +732,9 @@ class specification_basic_type
 
     /************ storeprocs *************************************************/
 
-    std::size_t insertProcDeclaration(
-      const process_identifier& procId, // This should not be a reference.
-      const variable_list& parameters,  // This should not be a reference.
+    objectdatatype& insert_process_declaration(
+      const process_identifier& procId, 
+      const variable_list& parameters,  
       const process_expression& body,
       processstatustype s,
       const bool canterminate,
@@ -736,24 +744,23 @@ class specification_basic_type
       const std::string str=procId.name();
       addString(str);
 
-      bool isnew=false;
-      std::size_t n=addObject(procId,isnew);
-
-      if (isnew==0)
+      if (objectdata.count(procId)>0)
       {
         throw mcrl2::runtime_error("Process " + process::pp(procId) + " is added twice. This is an internal error in the lineariser. Please report. ");
       }
 
-      objectdata[n].objectname=procId.name();
-      objectdata[n].object=proc;
-      objectdata[n].processbody=body;
-      objectdata[n].free_variables_defined=false;
-      objectdata[n].canterminate=canterminate;
-      objectdata[n].containstime=containstime;
-      objectdata[n].processstatus=s;
-      objectdata[n].parameters=parameters;
+      objectdatatype object;
+      object.objectname=procId.name();
+      object.object=proc;
+      object.processbody=body;
+      object.free_variables_defined=false;
+      object.canterminate=canterminate;
+      object.containstime=containstime;
+      object.processstatus=s;
+      object.parameters=parameters;
       insertvariables(parameters,false);
-      return n;
+      objectdata[procId]=object;
+      return objectdata.find(procId)->second;
     }
 
     void storeprocs(const std::vector< process_equation >& procs)
@@ -761,7 +768,7 @@ class specification_basic_type
       for (std::vector< process_equation >::const_iterator i=procs.begin();
            i!=procs.end(); ++i)
       {
-        insertProcDeclaration(
+        insert_process_declaration(
           i->identifier(),
           i->formal_parameters(),
           i->expression(),
@@ -777,16 +784,16 @@ class specification_basic_type
       const bool containstime,
       process_identifier& p)
     {
-      for(const objectdatatype& d:objectdata)
+      for(const std::pair<aterm,objectdatatype>& d: objectdata)
       {
-        if (d.object==proc &&
-            d.parameters==parameters &&
-            d.processbody==body &&
-            d.canterminate==canterminate &&
-            d.containstime==containstime &&
-            d.processstatus==s)
+        if (d.second.object==proc &&
+            d.second.parameters==parameters &&
+            d.second.processbody==body &&
+            d.second.canterminate==canterminate &&
+            d.second.containstime==containstime &&
+            d.second.processstatus==s)
         {
-          p=process_identifier(d.objectname,d.parameters);
+          p=process_identifier(d.second.objectname,d.second.parameters);
           return true;
         }
       }
@@ -803,7 +810,7 @@ class specification_basic_type
          because it cannot occur as a string in the input */
 
       process_identifier initprocess(std::string("init"), variable_list());
-      insertProcDeclaration(initprocess,variable_list(),init,unknown,0,false);
+      insert_process_declaration(initprocess,variable_list(),init,unknown,0,false);
       return initprocess;
     }
 
@@ -997,13 +1004,13 @@ class specification_basic_type
         {
           throw mcrl2::runtime_error("Stochastic operator occurs within a multi-action in " + process::pp(body) +".");
         }
-        const processstatustype s1=determine_process_statusterm(sto.operand(),pCRL);
-        if (s1==mCRL)
+        const processstatustype s1=determine_process_statusterm(sto.operand(),mCRL);
+        /*if (s1==mCRL)
         {
           throw mcrl2::runtime_error("An operator ||, allow, hide, rename, or comm occurs in the scope of the stochastic operator in " + process::pp(body) + ". "
                                      + "The lineariser cannot handle such processes. ");
-        }
-        return pCRL;
+        }*/
+        return s1;
       }
 
       if (is_comm(body))
@@ -1127,32 +1134,32 @@ class specification_basic_type
       const processstatustype status)
     {
       processstatustype s;
-      std::size_t n=objectIndex(procDecl);
-      s=objectdata[n].processstatus;
+      objectdatatype& object=objectIndex(procDecl);
+      s=object.processstatus;
 
       if (s==unknown)
       {
-        objectdata[n].processstatus=status;
+        object.processstatus=status;
         if (status==pCRL)
         {
-          determine_process_statusterm(objectdata[n].processbody,pCRL);
+          determine_process_statusterm(object.processbody,pCRL);
           return;
         }
         /* status==mCRL */
-        s=determine_process_statusterm(objectdata[n].processbody,mCRL);
+        s=determine_process_statusterm(object.processbody,mCRL);
         if (s!=status)
         {
           /* s==pCRL and status==mCRL */
-          objectdata[n].processstatus=s;
-          determine_process_statusterm(objectdata[n].processbody,pCRL);
+          object.processstatus=s;
+          determine_process_statusterm(object.processbody,pCRL);
         }
       }
       if (s==mCRL)
       {
         if (status==pCRL)
         {
-          objectdata[n].processstatus=pCRL;
-          determine_process_statusterm(objectdata[n].processbody,pCRL);
+          object.processstatus=pCRL;
+          determine_process_statusterm(object.processbody,pCRL);
         }
       }
     }
@@ -1283,12 +1290,12 @@ class specification_basic_type
       if (visited.count(procDecl)==0)
       {
         visited.insert(procDecl);
-        std::size_t n=objectIndex(procDecl);
-        if (objectdata[n].processstatus==pCRL)
+        objectdatatype& object=objectIndex(procDecl);
+        if (object.processstatus==pCRL)
         {
           pcrlprocesses.push_back(procDecl);
         }
-        collectPcrlProcesses_term(objectdata[n].processbody,pcrlprocesses,visited);
+        collectPcrlProcesses_term(object.processbody,pcrlprocesses,visited);
       }
     }
 
@@ -1296,7 +1303,7 @@ class specification_basic_type
       const process_identifier& procDecl,
       std::vector <process_identifier>& pcrlprocesses)
     {
-      std::set <process_identifier>  visited;
+      std::set <process_identifier> visited;
       collectPcrlProcesses(procDecl, pcrlprocesses, visited);
     }
 
@@ -1366,17 +1373,17 @@ class specification_basic_type
     bool occursintermlist(const variable& var, const assignment_list& r, const process_identifier& proc_name) const
     {
       std::set<variable> assigned_variables;
-      for (assignment_list::const_iterator l=r.begin() ; l!=r.end() ; ++l)
+      for (const assignment& l: r)
       {
-        if (occursinterm(var,l->rhs()))
+        if (occursinterm(var,l.rhs()))
         {
           return true;
         }
-       assigned_variables.insert(l->lhs());
+       assigned_variables.insert(l.lhs());
       }
       // Check whether x does not occur in the assignment list. Then variable x is assigned to
       // itself, and it occurs in the process.
-      variable_list parameters=objectdata[objectIndex(proc_name)].parameters;
+      variable_list parameters=objectIndex(proc_name).parameters;
       for (variable_list::const_iterator i=parameters.begin(); i!=parameters.end(); ++i)
       {
         if (var==*i)
@@ -1454,13 +1461,13 @@ class specification_basic_type
       if (is_sum(p))
       {
         if (strict)
-          return occursintermlist(var,data_expression_list(sum(p).variables()))||
+          return occursintermlist(var,variable_list_to_data_expression_list(sum(p).variables())) ||
                  occursinpCRLterm(var,sum(p).operand(),strict);
         /* below appears better? , but leads
            to errors. Should be investigated. */
         else
           return
-            (!occursintermlist(var,data_expression_list(sum(p).variables()))) &&
+            (!occursintermlist(var,variable_list_to_data_expression_list(sum(p).variables()))) &&
             occursinpCRLterm(var,sum(p).operand(),strict);
       }
       if (is_stochastic_operator(p))
@@ -1468,13 +1475,13 @@ class specification_basic_type
         const stochastic_operator& sto=atermpp::down_cast<const stochastic_operator>(p);
         if (strict)
         {
-          return occursintermlist(var,data_expression_list(sto.variables()))||
+          return occursintermlist(var,variable_list_to_data_expression_list(sto.variables())) ||
                       occursinterm(var,sto.distribution()) ||
                       occursinpCRLterm(var,sto.operand(),strict);
         }
         else
         {
-          return (!occursintermlist(var,data_expression_list(sto.variables()))) &&
+          return (!occursintermlist(var,variable_list_to_data_expression_list(sto.variables()))) &&
                       (occursinterm(var,sto.distribution()) ||
                        occursinpCRLterm(var,sto.operand(),strict));
         }
@@ -1518,8 +1525,7 @@ class specification_basic_type
     void alphaconvertprocess(
       variable_list& sumvars,
       MutableSubstitution& sigma,
-      const process_expression& p,
-      std::set < variable >& lhs_variables_in_sigma)
+      const process_expression& p)
     {
       /* This function replaces the variables in sumvars
          by unique ones if these variables occur in occurvars
@@ -1536,7 +1542,6 @@ class specification_basic_type
           const variable newvar=get_fresh_variable(var.name(),var.sort());
           newsumvars.push_front(newvar);
           sigma[var]=newvar;
-          lhs_variables_in_sigma.insert(newvar);
         }
         else
         {
@@ -1551,8 +1556,7 @@ class specification_basic_type
       variable_list& sumvars,
       MutableSubstitution& sigma,
       const variable_list& occurvars,
-      const data_expression_list& occurterms,
-      std::set<variable>& variables_occurring_in_rhs_of_sigma)
+      const data_expression_list& occurterms)
     {
       /* This function replaces the variables in sumvars
          by unique ones if these variables occur in occurvars
@@ -1560,18 +1564,14 @@ class specification_basic_type
          terms to rename the replaced variables to new ones. */
       variable_list newsumvars;
 
-      for (variable_list::const_iterator l=sumvars.begin() ; l!=sumvars.end() ; ++l)
+      for (const variable& var: sumvars)
       {
-        const variable var= *l;
-        if (occursintermlist(var,data_expression_list(occurvars)) ||
+        if (occursintermlist(var,variable_list_to_data_expression_list(occurvars)) ||
             occursintermlist(var,occurterms))
         {
           const variable newvar=get_fresh_variable(var.name(),var.sort());
           newsumvars.push_front(newvar);
-          /* rename_vars.push_front(var);
-             rename_terms.push_front(data_expression(newvar)); */
           sigma[var]=newvar;
-          variables_occurring_in_rhs_of_sigma.insert(newvar);
         }
         else
         {
@@ -1676,8 +1676,8 @@ class specification_basic_type
       if (is_process_instance_assignment(p))
       {
         const process_instance_assignment q(p);
-        std::size_t n=objectIndex(q.identifier());
-        const variable_list parameters=objectdata[n].parameters;
+        objectdatatype& object=objectIndex(q.identifier());
+        const variable_list parameters=object.parameters;
         std::set<variable> parameter_set(parameters.begin(),parameters.end());
         const assignment_list& assignments=q.assignments();
         for(assignment_list::const_iterator i=assignments.begin(); i!=assignments.end(); ++i)
@@ -1829,8 +1829,7 @@ class specification_basic_type
       const variable_list& parameters,
       const bool replacelhs,
       const bool replacerhs,
-      Substitution& sigma,
-      const std::set<variable>& variables_in_rhs_of_sigma)
+      Substitution& sigma)
     {
       assert(check_assignment_list(assignments, parameters));
       /* precondition: the variables in the assignment occur in
@@ -1876,7 +1875,7 @@ class specification_basic_type
           }
           if (replacerhs)
           {
-            rhs=data::replace_variables_capture_avoiding(rhs,sigma,variables_in_rhs_of_sigma);
+            rhs=/* data::*/replace_variables_capture_avoiding_alt(rhs,sigma);
           }
 
           assignment_list result=
@@ -1885,8 +1884,7 @@ class specification_basic_type
                      parameters.tail(),
                      replacelhs,
                      replacerhs,
-                     sigma,
-                     variables_in_rhs_of_sigma);
+                     sigma);
           result.push_front(assignment(lhs,rhs));
           return result;
         }
@@ -1907,7 +1905,7 @@ class specification_basic_type
       }
       if (replacerhs)
       {
-        rhs=data::replace_variables_capture_avoiding(rhs,sigma,variables_in_rhs_of_sigma);
+        rhs=/* data::*/replace_variables_capture_avoiding_alt(rhs,sigma);
       }
 
       if (lhs==rhs)
@@ -1917,8 +1915,7 @@ class specification_basic_type
                  parameters.tail(),
                  replacelhs,
                  replacerhs,
-                 sigma,
-                 variables_in_rhs_of_sigma);
+                 sigma);
       }
       assignment_list result=
                substitute_assignmentlist(
@@ -1926,8 +1923,7 @@ class specification_basic_type
                  parameters.tail(),
                  replacelhs,
                  replacerhs,
-                 sigma,
-                 variables_in_rhs_of_sigma);
+                 sigma);
       result.push_front(assignment(lhs,rhs));
       return result;
     }
@@ -1957,8 +1953,8 @@ class specification_basic_type
                const process_identifier& id,
                const assignment_list& assignments)
     {
-      std::size_t n=objectIndex(id);
-      variable_list parameters=objectdata[n].parameters;
+      objectdatatype& object=objectIndex(id);
+      variable_list parameters=object.parameters;
       for(assignment_list::const_iterator i=assignments.begin(); i!=assignments.end(); ++i)
       {
         // Every assignment must occur in the parameter list, in the right sequence.
@@ -1987,59 +1983,57 @@ class specification_basic_type
     /* The function below cannot be replace by replace_variables_capture_avoiding although
      * the interfaces are the same. As yet it is unclear why, but the difference shows itself
      * for instance when linearising lift3_final.mcrl2 and lift3_init.mcrl2 */
+    template <class Substitution>
     process_expression substitute_pCRLproc(
       const process_expression& p,
-      mutable_map_substitution<>& sigma,
-      const std::set< variable >& rhs_variables_in_sigma)
+      Substitution& sigma)
     {
-      // mutable_map_substitution<> sigma_aux(sigma);
-      // return process::replace_variables_capture_avoiding(p,sigma_aux,rhs_variables_in_sigma);
       if (is_choice(p))
       {
         return choice(
-                 substitute_pCRLproc(choice(p).left(),sigma,rhs_variables_in_sigma),
-                 substitute_pCRLproc(choice(p).right(),sigma,rhs_variables_in_sigma));
+                 substitute_pCRLproc(choice(p).left(),sigma),
+                 substitute_pCRLproc(choice(p).right(),sigma));
       }
       if (is_seq(p))
       {
         return seq(
-                 substitute_pCRLproc(seq(p).left(),sigma,rhs_variables_in_sigma),
-                 substitute_pCRLproc(seq(p).right(),sigma,rhs_variables_in_sigma));
+                 substitute_pCRLproc(seq(p).left(),sigma),
+                 substitute_pCRLproc(seq(p).right(),sigma));
       }
       if (is_sync(p))
       {
         return process::sync(
-                 substitute_pCRLproc(process::sync(p).left(),sigma,rhs_variables_in_sigma),
-                 substitute_pCRLproc(process::sync(p).right(),sigma,rhs_variables_in_sigma));
+                 substitute_pCRLproc(process::sync(p).left(),sigma),
+                 substitute_pCRLproc(process::sync(p).right(),sigma));
       }
       if (is_if_then(p))
       {
-        data_expression condition=data::replace_variables_capture_avoiding(if_then(p).condition(), sigma,rhs_variables_in_sigma);
+        data_expression condition=replace_variables_capture_avoiding_alt(if_then(p).condition(), sigma);
         if (condition==sort_bool::false_())
         {
           return delta_at_zero();
         }
         if (condition==sort_bool::true_())
         {
-          return substitute_pCRLproc(if_then(p).then_case(),sigma,rhs_variables_in_sigma);
+          return substitute_pCRLproc(if_then(p).then_case(),sigma);
         }
-        return if_then(condition,substitute_pCRLproc(if_then(p).then_case(),sigma,rhs_variables_in_sigma));
+        return if_then(condition,substitute_pCRLproc(if_then(p).then_case(),sigma));
       }
       if (is_if_then_else(p))
       {
-        data_expression condition=data::replace_variables_capture_avoiding(if_then_else(p).condition(), sigma,rhs_variables_in_sigma);
+        data_expression condition=replace_variables_capture_avoiding_alt(if_then_else(p).condition(), sigma);
         if (condition==sort_bool::false_())
         {
-          return substitute_pCRLproc(if_then_else(p).else_case(),sigma,rhs_variables_in_sigma);
+          return substitute_pCRLproc(if_then_else(p).else_case(),sigma);
         }
         if (condition==sort_bool::true_())
         {
-          return substitute_pCRLproc(if_then_else(p).then_case(),sigma,rhs_variables_in_sigma);
+          return substitute_pCRLproc(if_then_else(p).then_case(),sigma);
         }
         return if_then_else(
                  condition,
-                 substitute_pCRLproc(if_then_else(p).then_case(),sigma,rhs_variables_in_sigma),
-                 substitute_pCRLproc(if_then_else(p).else_case(),sigma,rhs_variables_in_sigma));
+                 substitute_pCRLproc(if_then_else(p).then_case(),sigma),
+                 substitute_pCRLproc(if_then_else(p).else_case(),sigma));
       }
 
       if (is_sum(p))
@@ -2054,12 +2048,11 @@ class specification_basic_type
           terms=push_back(terms,i->second);
         }
 
-        mutable_map_substitution<> local_sigma=sigma;
-        std::set<variable> local_rhs_variables_in_sigma=rhs_variables_in_sigma;
-        alphaconvert(sumargs,local_sigma,vars,terms,local_rhs_variables_in_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma=sigma;
+        alphaconvert(sumargs,local_sigma,vars,terms);
 
         return sum(sumargs,
-                   substitute_pCRLproc(sum(p).operand(),local_sigma,local_rhs_variables_in_sigma));
+                   substitute_pCRLproc(sum(p).operand(),local_sigma));
       }
 
       if (is_stochastic_operator(p))
@@ -2075,14 +2068,13 @@ class specification_basic_type
           terms=push_back(terms,i->second);
         }
 
-        mutable_map_substitution<> local_sigma=sigma;
-        std::set<variable> local_rhs_variables_in_sigma=rhs_variables_in_sigma;
-        alphaconvert(sumargs,local_sigma,vars,terms,local_rhs_variables_in_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma=sigma;
+        alphaconvert(sumargs,local_sigma,vars,terms);
 
         return stochastic_operator(
                             sumargs,
-                            data::replace_variables_capture_avoiding(sto.distribution(),sigma,rhs_variables_in_sigma),
-                            substitute_pCRLproc(sto.operand(),local_sigma,local_rhs_variables_in_sigma));
+                            replace_variables_capture_avoiding_alt(sto.distribution(),sigma),
+                            substitute_pCRLproc(sto.operand(),local_sigma));
       }
 
       if (is_process_instance(p))
@@ -2093,9 +2085,9 @@ class specification_basic_type
       if (is_process_instance_assignment(p))
       {
         const process_instance_assignment q(p);
-        std::size_t n=objectIndex(q.identifier());
-        const variable_list parameters=objectdata[n].parameters;
-        const assignment_list new_assignments=substitute_assignmentlist(q.assignments(),parameters,false,true,sigma,rhs_variables_in_sigma);
+        objectdatatype& object=objectIndex(q.identifier());
+        const variable_list parameters=object.parameters;
+        const assignment_list new_assignments=substitute_assignmentlist(q.assignments(),parameters,false,true,sigma);
         assert(check_valid_process_instance_assignment(q.identifier(),new_assignments));
         return process_instance_assignment(q.identifier(),new_assignments);
       }
@@ -2103,13 +2095,13 @@ class specification_basic_type
       if (is_action(p))
       {
         return action(action(p).label(),
-                      data::replace_variables_capture_avoiding(action(p).arguments(), sigma,rhs_variables_in_sigma));
+                      /* data::*/replace_variables_capture_avoiding_alt(action(p).arguments(), sigma));
       }
 
       if (is_at(p))
       {
-        return at(substitute_pCRLproc(at(p).operand(),sigma,rhs_variables_in_sigma),
-                  data::replace_variables_capture_avoiding(at(p).time_stamp(),sigma,rhs_variables_in_sigma));
+        return at(substitute_pCRLproc(at(p).operand(),sigma),
+                  /* data::*/replace_variables_capture_avoiding_alt(at(p).time_stamp(),sigma));
       }
 
       if (is_delta(p))
@@ -2125,8 +2117,8 @@ class specification_basic_type
       if (is_sync(p))
       {
         return process::sync(
-                 substitute_pCRLproc(process::sync(p).left(),sigma,rhs_variables_in_sigma),
-                 substitute_pCRLproc(process::sync(p).right(),sigma,rhs_variables_in_sigma));
+                 substitute_pCRLproc(process::sync(p).left(),sigma),
+                 substitute_pCRLproc(process::sync(p).right(),sigma));
       }
 
       throw mcrl2::runtime_error("Internal error: expect a pCRL process (2) " + process::pp(p));
@@ -2141,8 +2133,8 @@ class specification_basic_type
               const process_instance& procId,
               const std::set<variable>& bound_variables=std::set<variable>())
     {
-      std::size_t n=objectIndex(procId.identifier());
-      const variable_list process_parameters=objectdata[n].parameters;
+      objectdatatype& object=objectIndex(procId.identifier());
+      const variable_list process_parameters=object.parameters;
       const data_expression_list& rhss=procId.actual_parameters();
 
       assignment_vector new_assignments;
@@ -2186,18 +2178,15 @@ class specification_basic_type
       const variable_list& parameters,
       const process_expression& body)
     {
-      if (parameters.empty())
+      variable_vector result; 
+      for(const variable& p: parameters) 
       {
-        return parameters;
+        if (occursinpCRLterm(p,body,false))
+        {
+          result.push_back(p);
+        }
       }
-
-      variable_list parameters1=parameters_that_occur_in_body(parameters.tail(),body);
-      if (occursinpCRLterm(parameters.front(),body,false))
-      {
-
-        parameters1.push_front(parameters.front());
-      }
-      return parameters1;
+      return variable_list(result.begin(),result.end());
     }
 
     // The variable below is used to count the number of new processes that
@@ -2206,8 +2195,8 @@ class specification_basic_type
     // In such a case a warning is printed suggesting to use regular2.
 
     process_identifier newprocess(
-      const variable_list& parameters,  // Intentionally not a reference.
-      const process_expression& body,   // Intentionally not a reference.
+      const variable_list& parameters,
+      const process_expression& body,
       const processstatustype ps,
       const bool canterminate,
       const bool containstime)
@@ -2245,7 +2234,7 @@ class specification_basic_type
       const core::identifier_string s=fresh_identifier_generator("P");
       const process_identifier p(s, parameters1);
       assert(std::string(p.name()).size()>0);
-      insertProcDeclaration(
+      insert_process_declaration(
         p,
         parameters1,
         body,
@@ -2273,12 +2262,11 @@ class specification_basic_type
         variable_list sumvars=sum(body).variables();
         process_expression body1=sum(body).operand();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        body1=substitute_pCRLproc(body1, sigma,variables_occurring_in_rhs_of_sigma);
-        mutable_map_substitution<> sigma_aux(sigma);
-        const data_expression time1=data::replace_variables_capture_avoiding(time, sigma_aux,variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        body1=substitute_pCRLproc(body1, sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> >  sigma_aux(sigma);
+        const data_expression time1=/*data::*/replace_variables_capture_avoiding_alt(time, sigma_aux);
         body1=wraptime(body1,time1,sumvars+freevars);
         return sum(sumvars,body1);
       }
@@ -2289,13 +2277,12 @@ class specification_basic_type
         variable_list sumvars=sto.variables();
         process_expression body1=sto.operand();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        body1=substitute_pCRLproc(body1, sigma,variables_occurring_in_rhs_of_sigma);
-        const data_expression new_distribution=data::replace_variables_capture_avoiding(sto.distribution(), sigma,variables_occurring_in_rhs_of_sigma);
-        mutable_map_substitution<> sigma_aux(sigma);
-        const data_expression time1=data::replace_variables_capture_avoiding(time, sigma_aux,variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs<mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        body1=substitute_pCRLproc(body1, sigma);
+        const data_expression new_distribution=replace_variables_capture_avoiding_alt(sto.distribution(), sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma_aux(sigma);
+        const data_expression time1=replace_variables_capture_avoiding_alt(time, sigma_aux);
         body1=wraptime(body1,time1,sumvars+freevars);
         return stochastic_operator(sumvars,new_distribution,body1);
       }
@@ -2473,9 +2460,9 @@ class specification_basic_type
 
 
     process_expression bodytovarheadGNF(
-      const process_expression& body, // intentionally not a reference.
+      const process_expression& body, 
       const state s,
-      const variable_list& freevars, // intentionally not a reference.
+      const variable_list& freevars, 
       const variableposition v,
       const std::set<variable>& variables_bound_in_sum)
     {
@@ -2502,8 +2489,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body1,pCRL,
                                          canterminatebody(body1),
                                          containstimebody(body1));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
       }
 
       if (is_sum(body))
@@ -2513,10 +2500,9 @@ class specification_basic_type
           variable_list sumvars=sum(body).variables();
           process_expression body1=sum(body).operand();
 
-          mutable_map_substitution<> sigma;
-          std::set<variable> variables_occurring_in_rhs_of_sigma;
-          alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-          body1=substitute_pCRLproc(body1,sigma,variables_occurring_in_rhs_of_sigma);
+          maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+          alphaconvert(sumvars,sigma,freevars,data_expression_list());
+          body1=substitute_pCRLproc(body1,sigma);
           std::set<variable> variables_bound_in_sum1=variables_bound_in_sum;
           variables_bound_in_sum1.insert(sumvars.begin(),sumvars.end());
           body1=bodytovarheadGNF(body1,sum_state,sumvars+freevars,first,variables_bound_in_sum1);
@@ -2534,8 +2520,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body1,pCRL,
                                          canterminatebody(body1),
                                          containstimebody(body1));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
       }
 
       if (is_stochastic_operator(body))
@@ -2547,25 +2533,24 @@ class specification_basic_type
           data_expression distribution=sto.distribution();
           process_expression body1=sto.operand();
 
-          mutable_map_substitution<> sigma;
-          std::set<variable> variables_occurring_in_rhs_of_sigma;
-          alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-          distribution=data::replace_variables_capture_avoiding(distribution,sigma,variables_occurring_in_rhs_of_sigma);
-          body1=substitute_pCRLproc(body1,sigma,variables_occurring_in_rhs_of_sigma);
+          maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+          alphaconvert(sumvars,sigma,freevars,data_expression_list());
+          distribution=/* data::*/replace_variables_capture_avoiding_alt(distribution,sigma);
+          body1=substitute_pCRLproc(body1,sigma);
           std::set<variable> variables_bound_in_sum1=variables_bound_in_sum;
           variables_bound_in_sum1.insert(sumvars.begin(),sumvars.end());
-          body1=bodytovarheadGNF(body1,seq_state,sumvars+freevars,v,variables_bound_in_sum1);
+          body1=bodytovarheadGNF(body1,name_state,sumvars+freevars,v,variables_bound_in_sum1);
           /* Due to the optimisation below, suggested by Yaroslav Usenko, bodytovarheadGNF(...,sum_state,...)
              can deliver a process of the form c -> x + !c -> y. In this case, the
              sumvars must be distributed over both summands. */
           return stochastic_operator(sumvars,distribution,body1);
         }
-        const process_expression body1=bodytovarheadGNF(body,seq_state,freevars,first,variables_bound_in_sum);
-        const process_identifier newproc=newprocess(freevars,body1,pCRL,
-                                         canterminatebody(body1),
-                                         containstimebody(body1));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        const process_expression body_=bodytovarheadGNF(body,seq_state,freevars,first,variables_bound_in_sum);
+        const process_identifier newproc=newprocess(freevars,body_,pCRL,
+                                         canterminatebody(body_),
+                                         containstimebody(body_));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
       }
 
       if (is_if_then(body))
@@ -2583,8 +2568,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body2,pCRL,
                                          canterminatebody(body2),
                                          containstimebody(body2));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
 
       }
 
@@ -2629,8 +2614,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body3,pCRL,
                                          canterminatebody(body3),
                                          containstimebody(body3));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
 
       }
 
@@ -2696,8 +2681,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body1,pCRL,canterminatebody(body1),
                                          containstimebody(body1));
 
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
       }
 
       if (is_action(body))
@@ -2708,9 +2693,9 @@ class specification_basic_type
         }
 
         bool isnew=false;
-        std::size_t n=addMultiAction(action(body),isnew);
+        objectdatatype& object=addMultiAction(action(body),isnew);
 
-        if (objectdata[n].process_representing_action==process_identifier())
+        if (object.process_representing_action==process_identifier())
         {
           /* this action does not yet have a corresponding process, which
              must be constructed. The resulting process is stored in
@@ -2718,13 +2703,13 @@ class specification_basic_type
              needed as objectdata may be realloced as a side effect
              of newprocess */
           const process_identifier tempvar=newprocess(
-                                             objectdata[n].parameters,
-                                             objectdata[n].processbody,
+                                             object.parameters,
+                                             object.processbody,
                                              GNF,true,false);
-          objectdata[n].process_representing_action=tempvar;
+          object.process_representing_action=tempvar;
         }
         return transform_process_instance_to_process_instance_assignment(
-                          process_instance(objectdata[n].process_representing_action,
+                          process_instance(object.process_representing_action,
                           action(body).arguments()));
       }
 
@@ -2743,23 +2728,23 @@ class specification_basic_type
           return mp;
         }
 
-        std::size_t n=addMultiAction(mp,isnew);
+        objectdatatype& object=addMultiAction(mp,isnew);
 
-        if (objectdata[n].process_representing_action==process_identifier())
+        if (object.process_representing_action==process_identifier())
         {
           /* this action does not yet have a corresponding process, which
              must be constructed. The resulting process is stored in
              the variable process_representing_action in objectdata. Tempvar below is needed
              as objectdata may be realloced as a side effect of newprocess */
           process_identifier tempvar=newprocess(
-                                       objectdata[n].parameters,
-                                       objectdata[n].processbody,
+                                       object.parameters,
+                                       object.processbody,
                                        GNF,true,false);
-          objectdata[n].process_representing_action=tempvar;
+          object.process_representing_action=tempvar;
         }
         return transform_process_instance_to_process_instance_assignment(
                       process_instance(
-                           process_identifier(objectdata[n].process_representing_action),
+                           process_identifier(object.process_representing_action),
                            getarguments(ma)));
       }
 
@@ -2782,8 +2767,8 @@ class specification_basic_type
         const process_identifier newproc=newprocess(freevars,body1,pCRL,
                                          canterminatebody(body1),
                                          containstimebody(body1));
-        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum)));
-        return process_instance_assignment(newproc,parameters_to_assignment_list(objectdata[objectIndex(newproc)].parameters,variables_bound_in_sum));
+        assert(check_valid_process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum)));
+        return process_instance_assignment(newproc,parameters_to_assignment_list(objectIndex(newproc).parameters,variables_bound_in_sum));
       }
 
       if (is_process_instance(body))
@@ -2827,9 +2812,9 @@ class specification_basic_type
     void procstovarheadGNF(const std::vector < process_identifier>& procs)
     {
       /* transform the processes in procs into newprocs */
-      for (const process_identifier& i:procs)
+      for (const process_identifier& i: procs)
       {
-        std::size_t n=objectIndex(i);
+        objectdatatype& object=objectIndex(i);
 
         // The intermediate variable result is needed here
         // because objectdata can be realloced as a side
@@ -2838,12 +2823,12 @@ class specification_basic_type
         std::set<variable> variables_bound_in_sum;
         const process_expression result=
           bodytovarheadGNF(
-            objectdata[n].processbody,
+            object.processbody,
             alt_state,
-            objectdata[n].parameters,
+            object.parameters,
             first,
             variables_bound_in_sum);
-        objectdata[n].processbody=result;
+        object.processbody=result;
       }
     }
 
@@ -2876,11 +2861,10 @@ class specification_basic_type
             inadvertently bound */
         variable_list sumvars=sum(body1).variables();
 
-        mutable_map_substitution<> sigma;
-        std::set < variable > lhs_variables_in_sigma;
-        alphaconvertprocess(sumvars,sigma,body2,lhs_variables_in_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvertprocess(sumvars,sigma,body2);
         return sum(sumvars,
-                   putbehind(substitute_pCRLproc(sum(body1).operand(), sigma,lhs_variables_in_sigma),
+                   putbehind(substitute_pCRLproc(sum(body1).operand(), sigma),
                              body2));
       }
 
@@ -2890,14 +2874,13 @@ class specification_basic_type
         variable_list stochvars=sto.variables();
 
         // See explanation at sum operator above.
-        mutable_map_substitution<> sigma;
-        std::set < variable > lhs_variables_in_sigma;
-        alphaconvertprocess(stochvars,sigma,body2,lhs_variables_in_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvertprocess(stochvars,sigma,body2);
         return stochastic_operator(
                  stochvars,
                  sto.distribution(),
                  putbehind(
-                       substitute_pCRLproc(sto.operand(),sigma,lhs_variables_in_sigma),
+                       substitute_pCRLproc(sto.operand(),sigma),
                        body2));
       }
 
@@ -2937,6 +2920,7 @@ class specification_basic_type
       return process_expression();
     }
 
+
     process_expression distribute_condition(
       const process_expression& body1,
       const data_expression& condition)
@@ -2965,13 +2949,12 @@ class specification_basic_type
         /* we must take care that no variables in condition are
             inadvertently bound */
         variable_list sumvars=sum(body1).variables();
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,variable_list(), data_expression_list({ condition }),variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> >  sigma;
+        alphaconvert(sumvars,sigma,variable_list(), data_expression_list({ condition }));
         return sum(
                  sumvars,
                  distribute_condition(
-                   substitute_pCRLproc(sum(body1).operand(),sigma,variables_occurring_in_rhs_of_sigma),
+                   substitute_pCRLproc(sum(body1).operand(),sigma),
                    condition));
       }
 
@@ -2981,17 +2964,15 @@ class specification_basic_type
             inadvertently bound */
         const stochastic_operator& sto=atermpp::down_cast<stochastic_operator>(body1);
         variable_list stochvars=sto.variables();
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(stochvars,sigma,variable_list(), data_expression_list({ condition }),variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(stochvars,sigma,variable_list(), data_expression_list({ condition }));
         return stochastic_operator(
                  stochvars,
-                 data::replace_variables_capture_avoiding(
+                 replace_variables_capture_avoiding_alt(
                                                sto.distribution(),
-                                               sigma,
-                                               variables_occurring_in_rhs_of_sigma),
+                                               sigma),
                  distribute_condition(
-                       substitute_pCRLproc(sto.operand(),sigma,variables_occurring_in_rhs_of_sigma),
+                       substitute_pCRLproc(sto.operand(),sigma),
                        condition));
       }
 
@@ -3006,6 +2987,137 @@ class specification_basic_type
       }
 
       throw mcrl2::runtime_error("Internal error. Unexpected process format in distribute condition " + process::pp(body1) +".");
+    }
+    
+    /* This process calculates the equivalent of sum sumvars dist stochvars[distribution] body
+       where the distribution occurs in front. This can only be done under limited circumstances.
+       Assume we can enumerate the values of sumvars by e1,...,en. Introduce n copies of stochvars,
+       i.e., stochvars1,...,stochvarsn. The new process becomes 
+
+           dist stochvars1,stochvars2,...,stochvarsn
+                [distribution(e1,stochvars1)*distribution(e2,stochvars2)*...*distribution(en,stochvarsn)].
+
+           body(e1,stochvars1)+
+           body(e2,stochvars2)+
+           ...
+           body(en,stochvarsn)
+    */
+
+    process_expression enumerate_distribution_and_sums(
+                         const variable_list& sumvars, 
+                         const variable_list& stochvars, 
+                         const data_expression& distribution,
+                         const process_expression& body)
+    {
+      if (options.norewrite)
+      {
+        throw mcrl2::runtime_error("The use of the rewriter must be allowed to distribute a sum operator over a distribution.");
+      }
+
+
+      std::vector < data_expression_vector > data_vector(1,data_expression_vector());
+      for(const variable& v:sumvars) 
+      {
+        std::vector < data_expression_vector > new_data_vector;
+
+        if (!data.is_certainly_finite(v.sort()))
+        {
+          throw mcrl2::runtime_error("Cannot distribute a sum variable of non finite sort " + pp(v.sort()) + " over a distribution, which is required for linearisation.");
+        }
+
+        for(const data_expression& d: enumerate_expressions(v.sort(),data,rewr))
+        {
+          for(const data_expression_vector& dv: data_vector)
+          {
+            data_expression_vector new_dv=dv;
+            new_dv.push_back(d);
+            new_data_vector.push_back(new_dv);
+          }
+           
+        }
+        data_vector.swap(new_data_vector);
+        
+      } 
+      assert(!data_vector.empty());
+      
+      process_expression resulting_body;
+      data_expression resulting_distribution;
+      variable_list resulting_stochastic_variables;
+      bool result_defined=false;
+      for(const data_expression_vector& d: data_vector)
+      {
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        variable_list vl = stochvars;
+        alphaconvert(vl,sigma,stochvars,data_expression_list());
+        data_expression_vector::const_iterator i=d.begin();
+        for(const variable& v: sumvars)
+        {
+          sigma[v] = *i;
+          ++i;
+        }
+        const process_expression d1=substitute_pCRLproc(body,sigma);
+        const data_expression new_distribution=replace_variables_capture_avoiding_alt(distribution, sigma);
+
+        if (result_defined)
+        {
+          resulting_body=choice(resulting_body, d1);
+          resulting_distribution=data::sort_real::times(resulting_distribution,new_distribution);
+          resulting_stochastic_variables=resulting_stochastic_variables + vl;
+        }
+        else
+        {
+          resulting_body=d1;
+          resulting_distribution=new_distribution;
+          resulting_stochastic_variables=vl;
+          result_defined=true;
+        }
+      } 
+      /* Put the distribution in front. */
+
+      return stochastic_operator(resulting_stochastic_variables, resulting_distribution, resulting_body);
+    }
+
+    process_expression distribute_sum_over_a_stochastic_operator(
+                         const variable_list& sumvars, 
+                         const variable_list& stochastic_variables, 
+                         const data_expression& distribution,
+                         const process_expression& body)
+    {
+      if (is_sum(body)||
+          is_choice(body)||
+          is_seq(body)||
+          is_if_then(body)||
+          is_sync(body)||
+          is_action(body)||
+          is_tau(body)||
+          is_at(body)||
+          is_process_instance_assignment(body)||
+          isDeltaAtZero(body))
+      {
+        return enumerate_distribution_and_sums(sumvars,stochastic_variables,distribution,body);
+      }
+
+      if (is_delta(body)||
+          is_tau(body))
+      {
+        return body;
+      }
+
+      if (is_stochastic_operator(body))
+      {
+        const stochastic_operator& sto=atermpp::down_cast<stochastic_operator>(body);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        variable_list inner_stoch_vars=sto.variables();
+        alphaconvert(inner_stoch_vars,sigma,sumvars,data_expression_list());
+        const process_expression new_body=substitute_pCRLproc(sto.operand(), sigma);
+        const data_expression new_distribution=replace_variables_capture_avoiding_alt(sto.distribution(), sigma);
+        return distribute_sum_over_a_stochastic_operator(sumvars, 
+                                                         stochastic_variables + inner_stoch_vars, 
+                                                         data::sort_real::times(distribution,new_distribution), new_body);
+      }
+
+      throw mcrl2::runtime_error("Internal error. Unexpected process format in distribute_sum " + process::pp(body) +".");
+      return process_expression();
     }
 
     process_expression distribute_sum(
@@ -3033,24 +3145,22 @@ class specification_basic_type
 
       if (is_sum(body1))
       {
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
         variable_list inner_sumvars=sum(body1).variables();
-        alphaconvert(inner_sumvars,sigma,sumvars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        const process_expression new_body1=substitute_pCRLproc(sum(body1).operand(), sigma, variables_occurring_in_rhs_of_sigma);
+        alphaconvert(inner_sumvars,sigma,sumvars,data_expression_list());
+        const process_expression new_body1=substitute_pCRLproc(sum(body1).operand(), sigma);
         return sum(sumvars+inner_sumvars,new_body1);
       }
 
       if (is_stochastic_operator(body1))
       {
         const stochastic_operator& sto=atermpp::down_cast<stochastic_operator>(body1);
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        variable_list inner_sumvars=sto.variables();
-        alphaconvert(inner_sumvars,sigma,sumvars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        const process_expression new_body1=substitute_pCRLproc(sto.operand(), sigma, variables_occurring_in_rhs_of_sigma);
-        const data_expression new_distribution=data::replace_variables_capture_avoiding(sto.distribution(), sigma, variables_occurring_in_rhs_of_sigma);
-        return stochastic_operator(sumvars+inner_sumvars,new_distribution,new_body1);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        variable_list inner_stoch_vars=sto.variables();
+        alphaconvert(inner_stoch_vars,sigma,sumvars,data_expression_list());
+        const process_expression new_body1=substitute_pCRLproc(sto.operand(), sigma);
+        const data_expression new_distribution=replace_variables_capture_avoiding_alt(sto.distribution(), sigma);
+        return distribute_sum_over_a_stochastic_operator(sumvars, inner_stoch_vars, new_distribution, new_body1);
       }
 
       if (is_delta(body1)||
@@ -3147,8 +3257,8 @@ class specification_basic_type
         if (is_process_instance_assignment(first))
         {
           result.push_back(atermpp::down_cast<process_instance_assignment>(first));
-          std::size_t n=objectIndex(atermpp::down_cast<process_instance_assignment>(first).identifier());
-          if (objectdata[n].canterminate)
+          objectdatatype& object=objectIndex(atermpp::down_cast<process_instance_assignment>(first).identifier());
+          if (object.canterminate)
           {
             extract_names(seq(sequence).right(),result);
           }
@@ -3166,7 +3276,7 @@ class specification_basic_type
       if (is_process_instance_assignment(oldbody))
       {
         const process_identifier procId=process_instance_assignment(oldbody).identifier();
-        const variable_list parameters=objectdata[objectIndex(procId)].parameters;
+        const variable_list parameters=objectIndex(procId).parameters;
         assert(check_valid_process_instance_assignment(procId,data::assignment_list()));
         newbody=process_instance_assignment(procId,data::assignment_list());
         return parameters;
@@ -3177,14 +3287,14 @@ class specification_basic_type
         const process_expression first=seq(oldbody).left();
         if (is_process_instance_assignment(first))
         {
-          std::size_t n=objectIndex(process_instance_assignment(first).identifier());
-          if (objectdata[n].canterminate)
+          objectdatatype& object=objectIndex(process_instance_assignment(first).identifier());
+          if (object.canterminate)
           {
             const process_identifier procId=process_instance_assignment(first).identifier();
             const variable_list pars=parscollect(seq(oldbody).right(),newbody);
             variable_list pars1, pars2;
 
-            const variable_list new_pars=construct_renaming(pars,objectdata[objectIndex(procId)].parameters,pars1,pars2,false);
+            const variable_list new_pars=construct_renaming(pars,objectIndex(procId).parameters,pars1,pars2,false);
             assignment_vector new_assignment;
             for(variable_list::const_iterator i=pars2.begin(), j=new_pars.begin(); i!=pars2.end(); ++i,++j)
             {
@@ -3228,9 +3338,9 @@ class specification_basic_type
       if (is_process_instance_assignment(t))
       {
         const process_instance_assignment p(t);
-        std::size_t n=objectIndex(p.identifier());
+        objectdatatype& object=objectIndex(p.identifier());
 
-        const variable_list pars=objectdata[n].parameters; // These are the old parameters of the process.
+        const variable_list pars=object.parameters; // These are the old parameters of the process.
         assert(pars.size()<=vl.size());
 
         std::map<variable,data_expression>sigma;
@@ -3254,9 +3364,9 @@ class specification_basic_type
       if (is_seq(t))
       {
         const process_instance_assignment firstproc=atermpp::down_cast<process_instance_assignment>(seq(t).left());
-        std::size_t n=objectIndex(firstproc.identifier());
+        objectdatatype& object=objectIndex(firstproc.identifier());
         const assignment_list first_assignment=argscollect_regular2(firstproc,vl);
-        if (objectdata[n].canterminate)
+        if (object.canterminate)
         {
           return first_assignment + argscollect_regular2(seq(t).right(),vl);
         }
@@ -3282,8 +3392,8 @@ class specification_basic_type
       if (is_seq(t))
       {
         const process_expression firstproc=seq(t).left();
-        std::size_t n=objectIndex(process_instance_assignment(firstproc).identifier());
-        if (objectdata[n].canterminate)
+        objectdatatype& object=objectIndex(process_instance_assignment(firstproc).identifier());
+        if (object.canterminate)
         {
           return seq(firstproc,cut_off_unreachable_tail(seq(t).right()));
         }
@@ -3311,7 +3421,9 @@ class specification_basic_type
         const stochastic_operator& sto=atermpp::down_cast<const stochastic_operator>(sequence);
         std::set<variable> variables_bound_in_sum_new=variables_bound_in_sum;
         variables_bound_in_sum_new.insert(sto.variables().begin(),sto.variables().end());
-        return stochastic_operator(sto.variables(),sto.distribution(), create_regular_invocation(sto.operand(),todo,freevars,variables_bound_in_sum_new));
+        return stochastic_operator(sto.variables(),
+                                   sto.distribution(), 
+                                   create_regular_invocation(sto.operand(),todo,freevars+sto.variables(),variables_bound_in_sum_new));
       }
 
       sequence=cut_off_unreachable_tail(sequence);
@@ -3362,7 +3474,7 @@ class specification_basic_type
         todo.push_back(new_process);
       }
       /* now we must construct arguments */
-      variable_list parameters=objectdata[objectIndex(new_process)].parameters;
+      variable_list parameters=objectIndex(new_process).parameters;
       if (options.lin_method==lmRegular2)
       {
         const assignment_list args=argscollect_regular2(sequence,parameters);
@@ -3412,10 +3524,9 @@ class specification_basic_type
       {
         variable_list sumvars=sum(t).variables();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        const process_expression body=substitute_pCRLproc(sum(t).operand(), sigma, variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        const process_expression body=substitute_pCRLproc(sum(t).operand(), sigma);
 
         std::set<variable> variables_bound_in_sum1=variables_bound_in_sum;
         variables_bound_in_sum1.insert(sumvars.begin(),sumvars.end());
@@ -3432,14 +3543,12 @@ class specification_basic_type
         const stochastic_operator& sto=down_cast<const stochastic_operator>(t);
         variable_list sumvars=sto.variables();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        const data_expression distribution=data::replace_variables_capture_avoiding(
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        const data_expression distribution=replace_variables_capture_avoiding_alt(
                                                sto.distribution(),
-                                               sigma,
-                                               variables_occurring_in_rhs_of_sigma);
-        const process_expression body=substitute_pCRLproc(sto.operand(),sigma,variables_occurring_in_rhs_of_sigma);
+                                               sigma);
+        const process_expression body=substitute_pCRLproc(sto.operand(),sigma);
 
         std::set<variable> variables_bound_in_sum1=variables_bound_in_sum;
         variables_bound_in_sum1.insert(sumvars.begin(),sumvars.end());
@@ -3479,12 +3588,11 @@ class specification_basic_type
       {
         variable_list sumvars=sum(body).variables();
         process_expression body1=sum(body).operand();
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        body1=substitute_pCRLproc(body1, sigma, variables_occurring_in_rhs_of_sigma);
-        mutable_map_substitution<> sigma_aux(sigma);
-        const data_expression time1=data::replace_variables_capture_avoiding(time,sigma_aux,variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        body1=substitute_pCRLproc(body1, sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma_aux(sigma);
+        const data_expression time1=replace_variables_capture_avoiding_alt(time,sigma_aux);
         body1=distributeTime(body1,time1,sumvars+freevars,timecondition);
         return sum(sumvars,body1);
       }
@@ -3493,13 +3601,12 @@ class specification_basic_type
       {
         const stochastic_operator& sto=down_cast<const stochastic_operator>(body);
         variable_list sumvars=sto.variables();
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,freevars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
-        process_expression new_body=substitute_pCRLproc(sto.operand(), sigma, variables_occurring_in_rhs_of_sigma);
-        data_expression new_distribution=data::replace_variables_capture_avoiding(sto.distribution(), sigma, variables_occurring_in_rhs_of_sigma);
-        mutable_map_substitution<> sigma_aux(sigma);
-        const data_expression time1=data::replace_variables_capture_avoiding(time,sigma_aux,variables_occurring_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,freevars,data_expression_list());
+        process_expression new_body=substitute_pCRLproc(sto.operand(), sigma);
+        data_expression new_distribution=/*data::*/replace_variables_capture_avoiding_alt(sto.distribution(), sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma_aux(sigma);
+        const data_expression time1=/*data::*/replace_variables_capture_avoiding_alt(time,sigma_aux);
         new_body=distributeTime(new_body,time1,sumvars+freevars,timecondition);
         return stochastic_operator(sumvars,new_distribution,new_body);
       }
@@ -3662,8 +3769,8 @@ class specification_basic_type
           return body;
         }
 
-        const std::size_t n=objectIndex(t);
-        if (objectdata[n].processstatus==mCRL)
+        objectdatatype& object=objectIndex(t);
+        if (object.processstatus==mCRL)
         {
           todo.push_back(t);
           return process_expression();
@@ -3675,16 +3782,14 @@ class specification_basic_type
 
         const assignment_list& dl= process_instance_assignment(body).assignments();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_of_sigma;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
 
         for(assignment_list::const_iterator i=dl.begin(); i!=dl.end(); ++i)
         {
           sigma[i->lhs()]=i->rhs();
           const std::set<variable> varset=find_free_variables(i->rhs());
-          variables_occurring_in_rhs_of_sigma.insert(varset.begin(),varset.end());
         }
-        process_expression t3=substitute_pCRLproc(objectdata[n].processbody,sigma,variables_occurring_in_rhs_of_sigma);
+        process_expression t3=substitute_pCRLproc(object.processbody,sigma);
         if (regular)
         {
           t3=to_regular_form(t3,todo,freevars,variables_bound_in_sum);
@@ -3762,55 +3867,55 @@ class specification_basic_type
        Greibach Normal Form. */
 
     {
-      std::size_t n=objectIndex(procIdDecl);
-      if (objectdata[n].processstatus==pCRL)
+      objectdatatype& object=objectIndex(procIdDecl);
+      if (object.processstatus==pCRL)
       {
-        objectdata[n].processstatus=GNFbusy;
+        object.processstatus=GNFbusy;
         std::set<variable> variables_bound_in_sum;
-        const process_expression t=procstorealGNFbody(objectdata[n].processbody,first,
-                                   todo,regular,pCRL,objectdata[n].parameters,variables_bound_in_sum);
-        if (objectdata[n].processstatus!=GNFbusy)
+        const process_expression t=procstorealGNFbody(object.processbody,first,
+                                   todo,regular,pCRL,object.parameters,variables_bound_in_sum);
+        if (object.processstatus!=GNFbusy)
         {
           throw mcrl2::runtime_error("There is something wrong with recursion.");
         }
 
-        objectdata[n].processbody=t;
-        objectdata[n].processstatus=GNF;
+        object.processbody=t;
+        object.processstatus=GNF;
         return;
       }
 
-      if (objectdata[n].processstatus==mCRL)
+      if (object.processstatus==mCRL)
       {
-        objectdata[n].processstatus=mCRLbusy;
+        object.processstatus=mCRLbusy;
         std::set<variable> variables_bound_in_sum;
-        procstorealGNFbody(objectdata[n].processbody,first,todo,
-                                   regular,mCRL,objectdata[n].parameters,variables_bound_in_sum);
+        const process_expression t=procstorealGNFbody(object.processbody,first,todo,
+                                   regular,mCRL,object.parameters,variables_bound_in_sum);
         /* if the last result is not equal to NULL,
            the body of this process is itself a processidentifier */
 
-        objectdata[n].processstatus=mCRLdone;
+        object.processstatus=mCRLdone;
         return;
       }
 
-      if ((objectdata[n].processstatus==GNFbusy) && (v==first))
+      if ((object.processstatus==GNFbusy) && (v==first))
       {
         throw mcrl2::runtime_error("Unguarded recursion in process " + process::pp(procIdDecl) +".");
       }
 
-      if ((objectdata[n].processstatus==GNFbusy)||
-          (objectdata[n].processstatus==GNF)||
-          (objectdata[n].processstatus==mCRLdone)||
-          (objectdata[n].processstatus==multiAction))
+      if ((object.processstatus==GNFbusy)||
+          (object.processstatus==GNF)||
+          (object.processstatus==mCRLdone)||
+          (object.processstatus==multiAction))
       {
         return;
       }
 
-      if (objectdata[n].processstatus==mCRLbusy)
+      if (object.processstatus==mCRLbusy)
       {
         throw mcrl2::runtime_error("Unguarded recursion in process " + process::pp(procIdDecl) +".");
       }
 
-      throw mcrl2::runtime_error("strange process type: " + std::to_string(objectdata[n].processstatus));
+      throw mcrl2::runtime_error("strange process type: " + std::to_string(object.processstatus));
     }
 
     void procstorealGNF(const process_identifier& procsIdDecl,
@@ -3847,7 +3952,7 @@ class specification_basic_type
       if (reachable_process_identifiers.count(id)==0)  // not found
       {
         reachable_process_identifiers.insert(id);
-        make_pCRL_procs(objectdata[objectIndex(id)].processbody,reachable_process_identifiers);
+        make_pCRL_procs(objectIndex(id).processbody,reachable_process_identifiers);
       }
       return;
     }
@@ -4014,8 +4119,8 @@ class specification_basic_type
       std::map< process_identifier, process_identifier > identifier_identifier_map;
       for(const process_identifier& id: reachable_process_identifiers)
       {
-        std::size_t n=objectIndex(id);
-        const parameters_process_pair p(objectdata[n].parameters,objectdata[n].processbody);
+        objectdatatype& object=objectIndex(id);
+        const parameters_process_pair p(object.parameters,object.processbody);
         mapping_type::const_iterator i=process_mapping.find(p);
         if (i==process_mapping.end())   // Not found.
         {
@@ -4067,8 +4172,8 @@ class specification_basic_type
       for(const mapping_type_pair& p: process_mapping)
       {
         result.insert(p.second);
-        const std::size_t n=objectIndex(p.second);
-        objectdata[n].processbody=p.first.second;
+        objectdatatype& object=objectIndex(p.second);
+        object.processbody=p.first.second;
       }
       assert(result.count(initial_process)>0);
       return result;
@@ -4110,7 +4215,7 @@ class specification_basic_type
     std::set< process_identifier >
               remove_stochastic_operators_from_front(
                    const std::set< process_identifier >& reachable_process_identifiers,
-                   process_identifier& procId, // If parameters change, another procId will be substituted.
+                   process_identifier& initial_process_id, // If parameters change, another initial_process_id will be substituted.
                    stochastic_distribution& initial_stochastic_distribution)
     {
       /* First obtain the stochastic distribution for each process variable. */
@@ -4118,8 +4223,8 @@ class specification_basic_type
       std::set< process_identifier > result;
       for(const process_identifier& p: reachable_process_identifiers)
       {
-        const std::size_t n = objectIndex(p);
-        process_expression proc_=obtain_initial_distribution_term(objectdata[n].processbody);
+        objectdatatype& object = objectIndex(p);
+        process_expression proc_=obtain_initial_distribution_term(object.processbody);
         if (!is_stochastic_operator(proc_))
         {
           processes_with_stochastic_distribution_first.insert(std::pair< process_identifier, process_pid_pair >(p, process_pid_pair(proc_,p)));
@@ -4129,17 +4234,16 @@ class specification_basic_type
         {
           const stochastic_operator& proc=down_cast<const stochastic_operator>(proc_);
           assert(!is_process_instance_assignment(proc.operand()));
-          const std::size_t n=objectIndex(p);
-          std::set<variable> variables_occurring_in_rhs_of_sigma;
-          mutable_map_substitution<> local_sigma;
+          objectdatatype& object=objectIndex(p);
+          maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
           variable_list vars=proc.variables();
-          alphaconvert(vars,local_sigma, vars,data_expression_list(),variables_occurring_in_rhs_of_sigma);
+          alphaconvert(vars,local_sigma, vars + object.parameters, data_expression_list());
 
           const process_identifier newproc=newprocess(
-                                           vars + objectdata[n].parameters,
-                                           process::replace_variables_capture_avoiding(proc.operand(),
+                                           vars + object.parameters,
+                                           process::replace_variables_capture_avoiding_with_an_identifier_generator(proc.operand(),
                                                                                        local_sigma,
-                                                                                       variables_occurring_in_rhs_of_sigma),
+                                                                                       fresh_identifier_generator),
                                            pCRL,
                                            canterminatebody(proc.operand()),
                                            containstimebody(proc.operand()));
@@ -4150,9 +4254,7 @@ class specification_basic_type
                                  (p,
                                   process_pid_pair(stochastic_operator(
                                                         vars,
-                                                        data::replace_variables_capture_avoiding(proc.distribution(),
-                                                                                                 local_sigma,
-                                                                                                 variables_occurring_in_rhs_of_sigma),
+                                                        replace_variables_capture_avoiding_alt(proc.distribution(), local_sigma),
                                                         proc.operand()),
                                                    newproc)));
           result.insert(newproc);
@@ -4161,19 +4263,19 @@ class specification_basic_type
 
       for(const process_identifier& p: reachable_process_identifiers)
       {
-        const std::size_t n=objectIndex(processes_with_stochastic_distribution_first.at(p).process_id());
-        assert(!is_stochastic_operator(objectdata[n].processbody));
-        objectdata[n].processbody=transform_initial_distribution_term(objectdata[n].processbody,processes_with_stochastic_distribution_first);
-        assert(!is_stochastic_operator(objectdata[n].processbody));
+        objectdatatype& object=objectIndex(processes_with_stochastic_distribution_first.at(p).process_id());
+        assert(!is_stochastic_operator(object.processbody));
+        object.processbody=transform_initial_distribution_term(object.processbody,processes_with_stochastic_distribution_first);
+        assert(!is_stochastic_operator(object.processbody));
       }
 
       // Adapt the initial process
-      process_expression initial_distribution=processes_with_stochastic_distribution_first.at(procId).process_body();
+      process_expression initial_distribution=processes_with_stochastic_distribution_first.at(initial_process_id).process_body();
       if (is_stochastic_operator(initial_distribution))
       {
         const stochastic_operator sto=atermpp::down_cast<stochastic_operator>(initial_distribution);
         initial_stochastic_distribution = stochastic_distribution(sto.variables(), sto.distribution());
-        procId=processes_with_stochastic_distribution_first.at(procId).process_id();
+        initial_process_id=processes_with_stochastic_distribution_first.at(initial_process_id).process_id();
       }
       else
       {
@@ -4238,8 +4340,8 @@ class specification_basic_type
       variable_list parameters;
       for (const process_identifier& p: pCRLprocs)
       {
-        const std::size_t n=objectIndex(p);
-        parameters=joinparameters(parameters,objectdata[n].parameters);
+        const objectdatatype& object=objectIndex(p);
+        parameters=joinparameters(parameters,object.parameters);
       }
       return parameters;
     }
@@ -4284,10 +4386,10 @@ class specification_basic_type
 
           basic_sort stack_sort_alias(spec.fresh_identifier_generator("Stack"));
           structured_sort_constructor_argument_vector sp_push_arguments;
-          for (variable_list::const_iterator l = pl.begin() ; l!=pl.end() ; ++l)
+          for (const variable& v: pl)
           {
-            sp_push_arguments.push_back(structured_sort_constructor_argument(spec.fresh_identifier_generator("get" + std::string(l->name())), l->sort()));
-            sorts.push_front(l->sort());
+            sp_push_arguments.push_back(structured_sort_constructor_argument(spec.fresh_identifier_generator("get" + std::string(v.name())), v.sort()));
+            sorts.push_front(v.sort());
           }
           sp_push_arguments.push_back(structured_sort_constructor_argument(spec.fresh_identifier_generator("pop"), stack_sort_alias));
           sorts=reverse(sorts);
@@ -4485,7 +4587,7 @@ class specification_basic_type
       if (!options.binary)
       {
         const std::size_t e=create_enumeratedtype(stack.no_of_states);
-        function_symbol_list l(enumeratedtypes[e].elementnames);
+        data_expression_list l=enumeratedtypes[e].elementnames;
         for (; i>0 ; i--)
         {
           assert(l.size()>0);
@@ -4532,12 +4634,12 @@ class specification_basic_type
       }
 
       i=i-1; /* below we count from 0 instead from 1 as done in the
-                first version of the prover */
+                first version of the linearizer */
 
       if (!options.binary)
       {
         const std::size_t e=create_enumeratedtype(stack.no_of_states);
-        function_symbol_list l(enumeratedtypes[e].elementnames);
+        data_expression_list l(enumeratedtypes[e].elementnames);
         for (; i>0 ; i--)
         {
           l.pop_front();
@@ -4597,7 +4699,7 @@ class specification_basic_type
       }
 
       if (!options.binary) /* Here a state encoding using enumerated types
-                        must be declared */
+                              must be declared */
       {
         create_enumeratedtype(stack.no_of_states);
         if (regular)
@@ -4617,16 +4719,16 @@ class specification_basic_type
 
       i=i-1; /* start counting from 0, instead from 1 */
       data_expression t3(sort_bool::true_());
-      for (variable_list::const_iterator v=vars.begin(); v!=vars.end(); ++v)
+      for (const variable& v: vars)
       {
         if ((i % 2)==0)
         {
-          t3=lazy::and_(lazy::not_(*v),t3);
+          t3=lazy::and_(lazy::not_(v),t3);
           i=i/2;
         }
         else
         {
-          t3=lazy::and_(*v,t3);
+          t3=lazy::and_(v,t3);
           i=(i-1)/2;
         }
 
@@ -4877,8 +4979,8 @@ class specification_basic_type
       bool singlestate,
       const variable_list& stochastic_variables)
     {
-      const std::size_t n=objectIndex(procId);
-      const assignment_list t=find_dummy_arguments(stack.parameters,args,get_free_variables(n),stochastic_variables);
+      objectdatatype& object=objectIndex(procId);
+      const assignment_list t=find_dummy_arguments(stack.parameters,args,get_free_variables(object),stochastic_variables);
 
       if (singlestate)
       {
@@ -4936,11 +5038,11 @@ class specification_basic_type
       const variable_list& vars,
       const variable_list& stochastic_variables)
     {
-      const std::size_t n=objectIndex(procId);
-      const data_expression_list t=findarguments(objectdata[n].parameters,
+      objectdatatype& object=objectIndex(procId);
+      const data_expression_list t=findarguments(object.parameters,
                                                  stack.parameters,
                                                  args,t2,stack,vars,
-                                                 get_free_variables(n),
+                                                 get_free_variables(object),
                                                  stochastic_variables);
 
       std::size_t i=1;
@@ -4973,7 +5075,7 @@ class specification_basic_type
         const process_identifier& procId=process.identifier();
         const assignment_list& t1=process.assignments();
 
-        if (objectdata[objectIndex(procId)].canterminate)
+        if (objectIndex(procId).canterminate)
         {
           const data_expression stackframe=make_procargs_stack(process2,stack,pcrlprcs, vars,stochastic_variables);
           return push_stack(procId,t1, data_expression_list({ stackframe }),stack,pcrlprcs,vars,stochastic_variables);
@@ -4988,7 +5090,7 @@ class specification_basic_type
         const process_identifier procId=process_instance_assignment(t).identifier();
         const assignment_list t1=process_instance_assignment(t).assignments();
 
-        if (objectdata[objectIndex(procId)].canterminate)
+        if (objectIndex(procId).canterminate)
         {
           return push_stack(procId,
                             t1,
@@ -5032,9 +5134,9 @@ class specification_basic_type
                   const variable_list& pars)
     {
       assert(is_variable(name));
-      for (variable_list::const_iterator l=pars.begin() ; l!=pars.end(); ++l)
+      for (const variable& v: pars)
       {
-        if (name.name()==l->name())
+        if (name.name()==v.name())
         {
           return true;
         }
@@ -5043,50 +5145,36 @@ class specification_basic_type
     }
 
 
-    assignment_list pushdummyrec_regular(
-      const variable_list& totalpars,
+    assignment_list pushdummy_regular(
       const variable_list& pars,
       const stacklisttype& stack,
       const variable_list& stochastic_variables)
     {
-      /* totalpars is the total list of parameters of the
+      /* stack.parameters is the total list of parameters of the
          aggregated pCRL process. The variable pars contains
          the list of all variables occuring in the initial
          process. */
 
-      if (totalpars.empty())
+      assignment_vector result;
+      for(const variable& par: stack.parameters)
       {
-        return assignment_list();
+        // Check whether it is a stochastic variable.
+        if (std::find(stochastic_variables.begin(),stochastic_variables.end(),par)!=pars.end())
+        {
+          result.push_back(assignment(par,par)); 
+        }
+        // Otherwise, check that is is an ordinary parameter.
+        else if (std::find(pars.begin(),pars.end(),par)!=pars.end())
+        {
+        }
+        /* otherwise the value of this argument is irrelevant, so
+           make it a don't care variable. */
+        else
+        {
+          result.push_back(assignment(par,representative_generator_internal(par.sort())));
+        }
       }
-
-      const variable& par=totalpars.front();
-      // Check whether it is a stochastic variable.
-      if (std::find(stochastic_variables.begin(),stochastic_variables.end(),par)!=pars.end())
-      {
-        assignment_list result=pushdummyrec_regular(totalpars.tail(),pars,stack,stochastic_variables);
-        result.push_front(assignment(par,par));
-        return result;
-      }
-      // Otherwise, check that is is an ordinary parameter.
-      if (std::find(pars.begin(),pars.end(),par)!=pars.end())
-      {
-        assignment_list result=pushdummyrec_regular(totalpars.tail(),pars,stack,stochastic_variables);
-        return result;
-      }
-      /* otherwise the value of this argument is irrelevant, so
-         make it a don't care variable. */
-
-      assignment_list result=pushdummyrec_regular(totalpars.tail(),pars,stack,stochastic_variables);
-      result.push_front(assignment(par,representative_generator_internal(par.sort())));
-      return result;
-    }
-
-    assignment_list pushdummy_regular(
-      const variable_list& parameters,
-      const stacklisttype& stack,
-      const variable_list& stochastic_variables)
-    {
-      return pushdummyrec_regular(stack.parameters,parameters,stack,stochastic_variables);
+      return assignment_list(result.begin(), result.end());
     }
 
     data_expression_list pushdummyrec_stack(
@@ -5157,7 +5245,7 @@ class specification_basic_type
       if (regular)
       {
         assignment_list result=
-          pushdummy_regular(objectdata[objectIndex(initialProcId)].parameters,
+          pushdummy_regular(objectIndex(initialProcId).parameters,
                             stack,
                             initial_stochastic_distribution.variables());
         if (!singlecontrolstate)
@@ -5169,7 +5257,7 @@ class specification_basic_type
       else
       {
         data_expression_list result=
-                pushdummy_stack(objectdata[objectIndex(initialProcId)].parameters,
+                pushdummy_stack(objectIndex(initialProcId).parameters,
                                 stack,
                                 initial_stochastic_distribution.variables());
         const data_expression_list l=processencoding(i,result,stack);
@@ -5266,10 +5354,9 @@ class specification_basic_type
 
       // Check whether the variables in sumvars clash with the parameter list,
       // and rename the summandterm accordingly.
-      mutable_map_substitution<> local_sigma;
-      std::set<variable> local_rhs_variables_in_sigma;
-      alphaconvert(sumvars,local_sigma,process_parameters,data_expression_list(),local_rhs_variables_in_sigma);
-      summandterm=substitute_pCRLproc(summandterm, local_sigma, local_rhs_variables_in_sigma);
+      maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
+      alphaconvert(sumvars,local_sigma,process_parameters,data_expression_list());
+      summandterm=substitute_pCRLproc(summandterm, local_sigma);
 
 
       /* translate the condition */
@@ -5502,13 +5589,13 @@ class specification_basic_type
     {
       for (const process_identifier& p: pCRLprocs)
       {
-        const std::size_t n=objectIndex(p);
+        objectdatatype& object=objectIndex(p);
 
         collectsumlistterm(
           p,
           action_summands,
           deadlock_summands,
-          objectdata[n].processbody,
+          object.processbody,
           pars,
           stack,
           regular,
@@ -5865,13 +5952,10 @@ class specification_basic_type
 
     data_expression_list extend(const data_expression& c, const data_expression_list& cl)
     {
-      if (cl.empty())
-      {
-        return cl;
-      }
-      data_expression_list result=extend(c,cl.tail());
-      result.push_front(data_expression(lazy::and_(c,cl.front())));
-      return result;
+      return data_expression_list(cl.begin(), 
+                                  cl.end(), 
+                                  [&c](const data_expression& e)->data_expression { return lazy::and_(c,e);} );
+
     }
 
     data_expression variables_are_equal_to_default_values(const variable_list& vl)
@@ -5890,24 +5974,39 @@ class specification_basic_type
       const variable& var,
       const data_expression_list& conditionlist)
     {
-      const data_expression unique=representative_generator_internal(var.sort(),false);
-      const data_expression newcondition=equal_to(var,unique);
-      return extend(newcondition,conditionlist);
+      try 
+      {
+        const data_expression unique=representative_generator_internal(var.sort(),false);
+        const data_expression newcondition=equal_to(var,unique);
+        return extend(newcondition,conditionlist);
+      }
+      catch (mcrl2::runtime_error &e)
+      {
+        // The representative generator failed to find a term of var.sort(). 
+        // No condition is generated, meaning that var will be unrestrained. This
+        // is correct, and as the var.sort() has no concrete value, this will most
+        // likely not effect matters as state space generation. 
+        return conditionlist;
+      }
     }
 
 
     data_expression transform_matching_list(const variable_list& matchinglist)
     {
-      if (matchinglist.empty())
+      data_expression result=sort_bool::true_();
+      for(const variable& v: matchinglist)
       {
-        return sort_bool::true_();
+        try
+        {
+          data_expression unique=representative_generator_internal(v.sort(),false);
+          result=lazy::and_(result, equal_to(v,unique));
+        }
+        catch (mcrl2::runtime_error& e)
+        {
+          // No representant for sort v.sort() could be found. No condition is added. 
+        }
       }
-
-      const variable& var=matchinglist.front();
-      data_expression unique=representative_generator_internal(var.sort(),false);
-      return lazy::and_(
-               transform_matching_list(matchinglist.tail()),
-               equal_to(data_expression(var),unique));
+      return result;
     }
 
 
@@ -5946,9 +6045,9 @@ class specification_basic_type
       variable_list v1h=(v2.empty()?reverse(v1):v1);
 
       variable_list result=v2;
-      for (variable_list::const_iterator i1=v1h.begin(); i1!=v1h.end() ; ++i1)
+      for (const variable& v_: v1h)
       {
-        variable v=*i1;
+        variable v=v_;
         if (!mergeoccursin(v,v2,
                            matchinglist,renamingpars,renamingargs,process_parameters))
         {
@@ -6126,9 +6225,9 @@ class specification_basic_type
       data_expression binarysumcondition;
       int equaluptillnow=1;
 
-      for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end() ; ++walker)
+      for (const stochastic_action_summand& smmnd: action_summands)
       {
-        const variable_list sumvars=walker->summation_variables();
+        const variable_list sumvars=smmnd.summation_variables();
         resultsum=merge_var(sumvars,resultsum,rename_list_pars,rename_list_args,conditionlist,parameters);
       }
 
@@ -6152,9 +6251,8 @@ class specification_basic_type
 
       data_expression equalterm;
       equaluptillnow=1;
-      for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end(); ++walker)
+      for (const stochastic_action_summand& smmnd: action_summands)
       {
-        const stochastic_action_summand smmnd=*walker;
         const data_expression& condition=smmnd.condition();
         assert(auxrename_list_pars!=rename_list_pars.end());
         assert(auxrename_list_args!=rename_list_args.end());
@@ -6162,23 +6260,21 @@ class specification_basic_type
         ++auxrename_list_pars;
         const data_expression_list auxargs= *auxrename_list_args;
         ++auxrename_list_args;
-        std::map<variable,data_expression> sigma;
-        std::set<variable> variables_in_rhs_of_sigma;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
         data_expression_list::const_iterator j=auxargs.begin();
         for (variable_list::const_iterator i=auxpars.begin();
              i!=auxpars.end(); ++i, ++j)
         {
           /* Substitutions are carried out from left to right. The first applicable substitution counts */
-          if (sigma.count(*i)==0)
+          if (sigma(*i)==*i)  // sigma *i is undefined. 
           {
             sigma[*i]=*j;
             const std::set<variable> varset=find_free_variables(*j);
-            variables_in_rhs_of_sigma.insert(varset.begin(),varset.end());
           }
         }
-        mutable_map_substitution<> mutable_sigma(sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
 
-        const data_expression auxresult1=data::replace_variables_capture_avoiding(condition,mutable_sigma,variables_in_rhs_of_sigma);
+        const data_expression auxresult1=replace_variables_capture_avoiding_alt(condition,mutable_sigma);
         if (equalterm==data_expression()||is_global_variable(equalterm))
         {
           equalterm=auxresult1;
@@ -6250,9 +6346,9 @@ class specification_basic_type
          of multiactions */
       std::vector < action_list > multiActionList;
 
-      for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end() ; ++walker)
+      for (const stochastic_action_summand& smmnd: action_summands)
       {
-        multiActionList.push_back(walker->multi_action().actions());
+        multiActionList.push_back(smmnd.multi_action().actions());
       }
 
       action_list resultmultiactionlist;
@@ -6291,23 +6387,21 @@ class specification_basic_type
             data_expression_list::const_iterator d1=(a1->arguments()).begin();
             for (std::size_t i=1; i<fcnt; ++i, ++d1) {};
             f= *d1;
-            std::map<variable,data_expression> sigma;
-            std::set<variable> variables_in_rhs_sigma;
+            maintain_variables_in_rhs< mutable_map_substitution<> > sigma; 
             data_expression_list::const_iterator j=auxargs.begin();
             for (variable_list::const_iterator i=auxpars.begin();
                  i!=auxpars.end(); ++i, ++j)
             {
               /* Substitutions are carried out from left to right. The first applicable substitution counts */
-              if (sigma.count(*i)==0)
+              if (sigma(*i)==*i)  // *i is not assigned in sigma. 
               {
                 sigma[*i]=*j;
                 std::set<variable> varset=find_free_variables(*j);
-                variables_in_rhs_sigma.insert(varset.begin(),varset.end());
               }
             }
 
-            mutable_map_substitution<> mutable_sigma(sigma);
-            const data_expression auxresult1=data::replace_variables_capture_avoiding(f,mutable_sigma,variables_in_rhs_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+            const data_expression auxresult1=replace_variables_capture_avoiding_alt(f,mutable_sigma);
 
             if (equalterm==data_expression()||is_global_variable(equalterm))
             {
@@ -6361,9 +6455,9 @@ class specification_basic_type
       bool all_summands_have_time=true;
 
       // first find out whether there is a summand with explicit time.
-      for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin() ; walker!=action_summands.end(); ++walker)
+      for (const stochastic_action_summand& smmnd: action_summands)
       {
-        if (walker->has_time())
+        if (smmnd.has_time())
         {
           some_summand_has_time=true;
         }
@@ -6385,11 +6479,11 @@ class specification_basic_type
         std::vector < variable_list >::const_iterator auxrename_list_pars=rename_list_pars.begin();
         std::vector < data_expression_list >::const_iterator auxrename_list_args=rename_list_args.begin();
         data_expression_list auxresult;
-        for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end(); ++walker)
+        for (const stochastic_action_summand& smmnd: action_summands)
         {
-          if (walker->has_time())
+          if (smmnd.has_time())
           {
-            const data_expression actiontime=walker->multi_action().time();
+            const data_expression actiontime=smmnd.multi_action().time();
 
             assert(auxrename_list_pars!=rename_list_pars.end());
             assert(auxrename_list_args!=rename_list_args.end());
@@ -6398,23 +6492,21 @@ class specification_basic_type
             const data_expression_list auxargs= *auxrename_list_args;
             ++auxrename_list_args;
 
-            std::map < variable, data_expression > sigma;
-            std::set<variable> variables_in_rhs_sigma;
+            maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
             data_expression_list::const_iterator j=auxargs.begin();
             for (variable_list::const_iterator i=auxpars.begin();
                  i!=auxpars.end(); ++i, ++j)
             {
               /* Substitutions are carried out from left to right. The first applicable substitution counts */
-              if (sigma.count(*i)==0)
+              if (sigma(*i)==*i)   // sigma is not defined for *i.
               {
                 sigma[*i]=*j;
                 std::set<variable> varset=find_free_variables(*j);
-                variables_in_rhs_sigma.insert(varset.begin(),varset.end());
               }
             }
 
-            mutable_map_substitution<> mutable_sigma(sigma);
-            const data_expression auxresult1=data::replace_variables_capture_avoiding(actiontime, mutable_sigma,variables_in_rhs_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+            const data_expression auxresult1=replace_variables_capture_avoiding_alt(actiontime, mutable_sigma);
             if (equalterm==data_expression()||is_global_variable(equalterm))
             {
               equalterm=auxresult1;
@@ -6466,9 +6558,9 @@ class specification_basic_type
       data_expression resulting_distribution=real_one();
       {
         data_expression_list stochastic_conditionlist;
-        for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end() ; ++walker)
+        for (const stochastic_action_summand& smmnd: action_summands)
         {
-          const variable_list stochastic_vars=walker->distribution().variables();
+          const variable_list stochastic_vars=smmnd.distribution().variables();
           resulting_stochastic_variables=merge_var(stochastic_vars,resulting_stochastic_variables,
                               stochastic_rename_list_pars,stochastic_rename_list_args,stochastic_conditionlist,parameters);
         }
@@ -6482,9 +6574,8 @@ class specification_basic_type
         data_expression_list aux_result;
         data_expression equalterm;
         equaluptillnow=1;
-        for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end(); ++walker)
+        for (const stochastic_action_summand& smmnd: action_summands)
         {
-          const stochastic_action_summand smmnd=*walker;
           const data_expression dist=smmnd.distribution().distribution();
           const variable_list stochastic_variables=smmnd.distribution().variables();
           assert(auxrename_list_pars!=rename_list_pars.end());
@@ -6500,18 +6591,16 @@ class specification_basic_type
           ++stochastic_auxrename_list_pars;
           const data_expression_list stochastic_auxargs= *stochastic_auxrename_list_args;
           ++stochastic_auxrename_list_args;
-          std::map<variable,data_expression> sigma;
-          std::set<variable> variables_in_rhs_of_sigma;
+          maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
           data_expression_list::const_iterator j=stochastic_auxargs.begin();
           for (variable_list::const_iterator i=stochastic_auxpars.begin();
                i!=stochastic_auxpars.end(); ++i, ++j)
           {
             /* Substitutions are carried out from left to right. The first applicable substitution counts */
-            if (sigma.count(*i)==0)
+            if (sigma(*i)==*i)  // sigma is not defined for *i.
             {
               sigma[*i]=*j;
               const std::set<variable> varset=find_free_variables(*j);
-              variables_in_rhs_of_sigma.insert(varset.begin(),varset.end());
             }
           }
           j=auxargs.begin();
@@ -6519,16 +6608,15 @@ class specification_basic_type
                i!=auxpars.end(); ++i, ++j)
           {
             /* Substitutions are carried out from left to right. The first applicable substitution counts */
-            if (sigma.count(*i)==0)
+            if (sigma(*i)==*i) // sigma is not defined for *i.
             {
               sigma[*i]=*j;
               const std::set<variable> varset=find_free_variables(*j);
-              variables_in_rhs_of_sigma.insert(varset.begin(),varset.end());
             }
           }
-          mutable_map_substitution<> mutable_sigma(sigma);
+          maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
 
-          const data_expression auxresult1=data::replace_variables_capture_avoiding(dist,mutable_sigma,variables_in_rhs_of_sigma);
+          const data_expression auxresult1=replace_variables_capture_avoiding_alt(dist,mutable_sigma);
           if (equalterm==data_expression()||is_global_variable(equalterm))
           {
             equalterm=auxresult1;
@@ -6632,9 +6720,9 @@ class specification_basic_type
         std::vector < variable_list >::const_iterator stochastic_auxrename_list_pars=stochastic_rename_list_pars.begin();
         std::vector < data_expression_list >::const_iterator stochastic_auxrename_list_args=stochastic_rename_list_args.begin();
         data_expression_list auxresult;
-        for (stochastic_action_summand_vector::const_iterator walker=action_summands.begin(); walker!=action_summands.end(); ++walker)
+        for (const stochastic_action_summand& smmnd: action_summands)
         {
-          const assignment_list nextstate=walker->assignments();
+          const assignment_list nextstate=smmnd.assignments();
           assert(auxrename_list_pars!=rename_list_pars.end());
           assert(auxrename_list_args!=rename_list_args.end());
           assert(stochastic_auxrename_list_pars!=stochastic_rename_list_pars.end());
@@ -6651,18 +6739,16 @@ class specification_basic_type
           data_expression nextstateparameter;
           nextstateparameter=getRHSassignment(*var_it,nextstate);
 
-          std::map < variable, data_expression > sigma;
-          std::set<variable> variables_in_rhs_sigma;
+          maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
           data_expression_list::const_iterator j=stochastic_auxargs.begin();
           for (variable_list::const_iterator i=stochastic_auxpars.begin();
                  i!=stochastic_auxpars.end(); ++i, ++j)
           {
             /* Substitutions are carried out from left to right. The first applicable substitution counts */
-            if (sigma.count(*i)==0)
+            if (sigma(*i)==*i)  // sigma is not defined for *i.
             {
               sigma[*i]=*j;
               std::set<variable> varset=find_free_variables(*j);
-              variables_in_rhs_sigma.insert(varset.begin(),varset.end());
             }
           }
           j=auxargs.begin();
@@ -6670,16 +6756,15 @@ class specification_basic_type
                  i!=auxpars.end(); ++i, ++j)
           {
             /* Substitutions are carried out from left to right. The first applicable substitution counts */
-            if (sigma.count(*i)==0)
+            if (sigma(*i)==*i)  // sigma is not defined for *i. 
             {
               sigma[*i]=*j;
               std::set<variable> varset=find_free_variables(*j);
-              variables_in_rhs_sigma.insert(varset.begin(),varset.end());
             }
           }
 
-          mutable_map_substitution<> mutable_sigma(sigma);
-          data_expression auxresult1=data::replace_variables_capture_avoiding(nextstateparameter, mutable_sigma,variables_in_rhs_sigma);
+          maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+          data_expression auxresult1=replace_variables_capture_avoiding_alt(nextstateparameter, mutable_sigma);
           if (equalterm==data_expression()) // ||is_global_variable(equalterm)) Adding this last part leads to smaller case functions,
                                             // but bigger and less structured state spaces, as parameters are less often put to default
                                             // values. Constant elimination can less often be applied as constant eliminiation does not
@@ -6769,9 +6854,9 @@ class specification_basic_type
       data_expression binarysumcondition;
       int equaluptillnow=1;
 
-      for (deadlock_summand_vector::const_iterator walker=deadlock_summands.begin(); walker!=deadlock_summands.end() ; ++walker)
+      for (const deadlock_summand& smmnd: deadlock_summands)
       {
-        const variable_list sumvars=walker->summation_variables();
+        const variable_list sumvars=smmnd.summation_variables();
         resultsum=merge_var(sumvars,resultsum,rename_list_pars,rename_list_args,conditionlist,parameters);
       }
 
@@ -6795,9 +6880,8 @@ class specification_basic_type
 
       data_expression equalterm;
       equaluptillnow=1;
-      for (deadlock_summand_vector::const_iterator walker=deadlock_summands.begin(); walker!=deadlock_summands.end(); ++walker)
+      for (const deadlock_summand& smmnd: deadlock_summands)
       {
-        const deadlock_summand smmnd=*walker;
         const data_expression& condition=smmnd.condition();
         assert(auxrename_list_pars!=rename_list_pars.end());
         assert(auxrename_list_args!=rename_list_args.end());
@@ -6805,23 +6889,21 @@ class specification_basic_type
         ++auxrename_list_pars;
         const data_expression_list auxargs= *auxrename_list_args;
         ++auxrename_list_args;
-        std::map < variable, data_expression > sigma;
-        std::set<variable> variables_in_rhs_sigma;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
         data_expression_list::const_iterator j=auxargs.begin();
         for (variable_list::const_iterator i=auxpars.begin();
              i!=auxpars.end(); ++i, ++j)
         {
           /* Substitutions are carried out from left to right. The first applicable substitution counts */
-          if (sigma.count(*i)==0)
+          if (sigma(*i)== *i) // sigma is not defined for *i. 
           {
             sigma[*i]=*j;
             std::set<variable> varset=find_free_variables(*j);
-            variables_in_rhs_sigma.insert(varset.begin(),varset.end());
           }
         }
 
-        mutable_map_substitution<> mutable_sigma(sigma);
-        const data_expression auxresult1=data::replace_variables_capture_avoiding(condition, mutable_sigma,variables_in_rhs_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+        const data_expression auxresult1=replace_variables_capture_avoiding_alt(condition, mutable_sigma);
         if (equalterm==data_expression()||is_global_variable(equalterm))
         {
           equalterm=auxresult1;
@@ -6903,9 +6985,9 @@ class specification_basic_type
       bool all_summands_have_time=true;
 
       // first find out whether there is a summand with explicit time.
-      for (deadlock_summand_vector::const_iterator walker=deadlock_summands.begin() ; walker!=deadlock_summands.end(); ++walker)
+      for (const deadlock_summand& smmnd: deadlock_summands)
       {
-        if (walker->deadlock().has_time())
+        if (smmnd.deadlock().has_time())
         {
           some_summand_has_time=true;
         }
@@ -6927,11 +7009,11 @@ class specification_basic_type
         std::vector < variable_list >::const_iterator auxrename_list_pars=rename_list_pars.begin();
         std::vector < data_expression_list >::const_iterator auxrename_list_args=rename_list_args.begin();
         data_expression_list auxresult;
-        for (deadlock_summand_vector::const_iterator walker=deadlock_summands.begin(); walker!=deadlock_summands.end(); ++walker)
+        for (const deadlock_summand& smmnd: deadlock_summands)
         {
-          if (walker->deadlock().has_time())
+          if (smmnd.deadlock().has_time())
           {
-            const data_expression actiontime=walker->deadlock().time();
+            const data_expression actiontime=smmnd.deadlock().time();
 
             assert(auxrename_list_pars!=rename_list_pars.end());
             assert(auxrename_list_args!=rename_list_args.end());
@@ -6940,23 +7022,21 @@ class specification_basic_type
             const data_expression_list auxargs= *auxrename_list_args;
             ++auxrename_list_args;
 
-            std::map < variable, data_expression > sigma;
-            std::set<variable> variables_in_rhs_sigma;
+            maintain_variables_in_rhs< mutable_map_substitution<> > sigma; 
             data_expression_list::const_iterator j=auxargs.begin();
             for (variable_list::const_iterator i=auxpars.begin();
                  i!=auxpars.end(); ++i, ++j)
             {
               /* Substitutions are carried out from left to right. The first applicable substitution counts */
-              if (sigma.count(*i)==0)
+              if (sigma(*i)==*i)  // sigma is not defined for *i.
               {
                 sigma[*i]=*j;
                 std::set<variable> varset=find_free_variables(*j);
-                variables_in_rhs_sigma.insert(varset.begin(),varset.end());
               }
             }
 
-            mutable_map_substitution<> mutable_sigma(sigma);
-            const data_expression auxresult1=data::replace_variables_capture_avoiding(actiontime, mutable_sigma,variables_in_rhs_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+            const data_expression auxresult1=replace_variables_capture_avoiding_alt(actiontime, mutable_sigma);
             if (equalterm==data_expression()||is_global_variable(equalterm))
             {
               equalterm=auxresult1;
@@ -7238,12 +7318,11 @@ class specification_basic_type
     {
       action_list resultactionlist;
 
-      for (action_list::const_iterator walker=multiaction.begin();
-           walker!=multiaction.end(); ++walker)
+      for (const action& a: multiaction)
       {
-        if (std::find(hidelist.begin(),hidelist.end(),walker->label().name())==hidelist.end())
+        if (std::find(hidelist.begin(),hidelist.end(),a.label().name())==hidelist.end())
         {
-          resultactionlist.push_front(*walker);
+          resultactionlist.push_front(a);
         }
       }
 
@@ -7591,11 +7670,10 @@ class specification_basic_type
     {
       action_list resultactionlist;
 
-      for (action_list::const_iterator walker=multiaction.begin();
-           walker!=multiaction.end(); ++walker)
+      for (const action& a: multiaction)
       {
         resultactionlist=linInsertActionInMultiActionList(
-                           rename_action(renamings,*walker),
+                           rename_action(renamings,a),
                            resultactionlist);
       }
       return resultactionlist;
@@ -7739,9 +7817,9 @@ class specification_basic_type
     {
       identifier_string_list result;
       const identifier_string_list& actionlabels(actionlabels1.names());
-      for (identifier_string_list::const_iterator i=actionlabels.begin(); i!=actionlabels.end(); ++i)
+      for (const identifier_string& id: actionlabels)
       {
-        result=insertActionLabel(*i,result);
+        result=insertActionLabel(id,result);
       }
       return action_name_multiset(result);
     }
@@ -7749,43 +7827,28 @@ class specification_basic_type
     template <typename List>
     sort_expression_list get_sorts(const List& l)
     {
-      if (l.empty())
-      {
-        return sort_expression_list();
-      }
-      sort_expression_list result=get_sorts(l.tail());
-      result.push_front(l.front().sort());
-      return result;
+      return sort_expression_list(l.begin(), l.end(), [](const typename List::value_type& d) -> sort_expression {return d.sort();});
     }
 
     // Check that the sorts of both termlists match.
     data_expression pairwiseMatch(const data_expression_list& l1, const data_expression_list& l2)
     {
-      if (l1.empty())
+      if (l1.size()!=l2.size())
       {
-        if (l2.empty())
+        return sort_bool::false_();
+      }
+      data_expression_list::const_iterator i2=l2.begin();
+      data_expression result=sort_bool::true_();
+      for(const data_expression& t1: l1)
+      {
+        if (t1.sort()!=i2->sort())
         {
-          return sort_bool::true_();
+          return sort_bool::false_();
         }
-        return sort_bool::false_();
+        result=lazy::and_(result,RewriteTerm(equal_to(t1,*i2)));
+        ++i2;
       }
-
-      if (l2.empty())
-      {
-        return sort_bool::false_();
-      }
-
-      const data_expression& t1=l1.front();
-      const data_expression& t2=l2.front();
-
-      if (t1.sort()!=t2.sort())
-      {
-        return sort_bool::false_();
-      }
-
-      data_expression result=pairwiseMatch(l1.tail(),l2.tail());
-
-      return lazy::and_(result,RewriteTerm(equal_to(t1,t2)));
+      return result;
     }
 
     // a tuple_list contains pairs of actions (multi-action) and the condition under which this action
@@ -7833,11 +7896,10 @@ class specification_basic_type
 
         comm_entry(const communication_expression_list& communications)
         {
-          for (communication_expression_list::const_iterator l=communications.begin();
-               l!=communications.end(); ++l)
+          for (const communication_expression& l: communications)
           {
-            lhs.push_back(l->action_name().names());
-            rhs.push_back(l->name());
+            lhs.push_back(l.action_name().names());
+            rhs.push_back(l.name());
             tmp.push_back(identifier_string_list());
             match_failed.push_back(false);
           }
@@ -7867,9 +7929,9 @@ class specification_basic_type
       }
 
       // m must match a lhs; check every action
-      for (action_list::const_iterator mwalker=m.begin(); mwalker!=m.end(); ++mwalker)
+      for (const action& a: m)
       {
-        identifier_string actionname=mwalker->label().name();
+        identifier_string actionname=a.label().name();
 
         // check every lhs for actionname
         bool comm_ok = false;
@@ -7940,9 +8002,9 @@ class specification_basic_type
       }
 
       // m must be contained in a lhs; check every action
-      for (action_list::const_iterator mwalker=m.begin(); mwalker!=m.end(); ++mwalker)
+      for (const action& a: m)
       {
-        const identifier_string actionname=mwalker->label().name();
+        const identifier_string actionname=a.label().name();
         // check every lhs for actionname
         bool comm_ok = false;
         for (std::size_t i=0; i<comm_table.size(); ++i)
@@ -8161,7 +8223,7 @@ class specification_basic_type
       if (multiaction.empty())
       {
         tuple_list t;
-        t.conditions.push_back((r_is_null)?static_cast<data_expression>(sort_bool::true_()):psi(r,comm_table));
+        t.conditions.push_back((r_is_null)?static_cast<const data_expression&>(sort_bool::true_()):psi(r,comm_table));
         t.actions.push_back(action_list());
         return t;
       }
@@ -8356,7 +8418,7 @@ class specification_basic_type
       if (is_variable(actiontime))
       {
         const variable& t = atermpp::down_cast<variable>(actiontime);
-        if (occursintermlist(t, data_expression_list(sumvars)) && !occursinterm(t, condition))
+        if (occursintermlist(t, variable_list_to_data_expression_list(sumvars)) && !occursinterm(t, condition))
         {
           return true;
         }
@@ -8550,24 +8612,22 @@ class specification_basic_type
         const variable_list& auxpars=*renamings_par;
         const data_expression_list& auxargs=*renamings_arg;
 
-        std::map < variable, data_expression > sigma;
-        std::set<variable> variables_in_rhs_sigma;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma; 
         data_expression_list::const_iterator j1=auxargs.begin();
         for (variable_list::const_iterator i1=auxpars.begin();
              i1!=auxpars.end(); ++i1, ++j1)
         {
           /* Substitutions are carried out from left to right. The first applicable substitution counts */
-          if (sigma.count(*i1)==0)
+          if (sigma(*i1)==*i1)
           {
             sigma[*i1]=*j1;
             std::set<variable> varset=find_free_variables(*j);
-            variables_in_rhs_sigma.insert(varset.begin(),varset.end());
 
           }
         }
 
-        mutable_map_substitution<> mutable_sigma(sigma);
-        result=lazy::or_(result,data::replace_variables_capture_avoiding(lazy::and_(*i,*j), mutable_sigma, variables_in_rhs_sigma));
+        maintain_variables_in_rhs< mutable_map_substitution<> > mutable_sigma(sigma);
+        result=lazy::or_(result,replace_variables_capture_avoiding_alt(lazy::and_(*i,*j), mutable_sigma));
       }
       return lps::detail::ultimate_delay(time_variable, existentially_quantified_variables, RewriteTerm(result));
     }
@@ -8575,21 +8635,19 @@ class specification_basic_type
 
     /******** make_unique_variables **********************/
 
-    data::mutable_map_substitution<> make_unique_variables(
+    data::maintain_variables_in_rhs< data::mutable_map_substitution<> >  make_unique_variables(
       const variable_list& var_list,
-      const std::string& hint,
-      std::set<data::variable>& rhs_variables)
+      const std::string& hint)
     {
       /* This function generates a list of variables with the same sorts
          as in variable_list, where all names are unique */
 
-      data::mutable_map_substitution<> sigma;
+      data::maintain_variables_in_rhs< data::mutable_map_substitution<> >  sigma;
 
       for(variable_list::const_iterator i=var_list.begin(); i!=var_list.end(); ++i)
       {
         const data::variable v = get_fresh_variable(std::string(i->name()) + ((hint.empty())?"":"_") + hint, i->sort());
         sigma[*i] = v;
-        rhs_variables.insert(v);
       }
       return sigma;
     }
@@ -8606,38 +8664,35 @@ class specification_basic_type
     {
       stochastic_action_summand_vector result_action_summands;
 
-      std::set<data::variable> rhs_variables_sigma;
-      data::mutable_map_substitution<> sigma=make_unique_variables(pars, hint, rhs_variables_sigma);
+      data::maintain_variables_in_rhs<data::mutable_map_substitution<> > sigma=make_unique_variables(pars, hint);
       const variable_list unique_pars=data::replace_variables(pars, sigma);
 
-      init=substitute_assignmentlist(init,pars,true,false, sigma,rhs_variables_sigma);  // Only substitute the variables in the lhs.
+      init=substitute_assignmentlist(init,pars,true,false, sigma);  // Only substitute the variables in the lhs.
 
       if (!options.ignore_time)
       {
         // Remove variables locally bound in the ultimate_delay_condition
-        data::mutable_map_substitution<> local_sigma=sigma;
+        maintain_variables_in_rhs< data::mutable_map_substitution<> > local_sigma=sigma;
         for(const variable& v: ultimate_delay_condition.variables())
         {
           local_sigma[v]=v;
         }
-        ultimate_delay_condition.constraint()=data::replace_variables_capture_avoiding(
+        ultimate_delay_condition.constraint()=replace_variables_capture_avoiding_alt(
                                                        ultimate_delay_condition.constraint(),
-                                                       local_sigma,
-                                                       rhs_variables_sigma);  // Only substitute the variables in the lhs.
+                                                       local_sigma);  // Only substitute the variables in the lhs.
       }
       for (stochastic_action_summand_vector::const_iterator s=action_summands.begin(); s!=action_summands.end(); ++s)
       {
         const stochastic_action_summand smmnd= *s;
 
-        std::set<data::variable> rhs_variables_sumvars;
         const variable_list& sumvars=smmnd.summation_variables();
-        data::mutable_map_substitution<> sigma_sumvars=make_unique_variables(sumvars,hint,rhs_variables_sumvars);
+        data::maintain_variables_in_rhs<data::mutable_map_substitution<> > sigma_sumvars=make_unique_variables(sumvars,hint);
         const variable_list unique_sumvars=data::replace_variables(sumvars, sigma_sumvars);
 
         stochastic_distribution distribution=smmnd.distribution();
-        std::set<data::variable> rhs_variables_stochastic_vars;
         const variable_list stochastic_vars=distribution.variables();
-        data::mutable_map_substitution<> sigma_stochastic_vars=make_unique_variables(stochastic_vars,hint,rhs_variables_stochastic_vars);
+        data::maintain_variables_in_rhs<data::mutable_map_substitution<> > sigma_stochastic_vars=
+                                          make_unique_variables(stochastic_vars,hint);
         const variable_list unique_stochastic_vars=data::replace_variables(stochastic_vars, sigma_stochastic_vars);
 
         data_expression condition=smmnd.condition();
@@ -8645,27 +8700,27 @@ class specification_basic_type
         data_expression actiontime=smmnd.multi_action().time();
         assignment_list nextstate=smmnd.assignments();
 
-        condition=data::replace_variables_capture_avoiding(condition, sigma_sumvars, rhs_variables_sumvars);
-        condition=data::replace_variables_capture_avoiding(condition, sigma, rhs_variables_sigma);
+        condition=replace_variables_capture_avoiding_alt(condition, sigma_sumvars);
+        condition=replace_variables_capture_avoiding_alt(condition, sigma);
 
-        actiontime=data::replace_variables_capture_avoiding(actiontime, sigma_sumvars, rhs_variables_sumvars);
-        actiontime=data::replace_variables_capture_avoiding(actiontime, sigma, rhs_variables_sigma);
-        multiaction=lps::replace_variables_capture_avoiding(multiaction, sigma_sumvars, rhs_variables_sumvars);
-        multiaction=lps::replace_variables_capture_avoiding(multiaction, sigma, rhs_variables_sigma);
+        actiontime=replace_variables_capture_avoiding_alt(actiontime, sigma_sumvars);
+        actiontime=replace_variables_capture_avoiding_alt(actiontime, sigma);
+        multiaction=lps::replace_variables_capture_avoiding_with_an_identifier_generator(multiaction, sigma_sumvars, fresh_identifier_generator);
+        multiaction=lps::replace_variables_capture_avoiding_with_an_identifier_generator(multiaction, sigma, fresh_identifier_generator);
 
         distribution=stochastic_distribution(
                        unique_stochastic_vars,
-                       data::replace_variables_capture_avoiding(distribution.distribution(), sigma_sumvars, rhs_variables_sumvars));
+                       replace_variables_capture_avoiding_alt(distribution.distribution(), sigma_sumvars));
         distribution=stochastic_distribution(
                        unique_stochastic_vars,
-                       data::replace_variables_capture_avoiding(distribution.distribution(), sigma_stochastic_vars, rhs_variables_stochastic_vars));
+                       replace_variables_capture_avoiding_alt(distribution.distribution(), sigma_stochastic_vars));
         distribution=stochastic_distribution(
                        distribution.variables(),
-                       data::replace_variables_capture_avoiding(distribution.distribution(), sigma, rhs_variables_sigma));
+                       replace_variables_capture_avoiding_alt(distribution.distribution(), sigma));
 
-        nextstate=substitute_assignmentlist(nextstate,pars,false,true,sigma_sumvars,rhs_variables_sumvars);
-        nextstate=substitute_assignmentlist(nextstate,pars,false,true,sigma_stochastic_vars,rhs_variables_stochastic_vars);
-        nextstate=substitute_assignmentlist(nextstate,pars,true,true,sigma,rhs_variables_sigma);
+        nextstate=substitute_assignmentlist(nextstate,pars,false,true,sigma_sumvars);
+        nextstate=substitute_assignmentlist(nextstate,pars,false,true,sigma_stochastic_vars);
+        nextstate=substitute_assignmentlist(nextstate,pars,true,true,sigma);
 
         result_action_summands.push_back(stochastic_action_summand(
                                                         unique_sumvars,
@@ -8683,21 +8738,20 @@ class specification_basic_type
 
       for (deadlock_summand_vector::const_iterator s=deadlock_summands.begin(); s!=deadlock_summands.end(); ++s)
       {
-        std::set<data::variable> rhs_variables_sumvars;
         const deadlock_summand smmnd= *s;
         const variable_list& sumvars=smmnd.summation_variables();
-        data::mutable_map_substitution<> sigma_sumvars=make_unique_variables(sumvars,hint, rhs_variables_sumvars);
+        maintain_variables_in_rhs<data::mutable_map_substitution<> > sigma_sumvars=make_unique_variables(sumvars,hint);
         const variable_list unique_sumvars=data::replace_variables(sumvars, sigma_sumvars);
 
         assert(unique_sumvars.size()==sumvars.size());
         data_expression condition=smmnd.condition();
         data_expression actiontime=smmnd.deadlock().time();
 
-        condition=data::replace_variables_capture_avoiding(condition, sigma_sumvars, rhs_variables_sumvars);
-        condition=data::replace_variables_capture_avoiding(condition, sigma, rhs_variables_sigma);
+        condition=replace_variables_capture_avoiding_alt(condition, sigma_sumvars);
+        condition=replace_variables_capture_avoiding_alt(condition, sigma);
 
-        actiontime=data::replace_variables_capture_avoiding(actiontime, sigma_sumvars, rhs_variables_sumvars);
-        actiontime=data::replace_variables_capture_avoiding(actiontime, sigma, rhs_variables_sigma);
+        actiontime=replace_variables_capture_avoiding_alt(actiontime, sigma_sumvars);
+        actiontime=replace_variables_capture_avoiding_alt(actiontime, sigma);
 
         result_deadlock_summands.push_back(deadlock_summand(unique_sumvars,
                                                             condition,
@@ -8723,14 +8777,12 @@ class specification_basic_type
     {
       // Make the bound variables of the second ultimate delay different from those in the first.
       variable_list renameable_variables=delay2.variables();
-      mutable_map_substitution<> sigma;
-      std::set<variable> rhs_variables_in_sigma;
-      alphaconvert(renameable_variables, sigma, delay1.variables(), data_expression_list(), rhs_variables_in_sigma);
+      maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+      alphaconvert(renameable_variables, sigma, delay1.variables(), data_expression_list());
       // Additionally map the time variable of the second ultimate delay to that of the first.
       sigma[delay2.time_var()]=delay1.time_var();
-      rhs_variables_in_sigma.insert(delay2.time_var());
       data_expression new_constraint = optimized_and(delay1.constraint(),
-                                          data::replace_variables_capture_avoiding(delay2.constraint(),sigma, rhs_variables_in_sigma));
+                                                     replace_variables_capture_avoiding_alt(delay2.constraint(),sigma));
       variable_list new_existential_variables = delay1.variables()+renameable_variables;
 
       // TODO: The new constraint can be simplified, as two conditions sharing the timed variable have been merged.
@@ -8751,9 +8803,8 @@ class specification_basic_type
       for (const stochastic_action_summand& summand1: action_summands1)
       {
         variable_list sumvars=ultimate_delay_condition.variables();
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_in_rhs_of_sigma;
-        alphaconvert(sumvars,sigma,summand1.summation_variables(),data_expression_list(),variables_in_rhs_of_sigma);
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(sumvars,sigma,summand1.summation_variables(),data_expression_list());
 
         variable_list sumvars1=summand1.summation_variables() + sumvars;
         action_list multiaction1=summand1.multi_action().actions();
@@ -8783,9 +8834,7 @@ class specification_basic_type
                 actiontime1=ultimate_delay_condition.time_var();
                 sumvars1.push_front(ultimate_delay_condition.time_var());
                 condition1=lazy::and_(condition1,
-                                      data::replace_variables_capture_avoiding(ultimate_delay_condition.constraint(),
-                                                                               sigma,
-                                                                               variables_in_rhs_of_sigma));
+                                      replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(), sigma));
                 has_time=true;
               }
             }
@@ -8795,9 +8844,8 @@ class specification_basic_type
                  timevar in ultimate_delay_condition, and extend the condition */
               const std::set<variable> variables_in_actiontime1=find_free_variables(actiontime1);
               sigma[ultimate_delay_condition.time_var()]=actiontime1;
-              variables_in_rhs_of_sigma.insert(variables_in_actiontime1.begin(), variables_in_actiontime1.end());
               const data_expression intermediateultimatedelaycondition=
-                         data::replace_variables_capture_avoiding(ultimate_delay_condition.constraint(),sigma,variables_in_rhs_of_sigma);
+                         replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),sigma);
               condition1=optimized_and(condition1, intermediateultimatedelaycondition);
             }
 
@@ -8832,9 +8880,8 @@ class specification_basic_type
         for (const deadlock_summand& summand1: deadlock_summands1)
         {
           variable_list sumvars=ultimate_delay_condition.variables();
-          mutable_map_substitution<> sigma;
-          std::set<variable> variables_in_rhs_of_sigma;
-          alphaconvert(sumvars,sigma,summand1.summation_variables(),data_expression_list(),variables_in_rhs_of_sigma);
+          maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+          alphaconvert(sumvars,sigma,summand1.summation_variables(),data_expression_list());
 
           variable_list sumvars1=summand1.summation_variables() + sumvars;
           data_expression actiontime1=summand1.deadlock().time();
@@ -8850,9 +8897,8 @@ class specification_basic_type
                 actiontime1=ultimate_delay_condition.time_var();
                 sumvars1.push_front(ultimate_delay_condition.time_var());
                 condition1=optimized_and(condition1,
-                                         data::replace_variables_capture_avoiding(ultimate_delay_condition.constraint(),
-                                                                                  sigma,
-                                                                                  variables_in_rhs_of_sigma));
+                                         replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),
+                                                                                  sigma));
                 has_time=true;
               }
             }
@@ -8862,9 +8908,8 @@ class specification_basic_type
                  timevar in ultimate_delay_condition, and extend the condition */
               const std::set<variable> variables_in_actiontime1=find_free_variables(actiontime1);
               sigma[ultimate_delay_condition.time_var()]=actiontime1;
-              variables_in_rhs_of_sigma.insert(variables_in_actiontime1.begin(), variables_in_actiontime1.end());
               const data_expression intermediateultimatedelaycondition=
-                         data::replace_variables_capture_avoiding(ultimate_delay_condition.constraint(),sigma,variables_in_rhs_of_sigma);
+                         replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),sigma);
               condition1=optimized_and(condition1, intermediateultimatedelaycondition);
             }
 
@@ -9255,7 +9300,7 @@ class specification_basic_type
     void generateLPEmCRLterm(
       stochastic_action_summand_vector& action_summands,
       deadlock_summand_vector& deadlock_summands,
-      const process_expression& t,    // This process expression cannot be a reference.
+      const process_expression& t,    
       const bool regular,
       const bool rename_variables,
       variable_list& pars,
@@ -9265,28 +9310,27 @@ class specification_basic_type
     {
       if (is_process_instance_assignment(t))
       {
-        generateLPEmCRL(action_summands,deadlock_summands,process_instance_assignment(t).identifier(),regular,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
-        std::size_t n=objectIndex(process_instance_assignment(t).identifier());
+        generateLPEmCRL(action_summands,deadlock_summands,process_instance_assignment(t).identifier(),
+                        regular,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
+        objectdatatype& object=objectIndex(process_instance_assignment(t).identifier());
         const assignment_list ass=process_instance_assignment(t).assignments();
 
-        mutable_map_substitution<> sigma;
-        std::set<variable> variables_occurring_in_rhs_sigma;
-        for (assignment_list::const_iterator i=ass.begin(); i!=ass.end(); ++i)
+        maintain_variables_in_rhs<mutable_map_substitution<> > sigma;
+        for (assignment_list::const_iterator i=ass.begin();  i!=ass.end(); ++i)
         {
           sigma[i->lhs()]=i->rhs();
           const std::set<variable> varset=find_free_variables(i->rhs());
-          variables_occurring_in_rhs_sigma.insert(varset.begin(),varset.end());
         }
 
-        init=substitute_assignmentlist(init,pars,false,true,sigma,variables_occurring_in_rhs_sigma);
+        init=substitute_assignmentlist(init,pars,false,true,sigma);
 
         // Make the bound variables and parameters in this process unique.
 
-        if ((objectdata[n].processstatus==GNF)||
-            (objectdata[n].processstatus==pCRL)||
-            (objectdata[n].processstatus==GNFalpha))
+        if ((object.processstatus==GNF)||
+            (object.processstatus==pCRL)||
+            (object.processstatus==GNFalpha))
         {
-          make_parameters_and_sum_variables_unique(action_summands,deadlock_summands,pars,init,ultimate_delay_condition,std::string(objectdata[n].objectname));
+          make_parameters_and_sum_variables_unique(action_summands,deadlock_summands,pars,init,ultimate_delay_condition,std::string(object.objectname));
         }
         else
         {
@@ -9305,7 +9349,8 @@ class specification_basic_type
           // stacks are being used.
 
           stochastic_linear_process lps(pars,deadlock_summands,action_summands);
-          stochastic_process_initializer initializer(init,stochastic_distribution(variable_list(),real_one())); // Default distribution.
+          // stochastic_process_initializer initializer(init,stochastic_distribution(variable_list(),real_one())); // Default distribution.
+          stochastic_process_initializer initializer(init,initial_stochastic_distribution); 
 
           stochastic_specification temporary_spec(data,acts,global_variables,lps,initializer);
           constelm_algorithm < rewriter, stochastic_specification > alg(temporary_spec,rewr);
@@ -9322,9 +9367,10 @@ class specification_basic_type
 
           // Reconstruct the variables from the temporary specification
           init=temporary_spec.initial_process().assignments();
+
           pars=temporary_spec.process().process_parameters();
 
-          // Add all free variables in objectdata[n].parameters that are not already in the parameter list
+          // Add all free variables in object.parameters that are not already in the parameter list
           // and are not global variables to pars. This can occur when a parameter of the process is replaced
           // by a constant, which by itself is a parameter.
 
@@ -9348,7 +9394,7 @@ class specification_basic_type
         }
         // Now constelm has been applied.
         return;
-      }
+      } // End process assignment. 
 
       if (is_merge(t))
       {
@@ -9440,7 +9486,8 @@ class specification_basic_type
           generateLPEmCRLterm(action_summands,deadlock_summands,comm(par).operand(),
                                 regular,rename_variables,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
           // Encode the actions of the block list in one multi action.
-          communicationcomposition(comm(par).comm_set(),action_name_multiset_list( { action_name_multiset(block(t).block_set())} ),false,true,action_summands,deadlock_summands);
+          communicationcomposition(comm(par).comm_set(),action_name_multiset_list( { action_name_multiset(block(t).block_set())} ),
+                                                     false,true,action_summands,deadlock_summands);
           return;
         }
 
@@ -9463,6 +9510,29 @@ class specification_basic_type
         generateLPEmCRLterm(action_summands,deadlock_summands,comm(t).operand(),
                               regular,rename_variables,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
         communicationcomposition(comm(t).comm_set(),action_name_multiset_list(),false,false,action_summands,deadlock_summands);
+        return;
+      }
+
+      if (is_stochastic_operator(t))
+      {
+        /* YYYYYYYYYY */
+        const stochastic_operator& sto=atermpp::down_cast<stochastic_operator>(t);
+        generateLPEmCRLterm(action_summands,deadlock_summands,sto.operand(),
+                              regular,rename_variables,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
+        variable_list stochvars=sto.variables();
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconvert(stochvars,sigma,pars + initial_stochastic_distribution.variables(), data_expression_list());
+        initial_stochastic_distribution=stochastic_distribution(
+                                          stochvars+initial_stochastic_distribution.variables(),
+                                          data::sort_real::times(replace_variables_capture_avoiding_alt(
+                                                                                    sto.distribution(), sigma),
+                                                                 initial_stochastic_distribution.distribution()));
+        /* Reset the bound variables in the initial_stochastic_distribution, to avoid erroneous renaming in the body of the process */
+        for(const variable& v: initial_stochastic_distribution.variables())
+        {
+          sigma[v]=v;
+        }
+        init=substitute_assignmentlist(init,pars,false,true,sigma);
         return;
       }
 
@@ -9489,15 +9559,15 @@ class specification_basic_type
       /* If regular=1, then a regular version of the pCRL processes
          must be generated */
 
-      std::size_t n=objectIndex(procIdDecl);
+      objectdatatype& object=objectIndex(procIdDecl);
 
-      if ((objectdata[n].processstatus==GNF)||
-          (objectdata[n].processstatus==pCRL)||
-          (objectdata[n].processstatus==GNFalpha)||
-          (objectdata[n].processstatus==multiAction))
+      if ((object.processstatus==GNF)||
+          (object.processstatus==pCRL)||
+          (object.processstatus==GNFalpha)||
+          (object.processstatus==multiAction))
       {
         generateLPEpCRL(action_summands,deadlock_summands,procIdDecl,
-                               objectdata[n].containstime,regular,pars,init,initial_stochastic_distribution);
+                               object.containstime,regular,pars,init,initial_stochastic_distribution);
         if (options.ignore_time)
         {
           ultimate_delay_condition=lps::detail::ultimate_delay();
@@ -9529,16 +9599,17 @@ class specification_basic_type
         return;
       }
       /* process is a mCRLdone */
-      if ((objectdata[n].processstatus==mCRLdone)||
-          (objectdata[n].processstatus==mCRLlin)||
-          (objectdata[n].processstatus==mCRL))
+      if ((object.processstatus==mCRLdone)||
+          (object.processstatus==mCRLlin)||
+          (object.processstatus==mCRL))
       {
-        objectdata[n].processstatus=mCRLlin;
-        return generateLPEmCRLterm(action_summands, deadlock_summands, objectdata[n].processbody,
+        object.processstatus=mCRLlin;
+        generateLPEmCRLterm(action_summands, deadlock_summands, object.processbody,
                                    regular, false, pars, init, initial_stochastic_distribution, ultimate_delay_condition);
+        return;
       }
 
-      throw mcrl2::runtime_error("laststatus: " + std::to_string(objectdata[n].processstatus));
+      throw mcrl2::runtime_error("laststatus: " + std::to_string(object.processstatus));
     }
 
     /**************** alphaconversion ********************************/
@@ -9546,109 +9617,103 @@ class specification_basic_type
     process_expression alphaconversionterm(
       const process_expression& t,
       const variable_list& parameters,
-      mutable_map_substitution<> sigma,
-      const std::set < variable >& variables_occurring_in_rhs_of_sigma)
+      maintain_variables_in_rhs<mutable_map_substitution<> > sigma)
     {
       if (is_choice(t))
       {
         return choice(
-                 alphaconversionterm(choice(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(choice(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(choice(t).left(),parameters,sigma),
+                 alphaconversionterm(choice(t).right(),parameters,sigma));
       }
 
       if (is_seq(t))
       {
         return seq(
-                 alphaconversionterm(seq(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(seq(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(seq(t).left(),parameters,sigma),
+                 alphaconversionterm(seq(t).right(),parameters,sigma));
       }
 
       if (is_sync(t))
       {
         return process::sync(
-                 alphaconversionterm(process::sync(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(process::sync(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(process::sync(t).left(),parameters,sigma),
+                 alphaconversionterm(process::sync(t).right(),parameters,sigma));
       }
 
       if (is_bounded_init(t))
       {
         return bounded_init(
-                 alphaconversionterm(bounded_init(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(bounded_init(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(bounded_init(t).left(),parameters,sigma),
+                 alphaconversionterm(bounded_init(t).right(),parameters,sigma));
       }
 
       if (is_merge(t))
       {
         return process::merge(
-                 alphaconversionterm(process::merge(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(process::merge(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(process::merge(t).left(),parameters,sigma),
+                 alphaconversionterm(process::merge(t).right(),parameters,sigma));
       }
 
       if (is_left_merge(t))
       {
         return left_merge(
-                 alphaconversionterm(left_merge(t).left(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(left_merge(t).right(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 alphaconversionterm(left_merge(t).left(),parameters,sigma),
+                 alphaconversionterm(left_merge(t).right(),parameters,sigma));
       }
 
       if (is_at(t))
       {
-        return at(alphaconversionterm(at(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma),
-                  data::replace_variables_capture_avoiding(at(t).time_stamp(),sigma,variables_occurring_in_rhs_of_sigma));
+        return at(alphaconversionterm(at(t).operand(),parameters,sigma),
+                  replace_variables_capture_avoiding_alt(at(t).time_stamp(),sigma));
       }
 
       if (is_if_then(t))
       {
         return if_then(
-                 data::replace_variables_capture_avoiding(if_then(t).condition(), sigma, variables_occurring_in_rhs_of_sigma),
-                 alphaconversionterm(if_then(t).then_case(),parameters,sigma,variables_occurring_in_rhs_of_sigma));
+                 replace_variables_capture_avoiding_alt(if_then(t).condition(), sigma),
+                 alphaconversionterm(if_then(t).then_case(),parameters,sigma));
       }
 
       if (is_sum(t))
       {
         variable_list sumvars=sum(t).variables();
-        mutable_map_substitution<> local_sigma=sigma;
-        std::set<variable> variables_occurring_in_rhs_of_local_sigma=variables_occurring_in_rhs_of_sigma;
+        maintain_variables_in_rhs<mutable_map_substitution<> > local_sigma=sigma;
 
-        alphaconvert(sumvars,local_sigma,variable_list(),data_expression_list(parameters),variables_occurring_in_rhs_of_local_sigma);
-        return sum(sumvars,alphaconversionterm(sum(t).operand(), sumvars+parameters,
-                                                   local_sigma,variables_occurring_in_rhs_of_local_sigma));
+        alphaconvert(sumvars,local_sigma,variable_list(),variable_list_to_data_expression_list(parameters));
+        return sum(sumvars,alphaconversionterm(sum(t).operand(), sumvars+parameters, local_sigma));
       }
 
       if (is_stochastic_operator(t))
       {
         const stochastic_operator& sto=down_cast<const stochastic_operator>(t);
         variable_list sumvars=sto.variables();
-        mutable_map_substitution<> local_sigma=sigma;
-        std::set<variable> variables_occurring_in_rhs_of_local_sigma=variables_occurring_in_rhs_of_sigma;
+        maintain_variables_in_rhs<mutable_map_substitution<> > local_sigma=sigma;
 
-        alphaconvert(sumvars,local_sigma,variable_list(),data_expression_list(parameters),variables_occurring_in_rhs_of_local_sigma);
+        alphaconvert(sumvars,local_sigma,variable_list(),variable_list_to_data_expression_list(parameters));
         return stochastic_operator(
                        sumvars,
-                       data::replace_variables_capture_avoiding(sto.distribution(),
-                                                                sigma, variables_occurring_in_rhs_of_sigma),
-                       alphaconversionterm(sto.operand(), sumvars+parameters,
-                                                   local_sigma,variables_occurring_in_rhs_of_local_sigma));
+                       replace_variables_capture_avoiding_alt(sto.distribution(), sigma),
+                       alphaconversionterm(sto.operand(), sumvars+parameters, local_sigma));
       }
 
       if (is_process_instance_assignment(t))
       {
         const process_identifier procId=process_instance_assignment(t).identifier();
-        std::size_t n=objectIndex(procId);
+        objectdatatype& object=objectIndex(procId);
 
-        const variable_list instance_parameters=objectdata[n].parameters;
+        const variable_list instance_parameters=object.parameters;
         alphaconversion(procId,instance_parameters);
 
         const process_instance_assignment result(procId,
                                                  substitute_assignmentlist(process_instance_assignment(t).assignments(),
-                                                                           instance_parameters,false, true,sigma,variables_occurring_in_rhs_of_sigma));
+                                                                           instance_parameters,false, true,sigma));
         assert(check_valid_process_instance_assignment(result.identifier(),result.assignments()));
         return result;
       }
 
       if (is_action(t))
       {
-        return action(action(t).label(), data::replace_variables_capture_avoiding(action(t).arguments(), sigma, variables_occurring_in_rhs_of_sigma));
+        return action(action(t).label(), replace_variables_capture_avoiding_alt(action(t).arguments(), sigma));
       }
 
       if (is_delta(t)||
@@ -9659,27 +9724,27 @@ class specification_basic_type
 
       if (is_hide(t))
       {
-        return alphaconversionterm(hide(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma);
+        return alphaconversionterm(hide(t).operand(),parameters,sigma);
       }
 
       if (is_rename(t))
       {
-        return alphaconversionterm(process::rename(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma);
+        return alphaconversionterm(process::rename(t).operand(),parameters,sigma);
       }
 
       if (is_comm(t))
       {
-        return alphaconversionterm(comm(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma);
+        return alphaconversionterm(comm(t).operand(),parameters,sigma);
       }
 
       if (is_allow(t))
       {
-        return alphaconversionterm(allow(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma);
+        return alphaconversionterm(allow(t).operand(),parameters,sigma);
       }
 
       if (is_block(t))
       {
-        return alphaconversionterm(block(t).operand(),parameters,sigma,variables_occurring_in_rhs_of_sigma);
+        return alphaconversionterm(block(t).operand(),parameters,sigma);
       }
 
       throw mcrl2::runtime_error("unexpected process format in alphaconversionterm " + process::pp(t) +".");
@@ -9688,31 +9753,31 @@ class specification_basic_type
 
     void alphaconversion(const process_identifier& procId, const variable_list& parameters)
     {
-      std::size_t n=objectIndex(procId);
+      objectdatatype& object=objectIndex(procId);
 
-      if ((objectdata[n].processstatus==GNF)||
-          (objectdata[n].processstatus==multiAction))
+      if ((object.processstatus==GNF)||
+          (object.processstatus==multiAction))
       {
-        objectdata[n].processstatus=GNFalpha;
+        object.processstatus=GNFalpha;
         // tempvar below is needed as objectdata may be reallocated
         // during a call to alphaconversionterm.
-        std::map < variable, data_expression > sigma;
-        const process_expression tempvar=alphaconversionterm(objectdata[n].processbody,parameters,sigma,std::set<variable>());
-        objectdata[n].processbody=tempvar;
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        const process_expression tempvar=alphaconversionterm(object.processbody,parameters,sigma);
+        object.processbody=tempvar;
       }
-      else if (objectdata[n].processstatus==mCRLdone)
+      else if (object.processstatus==mCRLdone)
       {
-        std::map < variable, data_expression > sigma;
-        alphaconversionterm(objectdata[n].processbody,parameters,sigma,std::set<variable>());
+        maintain_variables_in_rhs< mutable_map_substitution<> > sigma;
+        alphaconversionterm(object.processbody,parameters,sigma);
 
       }
-      else if (objectdata[n].processstatus==GNFalpha)
+      else if (object.processstatus==GNFalpha)
       {
         return;
       }
       else
       {
-        throw mcrl2::runtime_error("unknown type " + std::to_string(objectdata[n].processstatus) +
+        throw mcrl2::runtime_error("unknown type " + std::to_string(object.processstatus) +
                                                 " in alphaconversion of " + process::pp(procId) +".");
       }
       return;
@@ -9743,7 +9808,7 @@ class specification_basic_type
         {
           return (containstime_rec(process_instance(t).identifier(),stable,visited,contains_if_then));
         }
-        return objectdata[objectIndex(process_instance(t).identifier())].containstime;
+        return objectIndex(process_instance(t).identifier()).containstime;
       }
 
       if (is_process_instance_assignment(t))
@@ -9752,7 +9817,7 @@ class specification_basic_type
         {
           return (containstime_rec(process_instance_assignment(t).identifier(),stable,visited,contains_if_then));
         }
-        return objectdata[objectIndex(process_instance_assignment(t).identifier())].containstime;
+        return objectIndex(process_instance_assignment(t).identifier()).containstime;
       }
 
       if (is_hide(t))
@@ -9856,12 +9921,12 @@ class specification_basic_type
       std::set < process_identifier >& visited,
       bool& contains_if_then)
     {
-      std::size_t n=objectIndex(procId);
+      objectdatatype& object=objectIndex(procId);
 
       if (visited.count(procId)==0)
       {
         visited.insert(procId);
-        const bool ct=containstimebody(objectdata[n].processbody,stable,visited,true,contains_if_then);
+        const bool ct=containstimebody(object.processbody,stable,visited,true,contains_if_then);
         static bool show_only_once=true;
         if (ct && options.ignore_time && show_only_once)
         {
@@ -9870,16 +9935,16 @@ class specification_basic_type
               "Use --timed or -T, or untick `add deadlocks' for a correct timed linearisation...\n";
           show_only_once=false;
         }
-        if (objectdata[n].containstime!=ct)
+        if (object.containstime!=ct)
         {
-          objectdata[n].containstime=ct;
+          object.containstime=ct;
           if (stable!=nullptr)
           {
             *stable=false;
           }
         }
       }
-      return (objectdata[n].containstime);
+      return (object.containstime);
     }
 
     bool containstimebody(const process_expression& t)
@@ -9922,34 +9987,35 @@ class specification_basic_type
         if (is_stochastic_operator(new_process))
         {
           // Add the initial stochastic_distribution.
-          const process_identifier new_identifier=processes_with_initial_distribution.at(u.identifier()).process_id();
-          const std::size_t n=objectIndex(new_identifier);
-          variable_list new_parameters=objectdata[n].parameters;
-          const stochastic_operator& sto=down_cast<const stochastic_operator>(new_process);
+          const process_identifier& new_identifier=processes_with_initial_distribution.at(u.identifier()).process_id();
+          objectdatatype& object=objectIndex(new_identifier);
+          const variable_list new_parameters=object.parameters;
+          const stochastic_operator& sto=down_cast<stochastic_operator>(new_process);
           assignment_list new_assignments;
-          for(const variable& v: sto.variables())
+          
+          const variable_list relevant_stochastic_variables=parameters_that_occur_in_body(sto.variables(),object.processbody);
+          assert(relevant_stochastic_variables.size()<=new_parameters.size());
+          variable_list::const_iterator i=new_parameters.begin();
+          for(const variable& v: relevant_stochastic_variables)
           {
-            new_assignments=push_back(new_assignments,assignment(new_parameters.front(),v));
-            new_parameters.pop_front();
+            new_assignments=push_back(new_assignments,assignment(*i,v));
+            i++;
           }
           // Some of the variables may occur only in the distribution, which is now moved out.
           // Therefore, the assignments must be filtered.
-          new_assignments=filter_assignments(new_assignments + u.assignments(),objectdata[n].parameters);
+          new_assignments=filter_assignments(new_assignments + u.assignments(),object.parameters);
 
           // Furthermore, the old assignment must be applied to the distribution, when it is moved
           // outside of the process body.
-          std::set<variable> variables_occurring_in_rhs_of_sigma;
-          mutable_map_substitution<> local_sigma;
+          maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
           for(const assignment& a:u.assignments())
           {
             local_sigma[a.lhs()]=a.rhs();
             const std::set<variable> varset=find_free_variables(a.rhs());
-            variables_occurring_in_rhs_of_sigma.insert(varset.begin(),varset.end());
           }
           return stochastic_operator(sto.variables(),
-                                     data::replace_variables_capture_avoiding(sto.distribution(),
-                                                                              local_sigma,
-                                                                              variables_occurring_in_rhs_of_sigma),
+                                     replace_variables_capture_avoiding_alt(sto.distribution(),
+                                                                              local_sigma),
                                      process_instance_assignment(new_identifier,new_assignments));
         }
         return t;
@@ -9969,13 +10035,12 @@ class specification_basic_type
             const stochastic_operator& r2=down_cast<const stochastic_operator>(r2_);
             const process_expression& new_body1=r1.operand();
             process_expression new_body2=r2.operand();
-            std::set<variable> variables_occurring_in_rhs_of_sigma;
             variable_list stochvars=r2.variables();
-            mutable_map_substitution<> local_sigma;
-            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list(),variables_occurring_in_rhs_of_sigma);
-            new_body2=substitute_pCRLproc(new_body2, local_sigma, variables_occurring_in_rhs_of_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
+            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list());
+            new_body2=substitute_pCRLproc(new_body2, local_sigma);
             const data_expression new_distribution=
-                   process::replace_variables_capture_avoiding(r2.distribution(),local_sigma,variables_occurring_in_rhs_of_sigma);
+                   process::replace_variables_capture_avoiding_with_an_identifier_generator(r2.distribution(),local_sigma,fresh_identifier_generator);
 
             return stochastic_operator(r1.variables() + stochvars,
                                        real_times_optimized(r1.distribution(),new_distribution),
@@ -10035,13 +10100,12 @@ class specification_basic_type
             const stochastic_operator& r2=down_cast<const stochastic_operator>(r2_);
             const process_expression& new_body1=r1.operand();
             process_expression new_body2=r2.operand();
-            std::set<variable> variables_occurring_in_rhs_of_sigma;
             variable_list stochvars=r2.variables();
-            mutable_map_substitution<> local_sigma;
-            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list(),variables_occurring_in_rhs_of_sigma);
-            new_body2=substitute_pCRLproc(new_body2, local_sigma, variables_occurring_in_rhs_of_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
+            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list());
+            new_body2=substitute_pCRLproc(new_body2, local_sigma);
             const data_expression new_distribution=
-                   process::replace_variables_capture_avoiding(r2.distribution(),local_sigma,variables_occurring_in_rhs_of_sigma);
+                   process::replace_variables_capture_avoiding_with_an_identifier_generator(r2.distribution(),local_sigma,fresh_identifier_generator);
 
             return stochastic_operator(r1.variables() + stochvars,
                                        if_(t_.condition(),
@@ -10167,13 +10231,12 @@ class specification_basic_type
             const stochastic_operator& r2=down_cast<const stochastic_operator>(r2_);
             const process_expression& new_body1=r1.operand();
             process_expression new_body2=r2.operand();
-            std::set<variable> variables_occurring_in_rhs_of_sigma;
             variable_list stochvars=r2.variables();
-            mutable_map_substitution<> local_sigma;
-            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list(),variables_occurring_in_rhs_of_sigma);
-            new_body2=substitute_pCRLproc(new_body2, local_sigma, variables_occurring_in_rhs_of_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
+            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list());
+            new_body2=substitute_pCRLproc(new_body2, local_sigma);
             const data_expression new_distribution=
-                   process::replace_variables_capture_avoiding(r2.distribution(),local_sigma,variables_occurring_in_rhs_of_sigma);
+                   process::replace_variables_capture_avoiding_with_an_identifier_generator(r2.distribution(),local_sigma,fresh_identifier_generator);
 
             return stochastic_operator(r1.variables() + stochvars,
                                        real_times_optimized(r1.distribution(),new_distribution),
@@ -10231,13 +10294,12 @@ class specification_basic_type
             const stochastic_operator& r2=down_cast<const stochastic_operator>(r2_);
             const process_expression& new_body1=r1.operand();
             process_expression new_body2=r2.operand();
-            std::set<variable> variables_occurring_in_rhs_of_sigma;
             variable_list stochvars=r2.variables();
-            mutable_map_substitution<> local_sigma;
-            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list(),variables_occurring_in_rhs_of_sigma);
-            new_body2=substitute_pCRLproc(new_body2, local_sigma, variables_occurring_in_rhs_of_sigma);
+            maintain_variables_in_rhs< mutable_map_substitution<> > local_sigma;
+            alphaconvert(stochvars,local_sigma, r1.variables(),data_expression_list());
+            new_body2=substitute_pCRLproc(new_body2, local_sigma);
             const data_expression new_distribution=
-                   process::replace_variables_capture_avoiding(r2.distribution(),local_sigma,variables_occurring_in_rhs_of_sigma);
+                   process::replace_variables_capture_avoiding_with_an_identifier_generator(r2.distribution(),local_sigma,fresh_identifier_generator);
 
             return stochastic_operator(r1.variables() + stochvars,
                                        if_(if_then_else(t).condition(),
@@ -10342,8 +10404,8 @@ class specification_basic_type
 
     process_expression obtain_initial_distribution(const process_identifier& procId)
     {
-      std::size_t n=objectIndex(procId);
-      const process_expression initial_distribution_=obtain_initial_distribution_term(objectdata[n].processbody);
+      objectdatatype& object=objectIndex(procId);
+      const process_expression initial_distribution_=obtain_initial_distribution_term(object.processbody);
       if (!is_stochastic_operator(initial_distribution_))
       {
         return process_instance_assignment(procId,assignment_list());
@@ -10352,7 +10414,7 @@ class specification_basic_type
       if (!is_process_instance_assignment(initial_distribution.operand()))
       {
         const process_identifier new_procId=
-                 newprocess(objectdata[n].parameters + initial_distribution.variables(),
+                 newprocess(object.parameters + initial_distribution.variables(),
                             initial_distribution.operand(),
                             pCRL, canterminatebody(initial_distribution.operand()), containstimebody(initial_distribution.operand()));
 
@@ -10387,7 +10449,7 @@ class specification_basic_type
         {
           return (canterminate_rec(process_instance(t).identifier(),stable,visited));
         }
-        return objectdata[objectIndex(process_instance(t).identifier())].canterminate;
+        return objectIndex(process_instance(t).identifier()).canterminate;
       }
 
       if (is_process_instance_assignment(t))
@@ -10397,7 +10459,7 @@ class specification_basic_type
         {
           return (canterminate_rec(u.identifier(),stable,visited));
         }
-        return objectdata[objectIndex(u.identifier())].canterminate;
+        return objectIndex(u.identifier()).canterminate;
       }
 
       if (is_hide(t))
@@ -10497,22 +10559,22 @@ class specification_basic_type
       bool& stable,
       std::set < process_identifier >& visited)
     {
-      std::size_t n=objectIndex(procId);
+      objectdatatype& object=objectIndex(procId);
 
       if (visited.count(procId)==0)
       {
         visited.insert(procId);
-        const bool ct=canterminatebody(objectdata[n].processbody,stable,visited,1);
-        if (objectdata[n].canterminate!=ct)
+        const bool ct=canterminatebody(object.processbody,stable,visited,1);
+        if (object.canterminate!=ct)
         {
-          objectdata[n].canterminate=ct;
+          object.canterminate=ct;
           if (stable)
           {
             stable=false;
           }
         }
       }
-      return (objectdata[n].canterminate);
+      return (object.canterminate);
     }
 
     bool canterminatebody(const process_expression& t)
@@ -10544,41 +10606,38 @@ class specification_basic_type
         return visited_id[procId];
       }
 
-      std::size_t n=objectIndex(procId);
+      objectdatatype& object=objectIndex(procId);
 
-      if ((objectdata[n].processstatus!=mCRL) &&
-          (objectdata[n].canterminate==0))
+      if ((object.processstatus!=mCRL) &&
+          (object.canterminate==0))
       {
         /* no new process needs to be constructed */
         return procId;
       }
 
-      const process_identifier newProcId(
-                   fresh_identifier_generator(procId.name()),
-                   objectdata[n].parameters);
-      visited_id[procId]=newProcId;
-
-      if (objectdata[n].processstatus==mCRL)
+      if (object.processstatus==mCRL)
       {
-        insertProcDeclaration(
-          newProcId,
-          objectdata[n].parameters,
-          split_body(objectdata[n].processbody,
-                     visited_id,visited_proc,
-                     objectdata[n].parameters),
-          mCRL,0,false);
-        return newProcId;
+        visited_id[procId]=procId;
+        object.processbody = split_body(object.processbody,
+                                               visited_id,visited_proc,
+                                               object.parameters);
+        return procId;
       }
 
-      if (objectdata[n].canterminate)
+      const process_identifier newProcId(
+                   fresh_identifier_generator(procId.name()),
+                   object.parameters);
+      visited_id[procId]=newProcId;
+
+      if (object.canterminate)
       {
         assert(check_valid_process_instance_assignment(terminatedProcId,assignment_list()));
-        insertProcDeclaration(
+        insert_process_declaration(
           newProcId,
-          objectdata[n].parameters,
-          seq(objectdata[n].processbody, process_instance_assignment(terminatedProcId,assignment_list())),
-          pCRL,canterminatebody(objectdata[n].processbody),
-          containstimebody(objectdata[n].processbody));
+          object.parameters,
+          seq(object.processbody, process_instance_assignment(terminatedProcId,assignment_list())),
+          pCRL,canterminatebody(object.processbody),
+          containstimebody(object.processbody));
         return newProcId;
       }
       return procId;
@@ -10600,10 +10659,10 @@ class specification_basic_type
       if (visited_processes.count(procId)==0)
       {
         visited_processes.insert(procId);
-        std::size_t n=objectIndex(procId);
+        objectdatatype& object=objectIndex(procId);
         const std::set<variable> bound_variables;
-        objectdata[n].processbody=transform_process_arguments_body(
-                                         objectdata[n].processbody,
+        object.processbody=transform_process_arguments_body(
+                                         object.processbody,
                                          bound_variables,
                                          visited_processes);
       }
@@ -10629,12 +10688,12 @@ class specification_basic_type
       {
         transform_process_arguments(process_instance_assignment(t).identifier(),visited_processes);
         const process_instance_assignment u(t);
-        std::size_t n=objectIndex(u.identifier());
+        objectdatatype& object=objectIndex(u.identifier());
         assert(check_valid_process_instance_assignment(u.identifier(),
-                 sort_assignments(u.assignments(),objectdata[n].parameters)));
+                 sort_assignments(u.assignments(),object.parameters)));
         return process_instance_assignment(
                      u.identifier(),
-                     sort_assignments(u.assignments(),objectdata[n].parameters));
+                     sort_assignments(u.assignments(),object.parameters));
       }
       if (is_hide(t))
       {
@@ -10749,15 +10808,14 @@ class specification_basic_type
             const process_identifier& procId,
             std::set<process_identifier>& visited_processes,
             std::set<identifier_string>& used_variable_names,
-            mutable_map_substitution<>& parameter_mapping,
-            std::set<variable>& variables_in_lhs_of_parameter_mapping,
-            std::set<variable>& variables_in_rhs_of_parameter_mapping)
+            maintain_variables_in_rhs<mutable_map_substitution<> >& parameter_mapping,
+            std::set<variable>& variables_in_lhs_of_parameter_mapping)
     {
       if (visited_processes.count(procId)==0)
       {
         visited_processes.insert(procId);
-        std::size_t n=objectIndex(procId);
-        const variable_list parameters=objectdata[n].parameters;
+        objectdatatype& object=objectIndex(procId);
+        const variable_list parameters=object.parameters;
         for(variable_list::const_iterator i=parameters.begin(); i!=parameters.end(); ++i)
         {
           if (used_variable_names.count(i->name())==0)
@@ -10765,7 +10823,6 @@ class specification_basic_type
             used_variable_names.insert(i->name());
             parameter_mapping[*i]=*i;  // This is the first parameter with this name. Map it to itself.
             variables_in_lhs_of_parameter_mapping.insert(*i);
-            variables_in_rhs_of_parameter_mapping.insert(*i);
           }
           else
           {
@@ -10777,19 +10834,17 @@ class specification_basic_type
               const variable fresh_var(fresh_identifier_generator(i->name()),i->sort());
               parameter_mapping[*i]=fresh_var;
               variables_in_lhs_of_parameter_mapping.insert(*i);
-              variables_in_rhs_of_parameter_mapping.insert(fresh_var);
             }
           }
         }
-        objectdata[n].old_parameters=objectdata[n].parameters;
-        objectdata[n].parameters=data::replace_variables(parameters,parameter_mapping);
-        objectdata[n].processbody=guarantee_that_parameters_have_unique_type_body(
-                                         objectdata[n].processbody,
+        object.old_parameters=object.parameters;
+        object.parameters=data::replace_variables(parameters,parameter_mapping);
+        object.processbody=guarantee_that_parameters_have_unique_type_body(
+                                         object.processbody,
                                          visited_processes,
                                          used_variable_names,
                                          parameter_mapping,
-                                         variables_in_lhs_of_parameter_mapping,
-                                         variables_in_rhs_of_parameter_mapping);
+                                         variables_in_lhs_of_parameter_mapping);
       }
     }
 
@@ -10797,92 +10852,89 @@ class specification_basic_type
     {
       std::set<process_identifier> visited_processes;
       std::set<identifier_string> used_variable_names;
-      mutable_map_substitution<> parameter_mapping;
+      maintain_variables_in_rhs< mutable_map_substitution<> > parameter_mapping;
       std::set<variable> variables_in_lhs_of_parameter_mapping;
-      std::set<variable> variables_in_rhs_of_parameter_mapping;
       guarantee_that_parameters_have_unique_type(procId,
                                                  visited_processes,
                                                  used_variable_names,
                                                  parameter_mapping,
-                                                 variables_in_lhs_of_parameter_mapping,
-                                                 variables_in_rhs_of_parameter_mapping);
+                                                 variables_in_lhs_of_parameter_mapping);
     }
 
     process_expression guarantee_that_parameters_have_unique_type_body(
-      const process_expression& t, // intentionally not a reference.
+      const process_expression& t, 
       std::set<process_identifier>& visited_processes,
       std::set<identifier_string>& used_variable_names,
-      mutable_map_substitution<>& parameter_mapping,
-      std::set<variable>& variables_in_lhs_of_parameter_mapping,
-      std::set<variable>& variables_in_rhs_of_parameter_mapping)
+      maintain_variables_in_rhs<mutable_map_substitution<> >& parameter_mapping,
+      std::set<variable>& variables_in_lhs_of_parameter_mapping)
     {
       if (is_process_instance_assignment(t))
       {
-        guarantee_that_parameters_have_unique_type(process_instance_assignment(t).identifier(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping);
+        guarantee_that_parameters_have_unique_type(process_instance_assignment(t).identifier(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping);
         const process_instance_assignment u(t);
-        std::size_t n=objectIndex(u.identifier());
+        objectdatatype& object=objectIndex(u.identifier());
         assert(check_valid_process_instance_assignment(u.identifier(),
-                 substitute_assignmentlist(u.assignments(),objectdata[n].old_parameters,true,true,parameter_mapping,variables_in_rhs_of_parameter_mapping)));
+                 substitute_assignmentlist(u.assignments(),object.old_parameters,true,true,parameter_mapping)));
         return process_instance_assignment(
                      u.identifier(),
-                     substitute_assignmentlist(u.assignments(),objectdata[n].old_parameters,true,true,parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                     substitute_assignmentlist(u.assignments(),object.old_parameters,true,true,parameter_mapping));
       }
       if (is_hide(t))
       {
         return hide(hide(t).hide_set(),
-                    guarantee_that_parameters_have_unique_type_body(hide(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                    guarantee_that_parameters_have_unique_type_body(hide(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_rename(t))
       {
         return process::rename(
                  process::rename(t).rename_set(),
-                 guarantee_that_parameters_have_unique_type_body(process::rename(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(process::rename(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_allow(t))
       {
         return allow(allow(t).allow_set(),
-                     guarantee_that_parameters_have_unique_type_body(allow(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                     guarantee_that_parameters_have_unique_type_body(allow(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_block(t))
       {
         return block(block(t).block_set(),
-                     guarantee_that_parameters_have_unique_type_body(block(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                     guarantee_that_parameters_have_unique_type_body(block(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_comm(t))
       {
         return comm(comm(t).comm_set(),
-                    guarantee_that_parameters_have_unique_type_body(comm(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                    guarantee_that_parameters_have_unique_type_body(comm(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_merge(t))
       {
         return merge(
-                 guarantee_that_parameters_have_unique_type_body(merge(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(merge(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(merge(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(merge(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_choice(t))
       {
         return choice(
-                 guarantee_that_parameters_have_unique_type_body(choice(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(choice(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(choice(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(choice(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_seq(t))
       {
         return seq(
-                 guarantee_that_parameters_have_unique_type_body(seq(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(seq(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(seq(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(seq(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_if_then_else(t))
       {
         return if_then_else(
-                 data::replace_variables_capture_avoiding(if_then_else(t).condition(),parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(if_then_else(t).then_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(if_then_else(t).else_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 replace_variables_capture_avoiding_alt(if_then_else(t).condition(),parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(if_then_else(t).then_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(if_then_else(t).else_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_if_then(t))
       {
         return if_then(
-                 data::replace_variables_capture_avoiding(if_then(t).condition(),parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(if_then(t).then_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 replace_variables_capture_avoiding_alt(if_then(t).condition(),parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(if_then(t).then_case(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_sum(t))
       {
@@ -10897,7 +10949,6 @@ class specification_basic_type
             used_variable_names.insert(i->name());
             parameter_mapping[*i]=*i;  // This is the first parameter with this name. Map it to itself.
             variables_in_lhs_of_parameter_mapping.insert(*i);
-            variables_in_rhs_of_parameter_mapping.insert(*i);
           }
           else
           {
@@ -10909,17 +10960,16 @@ class specification_basic_type
               const variable fresh_var(fresh_identifier_generator(i->name()),i->sort());
               parameter_mapping[*i]=fresh_var;
               variables_in_lhs_of_parameter_mapping.insert(*i);
-              variables_in_rhs_of_parameter_mapping.insert(fresh_var);
             }
           }
         }
         return sum(
                  data::replace_variables(sum(t).variables(),parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(sum(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(sum(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_action(t))
       {
-        return lps::replace_variables_capture_avoiding(action(t),parameter_mapping,variables_in_rhs_of_parameter_mapping);
+        return lps::replace_variables_capture_avoiding_with_an_identifier_generator(action(t),parameter_mapping,fresh_identifier_generator);
       }
       if (is_delta(t))
       {
@@ -10932,14 +10982,14 @@ class specification_basic_type
       if (is_at(t))
       {
         return at(
-                 guarantee_that_parameters_have_unique_type_body(at(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 data::replace_variables_capture_avoiding(at(t).time_stamp(),parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(at(t).operand(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 replace_variables_capture_avoiding_alt(at(t).time_stamp(),parameter_mapping));
       }
       if (is_sync(t))
       {
         return process::sync(
-                 guarantee_that_parameters_have_unique_type_body(process::sync(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping),
-                 guarantee_that_parameters_have_unique_type_body(process::sync(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                 guarantee_that_parameters_have_unique_type_body(process::sync(t).left(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping),
+                 guarantee_that_parameters_have_unique_type_body(process::sync(t).right(),visited_processes,used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       if (is_stochastic_operator(t))
       {
@@ -10955,7 +11005,6 @@ class specification_basic_type
             used_variable_names.insert(i->name());
             parameter_mapping[*i]=*i;  // This is the first parameter with this name. Map it to itself.
             variables_in_lhs_of_parameter_mapping.insert(*i);
-            variables_in_rhs_of_parameter_mapping.insert(*i);
           }
           else
           {
@@ -10967,15 +11016,14 @@ class specification_basic_type
               const variable fresh_var(fresh_identifier_generator(i->name()),i->sort());
               parameter_mapping[*i]=fresh_var;
               variables_in_lhs_of_parameter_mapping.insert(*i);
-              variables_in_rhs_of_parameter_mapping.insert(fresh_var);
             }
           }
         }
         return stochastic_operator(
                    data::replace_variables(sto.variables(),parameter_mapping),
-                   data::replace_variables_capture_avoiding(sto.distribution(),parameter_mapping,variables_in_rhs_of_parameter_mapping),
+                   replace_variables_capture_avoiding_alt(sto.distribution(),parameter_mapping),
                    guarantee_that_parameters_have_unique_type_body(sto.operand(),visited_processes,
-                           used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping,variables_in_rhs_of_parameter_mapping));
+                           used_variable_names,parameter_mapping,variables_in_lhs_of_parameter_mapping));
       }
       throw mcrl2::runtime_error("unexpected process format in guarantee_that_parameters_have_unique_type_body " + process::pp(t) +".");
     }
@@ -10983,10 +11031,10 @@ class specification_basic_type
 /* -----------------------------   split body  --------------------------- */
 
     process_expression split_body(
-      const process_expression& t, // intentionally not a reference.
+      const process_expression& t, 
       std::map < process_identifier,process_identifier >& visited_id,
       std::map < process_expression,process_expression>& visited_proc,
-      const variable_list& parameters)  //intentionally not a reference.
+      const variable_list& parameters)  
     {
       /* Replace pCRL process terms that occur in the scope of mCRL processes
          by a process identifier. E.g. (a+b)||c is replaced by X||c and
@@ -11022,12 +11070,12 @@ class specification_basic_type
       else if (is_process_instance_assignment(t))
       {
         const process_instance_assignment u(t);
-        std::size_t n=objectIndex(u.identifier());
+        objectdatatype& object=objectIndex(u.identifier());
         assert(check_valid_process_instance_assignment(split_process(u.identifier(),visited_id,visited_proc),
-                 sort_assignments(u.assignments(),objectdata[n].parameters)));
+                 sort_assignments(u.assignments(),object.parameters)));
         result=process_instance_assignment(
                  split_process(u.identifier(),visited_id,visited_proc),
-                 sort_assignments(u.assignments(),objectdata[n].parameters));
+                 sort_assignments(u.assignments(),object.parameters));
       }
       else if (is_hide(t))
       {
@@ -11055,12 +11103,18 @@ class specification_basic_type
         result=comm(comm(t).comm_set(),
                     split_body(comm(t).operand(),visited_id,visited_proc,parameters));
       }
+      else if (is_stochastic_operator(t))
+      {
+        const stochastic_operator& t1 = atermpp::down_cast<stochastic_operator>(t);
+        result=stochastic_operator(t1.variables(),
+                                   t1.distribution(),
+                                   split_body(t1.operand(),visited_id,visited_proc,parameters));
+      }
       else if (is_choice(t)||
                is_seq(t)||
                is_if_then_else(t)||
                is_if_then(t)||
                is_sum(t)||
-               is_stochastic_operator(t)||
                is_action(t)||
                is_delta(t)||
                is_tau(t)||
@@ -11114,8 +11168,8 @@ class specification_basic_type
         if (multiaction == action_list({ terminationAction }))
         {
           acts.push_front(terminationAction.label());
-          mCRL2log(mcrl2::log::warning) << "The action " << process::pp(terminationAction) << " followed by a deadlock is added to signal termination of the linear process. \n" <<
-                                           "Note that this has as effect that a terminating process always contains a deadlock. \n";
+          mCRL2log(mcrl2::log::warning) << "The action " << process::pp(terminationAction) << 
+                           " followed by a deadlock is added to signal termination of the linear process. \n";
           return;
         }
       }

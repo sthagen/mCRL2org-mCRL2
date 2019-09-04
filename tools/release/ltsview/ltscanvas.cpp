@@ -12,13 +12,8 @@
 
 #include <cmath>
 
-#ifdef __APPLE__
-#include <OpenGL/glu.h>
-#else
-#include <GL/glu.h>
-#endif
 #include "mcrl2/gui/arcball.h"
-#include "mcrl2/gui/workarounds.h"
+#include "mcrl2/gui/glu.h"
 
 #include "icons/zoom_cursor.xpm"
 #include "icons/pan_cursor.xpm"
@@ -540,7 +535,7 @@ QImage LtsCanvas::renderImage(int width, int height)
   {
     imageData = new unsigned char[width * height * 4];
   }
-  catch (std::bad_alloc exception)
+  catch (const std::bad_alloc& exception)
   {
     trDelete(context);
     return QImage();

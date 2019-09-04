@@ -1,5 +1,8 @@
 set(MCRL2_TOOLS
+  confcheck
+  generatelts
   lpstransform
+  mcrl2rewrite
   mcrl2transform
   mcrl2typecheck
   pbes2bdd

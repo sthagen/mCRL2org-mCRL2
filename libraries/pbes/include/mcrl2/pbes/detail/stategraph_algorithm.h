@@ -699,7 +699,7 @@ class stategraph_algorithm
       return result;
     }
 
-    std::string print_data_parameters(const core::identifier_string& X, std::set<std::size_t> I) const
+    std::string print_data_parameters(const core::identifier_string& X, const std::set<std::size_t>& I) const
     {
       std::ostringstream out;
       out << "  data parameters for vertex " << X << ":";
@@ -797,6 +797,7 @@ class stategraph_algorithm
       mCRL2log(log::verbose, "stategraph") << out.str() << std::endl;
     }
 
+    /// \brief Constructor.
     stategraph_algorithm(const pbes& p, const pbesstategraph_options& options)
       : m_datar(p.data(), options.rewrite_strategy),
         m_use_alternative_lcfp_criterion(options.use_alternative_lcfp_criterion),
@@ -804,8 +805,11 @@ class stategraph_algorithm
         m_use_alternative_gcfp_consistency(options.use_alternative_gcfp_consistency),
         m_options(options)
     {
-      m_pbes = stategraph_pbes(p);
+      m_pbes = stategraph_pbes(p, m_datar);
     }
+
+    /// \brief Destructor.
+    virtual ~stategraph_algorithm() = default;
 
     /// \brief Returns the connected components of the global control flow graph.
     const std::vector<std::set<std::size_t> >& connected_components() const
@@ -910,7 +914,7 @@ class stategraph_algorithm
     }
 
     /// \brief Computes the control flow graph
-    void run()
+    virtual void run()
     {
       simplify(m_pbes);
       m_pbes.compute_source_target_copy();
@@ -935,6 +939,11 @@ class stategraph_algorithm
     const GCFP_graph& GCFP() const
     {
       return m_GCFP_graph;
+    }
+
+    const std::vector<local_control_flow_graph>& local_graphs() const
+    {
+      return m_local_control_flow_graphs;
     }
 };
 

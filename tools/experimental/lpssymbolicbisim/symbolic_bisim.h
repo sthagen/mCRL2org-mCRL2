@@ -19,12 +19,11 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "mcrl2/atermpp/indexed_set.h"
 #include "mcrl2/data/bool.h"
 #include "mcrl2/data/detail/linear_inequalities_utilities.h"
 #include "mcrl2/data/detail/prover/bdd_path_eliminator.h"
 #include "mcrl2/data/detail/prover/bdd2dot.h"
-#include "mcrl2/data/enumerator.h"
+#include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/data/find.h"
 #include "mcrl2/data/fourier_motzkin.h"
 #include "mcrl2/data/lambda.h"
@@ -37,19 +36,22 @@
 #include "mcrl2/data/substitutions/data_expression_assignment.h"
 #include "mcrl2/lps/detail/lps_algorithm.h"
 #include "mcrl2/lts/lts_lts.h"
+#include "mcrl2/smt/solver.h"
+#include "mcrl2/smt/translation_error.h"
+#include "mcrl2/smt/cvc4.h"
+#include "mcrl2/utilities/indexed_set.h"
 #include "mcrl2/utilities/logger.h"
 
-#include "simplifier.h"
-#ifndef DBM_PACKAGE_AVAILABLE
-  #define GREEN(C) ""
-  #define YELLOW(C) ""
-  #define RED(C) ""
-  #define NORMAL ""
-#endif
+#include "../pbessymbolicbisim/simplifier_mode.h"
+#include "../pbessymbolicbisim/simplifier.h"
+#define THIN       "0"
+#define BOLD       "1"
+#define GREEN(S)  "\033[" S ";32m"
+#define YELLOW(S) "\033[" S ";33m"
+#define RED(S)    "\033[" S ";31m"
+#define NORMAL    "\033[0;0m"
 #include "find_linear_inequality.h"
 #include "enumerate_block_union.h"
-#include "block_tree.h"
-// #include "improved_quantifiers_inside_rewriter.h"
 
 namespace std
 {
@@ -64,7 +66,10 @@ struct hash<std::tuple<mcrl2::data::data_expression, mcrl2::data::data_expressio
     std::size_t seed=std::hash<atermpp::aterm>()(get<0>(x));
     seed = std::hash<atermpp::aterm>()(get<1>(x)) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().actions()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().arguments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    if(!get<2>(x).multi_action().actions().empty())
+    {
+      seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().arguments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
     seed = std::hash<atermpp::aterm>()(get<2>(x).assignments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     seed = std::hash<atermpp::aterm>()(get<2>(x).summation_variables()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     seed = std::hash<atermpp::aterm>()(get<2>(x).condition()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -79,7 +84,22 @@ namespace mcrl2
 namespace data
 {
 
-using namespace mcrl2::log;
+core::identifier_string iff_name()
+{
+  static core::identifier_string iff_name = core::identifier_string("<=>");
+  return iff_name;
+}
+
+function_symbol iff()
+{
+  static function_symbol iff(iff_name(), make_function_sort(sort_bool::bool_(), sort_bool::bool_(), sort_bool::bool_()));
+  return iff;
+}
+
+inline application iff(const data_expression& d1, const data_expression& d2)
+{
+  return iff()(d1, d2);
+}
 
 template <typename Specification>
 class symbolic_bisim_algorithm: public mcrl2::lps::detail::lps_algorithm<Specification>
@@ -96,10 +116,10 @@ protected:
   rewriter proving_rewr;
 
   variable_list                  process_parameters;
-  const data_expression                invariant;
   std::list<data_expression>      partition;
-  data_specification             ad_hoc_data;
+  bool                           m_contains_reals;
   simplifier*                    simpl;
+  smt::solver                    m_smt_solver;
 
   typedef std::unordered_set< std::tuple< data_expression, data_expression, lps::action_summand > > refinement_cache_t;
   refinement_cache_t refinement_cache;
@@ -107,13 +127,6 @@ protected:
   reachability_cache_t reachability_cache;
   typedef std::unordered_map< std::tuple< data_expression, data_expression, lps::action_summand >, bool> transition_cache_t;
   transition_cache_t transition_cache;
-
-  int refinement_cache_hits = 0;
-  int refinement_cache_misses = 0;
-  int transition_cache_hits = 0;
-  int transition_cache_misses = 0;
-  int last_minute_transition_check = 0;
-  block_tree* split_logger;
 
   std::map< lps::action_summand, variable_list > m_primed_summation_variables_map;
   std::map< lps::action_summand, data_expression_list > m_updates_map;
@@ -140,15 +153,6 @@ protected:
     }
     out << "]";
     return out.str();
-  }
-
-  /**
-   * \brief Reconstructs the rewriter with some useful rules
-   */
-  void add_ad_hoc_rules()
-  {
-    ad_hoc_data = merge_data_specifications(m_spec.data(),simplifier::norm_rules_spec());
-    rewr = rewriter(ad_hoc_data, strat);
   }
 
   /**
@@ -209,8 +213,8 @@ protected:
     enumerator_type enumerator(rewr, m_spec.data(), rewr, id_generator, (std::numeric_limits<std::size_t>::max)(), true, enumerate_filter_print(lli, rewr));
 
     data::mutable_indexed_substitution<> sigma;
-    std::deque<enumerator_list_element_with_substitution<> >
-         enumerator_deque(1, enumerator_list_element_with_substitution<>(vars, parent_block));
+    data::enumerator_queue<enumerator_list_element_with_substitution<> >
+         enumerator_deque(enumerator_list_element_with_substitution<>(vars, parent_block));
     for (typename enumerator_type::iterator i = enumerator.begin(sigma, enumerator_deque); i != enumerator.end(); ++i)
     {
       i->add_assignments(vars,sigma,rewr);
@@ -224,6 +228,29 @@ protected:
     }
   }
 
+  data_expression make_abstraction(const binder_type& b, const variable_list& v, const data_expression& body)
+  {
+    return v.empty() ? body : abstraction(b, v, body);
+  }
+
+  data_expression make_abstraction_reals_inside(const binder_type& b, const variable_list& v, const data_expression& body)
+  {
+    variable_list non_real_var;
+    variable_list real_var;
+    for(const variable& var: v)
+    {
+      if(var.sort() == sort_real::real_())
+      {
+        real_var.push_front(var);
+      }
+      else
+      {
+        non_real_var.push_front(var);
+      }
+    }
+    return make_abstraction(b, non_real_var, make_abstraction(b, real_var, body));
+  }
+
   /**
    * \brief Split block phi_k on phi_l wrt summand as
    */
@@ -231,16 +258,13 @@ protected:
   {
     if(refinement_cache.find(std::make_tuple(phi_k, phi_l, as)) != refinement_cache.end())
     {
-      refinement_cache_hits++;
       // This split has already been tried before.
       return false;
     }
-    refinement_cache_misses++;
     // Search the cache for information on this transition
     if(!transition_exists(phi_k, phi_l, as))
     {
       // Cache entry found
-      last_minute_transition_check++;
       return false;
     }
 
@@ -260,7 +284,7 @@ protected:
       }
     }
     arguments_equal = rewr(arguments_equal);
-    // std::cout << "Constructing block expression ..." << std::endl;
+    // mCRL2log(log::verbose) << "Constructing block expression ..." << std::endl;
     data_expression prime_condition =
       arguments_equal == sort_bool::true_() ?
         variable("b'", sort_bool::bool_()) :
@@ -273,10 +297,10 @@ protected:
         lazy::and_(
           rewr(application(phi_k,process_parameters)),
           lazy::and_(
-            forall(primed_summation_variables,
+            make_abstraction(forall_binder(), primed_summation_variables,
               lazy::implies(
                 rewr(prime_condition),
-                exists(as.summation_variables(),
+                make_abstraction(exists_binder(), as.summation_variables(),
                   rewr(lazy::and_(
                     lazy::and_(
                       as.condition(),
@@ -286,13 +310,13 @@ protected:
                 )
               )
             ),
-            forall(as.summation_variables(),
+            make_abstraction(forall_binder(), as.summation_variables(),
               lazy::implies(
                 rewr(lazy::and_(
                   as.condition(),
                   rewr(application(phi_l, updates))
                 )),
-                exists(primed_summation_variables,
+                make_abstraction(exists_binder(), primed_summation_variables,
                   rewr(lazy::and_(
                     prime_condition,
                     arguments_equal
@@ -342,11 +366,9 @@ protected:
     if(new_blocks.size() > 1) {
       partition.remove(phi_k);
       update_caches(phi_k, new_blocks);
-      block_tree* logging_node_phi_k = split_logger->find(rewr(phi_k));
       for(const data_expression& d: new_blocks)
       {
         partition.push_front(d);
-        logging_node_phi_k->add_child(rewr(d));
       }
       return true;
     }
@@ -431,10 +453,10 @@ protected:
         int k = 0;
         for(const lps::action_summand& as: m_spec.process().action_summands())
         {
-          // std::cout << "Trying to split " << i << " on " << j << " wrt summand " << k << std::endl;
+          // mCRL2log(log::verbose) << "Trying to split " << i << " on " << j << " wrt summand " << k << std::endl;
           if(split_block(phi_k, phi_l, as))
           {
-            std::cout << "Split " << rewr(phi_k) << " wrt summand\n" << as << "\non block " << rewr(phi_l) << std::endl;
+            mCRL2log(log::verbose) << "Split " << rewr(phi_k) << " wrt summand\n" << as << "\non block " << rewr(phi_l) << std::endl;
             return true;
           }
           k++;
@@ -510,11 +532,42 @@ protected:
     {
       if(rewr(application(block, m_spec.initial_process().state(process_parameters))) == sort_bool::true_())
       {
-        // std::cout << "Found initial block " << block << std::endl;
+        // mCRL2log(log::verbose) << "Found initial block " << block << std::endl;
         return block;
       }
     }
     throw mcrl2::runtime_error("Initial block not found.");
+  }
+
+  bool is_satisfiable(const variable_list& vars, const data_expression& expr)
+  {
+    smt::smt_problem problem;
+    for(const variable& v: vars)
+    {
+      problem.add_variable(v);
+    }
+    problem.add_assertion(expr);
+    try
+    {
+      return m_smt_solver.solve(problem);
+    }
+    catch(const smt::translation_error& e)
+    {
+      mCRL2log(log::warning) << e.what() << std::endl;
+    }
+
+    // The SMT solver failed, so we fallback to the rewriter
+    data_expression is_sat = make_abstraction_reals_inside(exists_binder(), vars, expr);
+    is_sat = rewr(one_point_rule_rewrite(quantifiers_inside_rewrite(is_sat)));
+    if(m_contains_reals)
+    {
+      is_sat = rewr(replace_data_expressions(is_sat, fourier_motzkin_sigma(rewr), true));
+    }
+    if(is_sat != sort_bool::true_() && is_sat != sort_bool::false_())
+    {
+      throw mcrl2::runtime_error("Failed to establish whether " + data::pp(expr) + " is satisfiable");
+    }
+    return is_sat == sort_bool::true_();
   }
 
   /**
@@ -527,14 +580,12 @@ protected:
     if(find_result != transition_cache.end())
     {
       // Cache entry found
-      transition_cache_hits++;
       return find_result->second;
     }
-    transition_cache_misses++;
 
     // This expression expresses whether there is a transition between src and dest based on this summand
-    data_expression is_succ =
-      exists(m_spec.process().process_parameters() + as.summation_variables(),
+    bool result =
+      is_satisfiable(m_spec.process().process_parameters() + as.summation_variables(),
         rewr(sort_bool::and_(
           application(src, m_spec.process().process_parameters()),
           sort_bool::and_(
@@ -543,11 +594,6 @@ protected:
           )
         ))
       );
-
-    // Do some rewriting before using Fourier-Motzkin elimination
-    is_succ = rewr(one_point_rule_rewrite(quantifiers_inside_rewrite(is_succ)));
-    data_expression succ_result = rewr(replace_data_expressions(is_succ, fourier_motzkin_sigma(rewr), true));
-    bool result = succ_result == sort_bool::true_();
     transition_cache.insert(std::make_pair(std::make_tuple(src, dest, as), result));
     if(!result)
     {
@@ -621,12 +667,11 @@ protected:
     }
 
 
-    std::cout << RED(THIN) << "Unreachable blocks:" << NORMAL << std::endl;
+    mCRL2log(log::verbose) << RED(THIN) << "Unreachable blocks:" << NORMAL << std::endl;
     int i = 0;
     for(const data_expression& block: unreachable)
     {
-      split_logger->mark_deleted(rewr(block));
-      std::cout << "  block " << i << "  " << pp(rewr(block)) << std::endl;
+      mCRL2log(log::verbose) << "  block " << i << "  " << pp(rewr(block)) << std::endl;
       i++;
     }
   }
@@ -642,18 +687,18 @@ protected:
   lts::lts_lts_t make_lts(const Container& blocks, typename atermpp::enable_if_container<Container, data_expression>::type* = nullptr)
   {
     lts::lts_lts_t result;
-    atermpp::indexed_set<data_expression> indexed_partition;
+    utilities::indexed_set<data_expression> indexed_partition;
     for(const data_expression& block: blocks)
     {
-      indexed_partition.put(block);
+      indexed_partition.insert(block);
       result.add_state(lts::state_label_lts(lps::state{rewr(block)}));
     }
-    atermpp::indexed_set<process::action_list> indexed_actions;
+    utilities::indexed_set<process::action_list> indexed_actions;
     // tau is always action 0
-    indexed_actions.put(lts::action_label_lts::tau_action().actions());
+    indexed_actions.insert(lts::action_label_lts::tau_action().actions());
     for(const lps::action_summand& as: m_spec.process().action_summands())
     {
-      std::pair<std::size_t, bool> action_index = indexed_actions.put(as.multi_action().actions());
+      auto action_index = indexed_actions.insert(as.multi_action().actions());
       if(action_index.second)
       {
         result.add_action(lts::action_label_lts(as.multi_action()));
@@ -677,7 +722,7 @@ protected:
         {
           if(transition_exists(src, dest, as))
           {
-            lts::transition trans(indexed_partition[src], indexed_actions[as.multi_action().actions()], indexed_partition[dest]);
+            lts::transition trans(indexed_partition.index(src), indexed_actions.index(as.multi_action().actions()), indexed_partition.index(dest));
             result.add_transition(trans);
           }
         }
@@ -689,7 +734,7 @@ protected:
     if(initial_block != data_expression())
     {
       // The intial block was found, set it as intial state
-      result.set_initial_state(indexed_partition[initial_block]);
+      result.set_initial_state(indexed_partition.index(initial_block));
     }
     return result;
   }
@@ -709,61 +754,67 @@ protected:
     int i = 0;
     for(const data_expression& block: blocks)
     {
-      std::cout << YELLOW(THIN) << "  block " << i << "  " << NORMAL << pp(rewr(block)) << std::endl;
+      mCRL2log(log::verbose) << YELLOW(THIN) << "  block " << i << "  " << NORMAL << pp(rewr(block)) << std::endl;
       // detail::BDD2Dot bddwriter;
       // bddwriter.output_bdd(atermpp::down_cast<abstraction>(block).body(), ("block" + std::to_string(i) + ".dot").c_str());
       i++;
     }
   }
 
+  data_specification add_iff_rules(data_specification spec)
+  {
+    variable vb1("b1", sort_bool::bool_());
+    variable vb2("b2", sort_bool::bool_());
+
+    // Rules for bidirectional implication (iff)
+    spec.add_equation(data_equation(variable_list({vb1}), iff(sort_bool::true_(), vb1), vb1));
+    spec.add_equation(data_equation(variable_list({vb1}), iff(vb1, sort_bool::true_()), vb1));
+    spec.add_equation(data_equation(variable_list({vb1}), iff(sort_bool::false_(), vb1), sort_bool::not_(vb1)));
+    spec.add_equation(data_equation(variable_list({vb1}), iff(vb1, sort_bool::false_()), sort_bool::not_(vb1)));
+    return spec;
+  }
+
 public:
-  symbolic_bisim_algorithm(Specification& spec, const data_expression& inv, const rewrite_strategy& st = jitty)
+  symbolic_bisim_algorithm(Specification& spec, const simplifier_mode& simplify_strat, const rewrite_strategy& st = jitty)
     : mcrl2::lps::detail::lps_algorithm<Specification>(spec)
     , strat(st)
-    , rewr(spec.data(),jitty)
+    , rewr(add_iff_rules(merge_data_specifications(m_spec.data(),simplifier::norm_rules_spec())), st)
 #ifdef MCRL2_JITTYC_AVAILABLE
     , proving_rewr(spec.data(), st == jitty ? jitty_prover : jitty_compiling_prover)
 #else
     , proving_rewr(spec.data(), jitty_prover)
 #endif
-    , invariant(inv)
-  {
-
-  }
+    , m_contains_reals(std::find_if(m_spec.process().process_parameters().begin(), m_spec.process().process_parameters().end(),[](const variable& v){ return v.sort() == sort_real::real_(); }) != m_spec.process().process_parameters().end())
+    , simpl(get_simplifier_instance(simplify_strat, rewr, proving_rewr, m_spec.process().process_parameters(), m_spec.data()))
+    , m_smt_solver(new smt::smt4_data_specification(spec.data()))
+  {}
 
   void run()
   {
     mCRL2log(mcrl2::log::verbose) << "Running symbolic bisimulation..." << std::endl;
 
     process_parameters = m_spec.process().process_parameters();
-    partition.push_front(invariant);
-    split_logger = new block_tree(invariant);
-    add_ad_hoc_rules();
+    data_expression initial_block = lambda(process_parameters, sort_bool::true_());
+    partition.push_front(initial_block);
     build_summand_maps();
-    simpl = get_simplifier_instance(rewr, proving_rewr, m_spec.process().process_parameters(), m_spec.data());
 
     const std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
-    std::cout << "Initial partition:" << std::endl;
+    mCRL2log(log::verbose) << "Initial partition:" << std::endl;
     print_partition(partition);
     int num_iterations = 0;
     while(refine())
     {
-      std::cout << GREEN(THIN) << "Partition:" << NORMAL << std::endl;
+      mCRL2log(log::verbose) << GREEN(THIN) << "Partition:" << NORMAL << std::endl;
       print_partition(partition);
       find_reachable_blocks();
       num_iterations++;
-      std::cout << "End of iteration " << num_iterations <<
-      ".\nRefinement cache entries/hits/misses " << refinement_cache.size() << "/" << refinement_cache_hits << "/" << refinement_cache_misses <<
-      ".\nTransition cache entries/hits/misses " << transition_cache.size() << "/" << transition_cache_hits << "/" << transition_cache_misses <<
-      ".\nLast minute transition check successes " << last_minute_transition_check <<
-      ".\nSplits performed " << refinement_cache_misses - last_minute_transition_check << std::endl;
+      mCRL2log(log::status) << "End of iteration " << num_iterations << ", current number of blocks is " << partition.size() << "\n";
     }
-    std::cout << "Final partition:" << std::endl;
+    mCRL2log(log::verbose) << "Final partition:" << std::endl;
     print_partition(partition);
     std::set< data_expression > final_partition;
     std::for_each(partition.begin(), partition.end(), [&](const data_expression& block){ final_partition.insert(rewr(block)); });
-    split_logger->output_dot("split_tree.dot", final_partition);
-    std::cout << "Partition refinement completed in " << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - t_start).count() << " seconds" << std::endl;
+    mCRL2log(log::info) << "Partition refinement completed in " << std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - t_start).count() << " seconds" << std::endl;
 
     save_lts();
   }

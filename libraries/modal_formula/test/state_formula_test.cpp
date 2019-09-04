@@ -12,7 +12,7 @@
 #define MCRL2_STATE_FORMULA_BUILDER_DEBUG
 
 #define BOOST_TEST_MODULE state_formula
-#include <boost/test/included/unit_test.hpp>
+#include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/data/find.h"
 #include "mcrl2/data/set_identifier_generator.h"
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(test_rename)
   formula = rename_predicate_variables(formula, generator);
 
   std::cout << "pp(formula) == " << pp(formula) << std::endl;
-  BOOST_CHECK(pp(formula) == "(mu X1. X1) && mu X. X" || pp(formula) == "(mu X. X) && mu X1. X1");
+  BOOST_CHECK(pp(formula) == "(mu X1. X1) && (mu X. X)" || pp(formula) == "(mu X. X) && (mu X1. X1)");
 
   generator = data::set_identifier_generator();
   generator.add_identifiers(lps::find_identifiers(lpsspec));

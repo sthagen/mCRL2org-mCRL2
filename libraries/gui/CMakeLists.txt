@@ -6,9 +6,9 @@ if(Qt5Core_FOUND AND Qt5Widgets_FOUND)
       logwidget.ui
       logwidget.cpp
       extendedtabwidget.cpp
-      numberedtextedit.cpp
+      codeeditor.cpp
       persistentfiledialog.cpp
-      workarounds.cpp
+      utilities.cpp
     DEPENDS
       mcrl2_utilities
       Qt5::Core

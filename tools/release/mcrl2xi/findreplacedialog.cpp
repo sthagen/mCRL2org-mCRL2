@@ -8,7 +8,6 @@
 //
 
 #include <QtGui>
-#include <QTextEdit>
 
 #include "findreplacedialog.h"
 
@@ -28,7 +27,7 @@ FindReplaceDialog::FindReplaceDialog(QWidget *parent) :
   connect(m_ui.replaceAllButton, SIGNAL(clicked()), this, SLOT(replaceAll()));
 }
 
-void FindReplaceDialog::setTextEdit(QTextEdit *textEdit)
+void FindReplaceDialog::setTextEdit(QPlainTextEdit *textEdit)
 {
   if (m_textEdit)
   {
@@ -77,10 +76,10 @@ void FindReplaceDialog::showMessage(const QString &message)
 
 void FindReplaceDialog::find()
 {
-  find(m_ui.downRadioButton->isChecked());
+  find(m_ui.downRadioButton->isChecked(), true);
 }
 
-void FindReplaceDialog::find(bool next)
+void FindReplaceDialog::find(bool next, bool doWrapAround)
 {
   if (!m_textEdit)
   {
@@ -90,6 +89,7 @@ void FindReplaceDialog::find(bool next)
   bool back = !next;
   const QString &toSearch = m_ui.textToFind->text();
   bool result = false;
+  const QTextCursor originalPosition = m_textEdit->textCursor();
 
   QTextDocument::FindFlags flags;
 
@@ -108,15 +108,17 @@ void FindReplaceDialog::find(bool next)
     return;
   } 
   
-  // The string was not found, try to wrap around begin/end of file
-  const QTextCursor originalPosition = m_textEdit->textCursor();
-  m_textEdit->moveCursor(back ? QTextCursor::End : QTextCursor::Start);
-  result = m_textEdit->find(toSearch, flags);
-
-  if(result)
+  if (doWrapAround)
   {
-    showError("");
-    return;
+    // The string was not found, try to wrap around begin/end of file
+    m_textEdit->moveCursor(back ? QTextCursor::End : QTextCursor::Start);
+    result = m_textEdit->find(toSearch, flags);
+
+    if (result)
+    {
+      showError("");
+      return;
+    }
   }
 
   // The string was still not found
@@ -151,13 +153,13 @@ void FindReplaceDialog::replaceAll()
   }
 
   m_textEdit->moveCursor(QTextCursor::Start);
-  find(true);
+  find(true, false);
 
   int i=0;
   while (m_textEdit->textCursor().hasSelection())
   {
     m_textEdit->textCursor().insertText(m_ui.textToReplace->text());
-    find();
+    find(true, false);
     i++;
   }
   showMessage(tr("Replaced %1 occurrence(s)").arg(i));
