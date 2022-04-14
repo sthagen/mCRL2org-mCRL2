@@ -7,24 +7,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #define BOOST_TEST_MODULE print_test
-#include <sstream>
 
 #include <boost/test/included/unit_test_framework.hpp>
 
-#include "mcrl2/atermpp/aterm_io.h"
-#include "mcrl2/data/bag.h"
-#include "mcrl2/data/bool.h"
-#include "mcrl2/data/exists.h"
-#include "mcrl2/data/forall.h"
-#include "mcrl2/data/function_update.h"
-#include "mcrl2/data/lambda.h"
-#include "mcrl2/data/list.h"
-#include "mcrl2/data/nat.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/data/print.h"
-#include "mcrl2/data/real.h"
-#include "mcrl2/data/set.h"
-#include "mcrl2/data/standard_utility.h"
 
 using namespace mcrl2;
 using namespace mcrl2::data;
@@ -435,10 +422,6 @@ BOOST_AUTO_TEST_CASE(test_mod)
   std::cout << "left = " << left << " " << data::pp(left) << std::endl;
   BOOST_CHECK(data::detail::is_plus(left));
 
-  application left1 = atermpp::down_cast<application>(detail::remove_numeric_casts(left));
-  std::cout << "left1 = " << left1 << " " << data::pp(left1) << std::endl;
-  BOOST_CHECK(data::detail::is_plus(left1));
-
   BOOST_CHECK(data::pp(x) == "(1 + 2) mod 3");
   std::cout << "x = " << x << " " << data::pp(x) << std::endl;
 
@@ -450,11 +433,6 @@ BOOST_AUTO_TEST_CASE(test_mod)
 
   BOOST_CHECK(data::sort_nat::is_nat(x.sort()));
   BOOST_CHECK(data::sort_int::is_mod_application(x));
-
-  left1 = atermpp::down_cast<application>(detail::remove_numeric_casts(left));
-  std::cout << "left1 = " << left1 << " " << data::pp(left1) << std::endl;
-  BOOST_CHECK(data::detail::is_minus(left1));
-  std::cout << "precedence(left1) = " << precedence(left1) << std::endl;
 
   BOOST_CHECK(data::pp(x) == "(2 - 1) mod 3");
   std::cout << "x = " << x << " " << data::pp(x) << std::endl;
@@ -508,8 +486,8 @@ BOOST_AUTO_TEST_CASE(test_fset_print)
   data_expression false_ = sort_set::false_function(s);
   data_expression true_ = sort_set::true_function(s);
 
-  data_expression xy_union = sort_fset::fset_union(s, false_, false_, x, y);
-  data_expression xy_intersection = sort_fset::fset_intersection(s, false_, false_, x, y);
+  data_expression xy_union = sort_set::fset_union(s, false_, false_, x, y);
+  data_expression xy_intersection = sort_set::fset_intersection(s, false_, false_, x, y);
   data_expression xy_difference = sort_fset::difference(s, x, y);
   data_expression xy_in = sort_fset::in(s, one, x);
 
@@ -518,13 +496,13 @@ BOOST_AUTO_TEST_CASE(test_fset_print)
   BOOST_CHECK_EQUAL(data::pp(xy_difference)  , "{1, 2} - {3}");
   BOOST_CHECK_EQUAL(data::pp(xy_in)          , "1 in {1, 2}");
 
-  xy_union = sort_fset::fset_union(s, f, false_, x, y);
-  xy_intersection = sort_fset::fset_intersection(s, f, false_, x, y);
+  xy_union = sort_set::fset_union(s, f, false_, x, y);
+  xy_intersection = sort_set::fset_intersection(s, f, false_, x, y);
   BOOST_CHECK_EQUAL(data::pp(xy_union)       , "{1, 2} + { x: Pos | !f(x) && x in {3} }");
   BOOST_CHECK_EQUAL(data::pp(xy_intersection), "{1, 2} * { x: Pos | !f(x) && x in {3} }");
 
-  xy_union = sort_fset::fset_union(s, f, g, x, y);
-  xy_intersection = sort_fset::fset_intersection(s, f, g, x, y);
+  xy_union = sort_set::fset_union(s, f, g, x, y);
+  xy_intersection = sort_set::fset_intersection(s, f, g, x, y);
   BOOST_CHECK_EQUAL(data::pp(xy_union)       , "{ x: Pos | !g(x) && x in {1, 2} } + { x: Pos | !f(x) && x in {3} }");
   BOOST_CHECK_EQUAL(data::pp(xy_intersection), "{ x: Pos | !g(x) && x in {1, 2} } * { x: Pos | !f(x) && x in {3} }");
 }

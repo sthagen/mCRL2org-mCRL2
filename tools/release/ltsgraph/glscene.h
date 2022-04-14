@@ -14,14 +14,12 @@
 #include "camera.h"
 #include "shaders.h"
 
+#include <array>
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLWidget>
 #include <QPainter>
-
-#include <array>
-#include <vector>
 
 /// \brief The scene contains the graph that is shown and the camera from which the graph is viewed. It performs
 ///        all the necessary OpenGL calls to render this graph as if shown from the camera. It assumes
@@ -64,13 +62,16 @@ public:
   /// \brief Constructor.
   /// \param glwidget The widget where this scene is drawn
   /// \param g The graph that is to be visualised by this object.
-  GLScene(QOpenGLWidget& glwidget, Graph::Graph& g);
+  GLScene(QOpenGLWidget& glwidget, const Graph::Graph& g);
 
   /// \brief Initializes all state and data required for rendering.
   void initialize();
 
   /// \brief Updates the state of the scene.
   void update();
+
+  /// \brief Builds static data based on the current graph.
+  void rebuild();
 
   /// \brief Render the scene.
   void render(QPainter& painter);
@@ -85,7 +86,9 @@ public:
   /// Getters
 
   bool drawStateLabels() const { return m_drawstatelabels; }
+  bool drawStateNumbers() const { return m_drawstatenumbers; }
   bool drawTransitionLabels() const { return m_drawtransitionlabels; }
+  bool drawSelfLoops() const { return m_drawselfloops; }
   std::size_t nodeSize() const { return m_size_node; }
   std::size_t fontSize() const { return m_fontsize; }
   float nodeSizeScaled() const { return nodeSize() * m_device_pixel_ratio; }
@@ -97,6 +100,18 @@ public:
   float sizeOnScreen(const QVector3D& pos, float length) const;
 
   ArcballCameraView& camera() { return m_camera;  }
+  const ArcballCameraView& camera() const { return m_camera;  }
+
+  /**
+  * \brief Calculates control points for the arc described by a origin, handle and destination node.
+  * \param from Position of the starting point of the arc.
+  * \param via Position of the handle associated with the arc.
+  * \param to Position of the end point of the arc.
+  * \param selfLoop True if the arc represents a self loop.
+  * \returns Four points describing a cubic Bezier curve (start, control1, control2, end).
+  */
+  static constexpr std::array<QVector3D, 4> calculateArc(const QVector3D& from, const QVector3D& via,
+    const QVector3D& to, bool selfLoop);
 
   /// Setters
 
@@ -118,6 +133,9 @@ private:
 
   /// \brief Renders text at a given world position, facing the camera and center aligned.
   void drawCenteredText3D(QPainter& painter, const QString& text, const QVector3D& position, const QVector3D& color);
+
+  /// \brief Renders static text at a given world position, facing the camera and center aligned.
+  void drawCenteredStaticText3D(QPainter& painter, const QStaticText& text, const QVector3D& position, const QVector3D& color);
 
   /// \returns Whether the given point (no radius) is visible based on the camera viewdistance and fog amount (if enabled).
   /// \param fog The amount of fog that a given point receives.
@@ -156,7 +174,7 @@ private:
   QQuaternion sphericalBillboard(const QVector3D& position) const;
 
   QOpenGLWidget& m_glwidget; /// The widget where this scene is drawn
-  Graph::Graph& m_graph;     /// The graph that is being visualised.
+  const Graph::Graph& m_graph;     /// The graph that is being visualised.
 
   ArcballCameraView m_camera;
   float m_device_pixel_ratio;
@@ -185,6 +203,38 @@ private:
 
   /// \brief The background color of the scene.
   QVector3D m_clearColor = QVector3D(1.0f, 1.0f, 1.0f);
+
+  /// \brief For each label store a QStaticText object, which is more efficient for text that rarely changes its layout.
+  std::vector<QStaticText> m_state_labels;
+  std::vector<QStaticText> m_transition_labels;
 };
+
+constexpr std::array<QVector3D, 4> GLScene::calculateArc(const QVector3D& from, const QVector3D& via,
+  const QVector3D& to, bool selfLoop)
+{
+  // Pick a point a bit further from the middle point between the nodes.
+  // This is an affine combination of the points 'via' and '(from + to) / 2.0f'.
+  const QVector3D base = via * 1.33333f - (from + to) / 6.0f;
+
+  if (selfLoop)
+  {
+    // For self-loops, the control points need to lie apart, we'll spread
+    // them in x-y direction.
+    const QVector3D diff = QVector3D::crossProduct(base - from, QVector3D(0, 0, 1));
+    const QVector3D n_diff = diff * ((via - from).length() / (diff.length() * 2.0f));
+    return std::array<QVector3D, 4>{from, base + n_diff, base - n_diff, to};
+  }
+  else
+  {
+    // Standard case: use the same position for both points.
+    //return std::array<QVector3D, 4>{from, base, base, to};
+    // Method 2: project the quadratic bezier curve going through the handle onto a cubic bezier curve.
+    const QVector3D control = via + (via - ((from + to) / 2.0f));
+    return std::array<QVector3D, 4>{from,
+      0.33333f * from + 0.66666f * control,
+      0.33333f * to + 0.66666f * control,
+      to};
+  }
+}
 
 #endif // MCRL2_LTSGRAPH_GLSCENE_H

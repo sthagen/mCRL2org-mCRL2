@@ -20,8 +20,6 @@ PropertyWidget::PropertyWidget(Property property, ProcessSystem* processSystem,
 {
   editPropertyDialog =
       new AddEditPropertyDialog(false, processSystem, fileSystem, this);
-  connect(editPropertyDialog, SIGNAL(accepted()), this,
-          SLOT(actionEditResult()));
 
   /* create the label for the property name */
   propertyNameLabel = new QLabel(property.name);
@@ -109,6 +107,8 @@ PropertyWidget::PropertyWidget(Property property, ProcessSystem* processSystem,
           SLOT(actionVerifyResult(int)));
   connect(processSystem, SIGNAL(processFinished(int)), this,
           SLOT(actionShowEvidenceResult(int)));
+  connect(fileSystem, SIGNAL(propertyEdited(QString, Property)), this,
+          SLOT(updateProperty(QString, Property)));
 }
 
 PropertyWidget::~PropertyWidget()
@@ -220,7 +220,7 @@ void PropertyWidget::actionShowEvidence()
     return;
   }
 
-  /* check if the property has veen verified */
+  /* check if the property has been verified */
   if (verificationWidgets->currentIndex() > 1)
   {
     /* start the evidence creation process */
@@ -257,28 +257,14 @@ void PropertyWidget::actionAbortVerification()
 
 void PropertyWidget::actionEdit()
 {
-  editPropertyDialog->setProperty(property);
-  editPropertyDialog->setOldProperty(property);
-  editPropertyDialog->resetFocus();
-  if (editPropertyDialog->isVisible())
-  {
-    editPropertyDialog->activateWindow();
-    editPropertyDialog->setFocus();
-  }
-  else
-  {
-    editPropertyDialog->show();
-  }
+  editPropertyDialog->activateDialog(property);
 }
 
-void PropertyWidget::actionEditResult()
+void PropertyWidget::updateProperty(const QString& oldPropertyName,
+                                    const Property& newProperty)
 {
-  /* if editing was successful (Edit button was pressed), change the property
-   * we don't need to save to file as this is already done by the dialog */
-  Property newProperty = editPropertyDialog->getProperty();
-  fileSystem->editProperty(property, newProperty);
-  /* only make changes if the property changed */
-  if (property != newProperty)
+  /* check if it was the property of this widget that changed */
+  if (oldPropertyName == property.name)
   {
     property = newProperty;
     propertyNameLabel->setText(property.name);

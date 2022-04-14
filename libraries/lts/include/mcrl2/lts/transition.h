@@ -24,6 +24,8 @@ namespace mcrl2
 namespace lts
 {
 
+static const std::size_t const_tau_label_index=0;
+
 /** \brief Transition sort styles.
  * \details This enumerated type defines sort styles for transitions.
  * They can be used to sort the transitions of an LTS based on various
@@ -60,11 +62,6 @@ class transition
 
     /// \brief Copy constructor.
     transition(const transition& t) = default;
-    /* {
-      m_from = t.m_from;
-      m_label = t.m_label;
-      m_to = t.m_to;
-    } */
 
     /// \brief The source of the transition.
     size_type

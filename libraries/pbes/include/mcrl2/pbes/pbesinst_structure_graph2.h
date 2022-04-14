@@ -12,17 +12,11 @@
 #ifndef MCRL2_PBES_PBESINST_STRUCTURE_GRAPH2_H
 #define MCRL2_PBES_PBESINST_STRUCTURE_GRAPH2_H
 
-#include <array>
-#include <utility>
-#include "mcrl2/data/undefined.h"
 #include "mcrl2/pbes/pbesinst_fatal_attractors.h"
 #include "mcrl2/pbes/pbesinst_find_loops.h"
 #include "mcrl2/pbes/pbesinst_partial_solve.h"
-#include "mcrl2/pbes/pbessolve_attractors.h"
-#include "mcrl2/pbes/replace.h"
-#include "mcrl2/pbes/simple_structure_graph.h"
 #include "mcrl2/pbes/pbesinst_structure_graph.h"
-#include "mcrl2/pbes/traverser.h"
+#include "mcrl2/utilities/stopwatch.h"
 
 namespace mcrl2 {
 
@@ -124,7 +118,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
        : S(S_), graph_builder(graph_builder_)
       {}
 
-      void unexpected(const pbes_expression& x) const
+      static void unexpected(const pbes_expression& x)
       {
         throw mcrl2::runtime_error("Unexpected term " + pbes_system::pp(x) + " encountered in Rplus");
       }
@@ -154,7 +148,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
       }
 
       // TODO: use a heuristic for the smallest term
-      bool less(const pbes_expression& /* x1 */, const pbes_expression& /* x2 */) const
+      static bool less(const pbes_expression& /* x1 */, const pbes_expression& /* x2 */)
       {
         return true;
       }
@@ -513,10 +507,13 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
       }
     }
 
+
     void on_discovered_elements(const std::set<propositional_variable_instantiation>& elements) override
     {
       using utilities::detail::contains;
+      stopwatch timer;
 
+      bool report = false;
       if (m_options.optimization == 3)
       {
         if (S_guard[0](S[0].size()))
@@ -533,12 +530,17 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
       }
       else if (m_options.optimization == 4 && (m_options.aggressive || find_loops_guard(m_iteration_count)))
       {
+        mCRL2log(log::verbose) << "start partial solving\n"; report = true;
+
         simple_structure_graph G(m_graph_builder.vertices());
         detail::find_loops2(G, S, tau, m_iteration_count); // modifies S[0] and S[1]
         assert(strategies_are_set_in_solved_nodes());
+
       }
       else if ((5 <= m_options.optimization && m_options.optimization <= 7) && (m_options.aggressive || fatal_attractors_guard(m_iteration_count)))
       {
+        mCRL2log(log::verbose) << "start partial solving\n"; report = true;
+
         simple_structure_graph G(m_graph_builder.vertices());
         if (m_options.optimization == 5)
         {
@@ -558,10 +560,18 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
         }
       }
       else if (m_options.optimization == 8 && (m_options.aggressive || find_loops_guard(m_iteration_count)))
-      {
+      {        
+        mCRL2log(log::verbose) << "start partial solving\n"; report = true;
+
         simple_structure_graph G(m_graph_builder.vertices());
         detail::find_loops(G, discovered, todo, S, tau, m_iteration_count, m_graph_builder); // modifies S[0] and S[1]
         assert(strategies_are_set_in_solved_nodes());
+      }
+
+      if (report)
+      {
+        mCRL2log(log::verbose) << "found solution solution for" << std::setw(12) << S[0].size() + S[1].size() << " BES equations" << std::endl;
+        mCRL2log(log::verbose) << "finished partial solving (time = " << std::setprecision(2) << std::fixed << timer.seconds() << "s)\n";
       }
 
       if (m_options.prune_todo_list)

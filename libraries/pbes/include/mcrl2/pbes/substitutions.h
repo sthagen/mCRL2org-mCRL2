@@ -12,10 +12,8 @@
 #ifndef MCRL2_PBES_SUBSTITUTIONS_H
 #define MCRL2_PBES_SUBSTITUTIONS_H
 
-#include "mcrl2/data/replace.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
 #include "mcrl2/pbes/replace.h"
-#include <utility>
 
 namespace mcrl2 {
 
@@ -26,7 +24,7 @@ namespace pbes_system {
  * Model of Substitution.
  *
  **/
-class propositional_variable_substitution: public std::unary_function<propositional_variable_instantiation, pbes_expression>
+class propositional_variable_substitution
 {
   public:
     // maps X to (phi, d), where X(d) is the propositional variable corresponding to X
@@ -170,19 +168,19 @@ class propositional_variable_substitution: public std::unary_function<propositio
     /// \brief Returns an iterator that references the expression associated with v or is equal to m_map.end()
     iterator find(const variable_type &v)
     {
-      return this->m_map.find(atermpp::deprecated_cast<core::identifier_string>(v));
+      return this->m_map.find(static_cast<core::identifier_string>(v));
     }
 
     /// \brief Removes the substitution to the propositional variable v.
     map_type::size_type erase(const propositional_variable& v)
     {
-      return m_map.erase(atermpp::deprecated_cast<core::identifier_string>(v));
+      return m_map.erase(static_cast<core::identifier_string>(v));
     }
 
     /// \brief Returns an iterator that references the expression associated with v or is equal to m_map.end()
     const_iterator find(variable_type const& v) const
     {
-      return m_map.find(atermpp::deprecated_cast<core::identifier_string>(v));
+      return m_map.find(static_cast<core::identifier_string>(v));
     }
 
     /// \brief Returns true if the sequence of assignments is empty

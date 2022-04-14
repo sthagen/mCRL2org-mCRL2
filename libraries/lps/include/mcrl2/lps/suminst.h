@@ -13,15 +13,10 @@
 #define MCRL2_LPS_SUMINST_H
 
 #include "mcrl2/atermpp/set_operations.h"
-#include "mcrl2/utilities/logger.h"
-#include <deque>
 
 #include "mcrl2/data/enumerator.h"
-#include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
 
 #include "mcrl2/lps/detail/lps_algorithm.h"
-#include "mcrl2/lps/replace.h"
-#include "mcrl2/lps/rewrite.h"
 
 namespace mcrl2
 {
@@ -80,18 +75,17 @@ class suminst_algorithm: public detail::lps_algorithm<Specification>
       std::deque< variable > variables; // The variables we need to consider in instantiating
 
       // partition such that variables with finite sort precede those that do not
-      for (atermpp::term_list_iterator< variable > i = s.summation_variables().begin();
-           i != s.summation_variables().end(); ++i)
+      for (const variable& v: s.summation_variables())
       {
-        if(m_sorts.find(i->sort()) != m_sorts.end())
+        if(m_sorts.find(v.sort()) != m_sorts.end())
         {
-          if (m_spec.data().is_certainly_finite(i->sort()))
+          if (m_spec.data().is_certainly_finite(v.sort()))
           {
-            variables.push_front(*i);
+            variables.push_front(v);
           }
           else
           {
-            variables.push_back(*i);
+            variables.push_back(v);
           }
         }
       }
@@ -192,7 +186,7 @@ class suminst_algorithm: public detail::lps_algorithm<Specification>
         m_sorts(sorts),
         m_tau_summands_only(tau_summands_only),
         m_rewriter(r),
-        m_enumerator(r, spec.data(), r, m_id_generator, true),
+        m_enumerator(r, spec.data(), r, m_id_generator, false),
         m_processed(0),
         m_deleted(0),
         m_added(0)

@@ -14,26 +14,10 @@
 #define MCRL2_PBES_PBESINST_ALTERNATIVE_LAZY_ALGORITHM_H
 
 #include "mcrl2/bes/remove_level.h"
-#include "mcrl2/data/rewriter.h"
-#include "mcrl2/pbes/detail/bes_equation_limit.h"
 #include "mcrl2/pbes/detail/check_well_formed_bes.h"
-#include "mcrl2/pbes/detail/instantiate_global_variables.h"
-#include "mcrl2/pbes/find.h"
-#include "mcrl2/pbes/fixpoint_symbol.h"
-#include "mcrl2/pbes/pbes.h"
 #include "mcrl2/pbes/pbesinst_algorithm.h"
-#include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
 #include "mcrl2/pbes/search_strategy.h"
 #include "mcrl2/pbes/transformation_strategy.h"
-#include <cassert>
-#include <ctime>
-#include <deque>
-#include <iostream>
-#include <set>
-#include <sstream>
-#include <stack>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace mcrl2
 {
@@ -72,7 +56,7 @@ namespace detail
     return pv_renaming;
   }
 
-  class rename_pbesinst_consecutively: public std::unary_function<propositional_variable_instantiation, propositional_variable_instantiation>
+  class rename_pbesinst_consecutively
   {
     protected:
       const std::unordered_map<propositional_variable_instantiation,propositional_variable_instantiation>& m_pv_renaming;
@@ -224,7 +208,7 @@ class pbesinst_alternative_lazy_algorithm
         mCRL2log(mcrl2::log::status) << "Processed " << nr_of_processed_variables <<
                        " and generated " << nr_of_generated_variables <<
                        " boolean variables";
-        if (m_maximum_todo_size!=atermpp::npos)
+        if (m_maximum_todo_size != std::numeric_limits<std::size_t>::max())
         {
           mCRL2log(mcrl2::log::status) << " with a todo buffer of size " << todo_size << ".    \n";
         }
@@ -254,7 +238,7 @@ class pbesinst_alternative_lazy_algorithm
         search_strategy search_strategy = breadth_first,
         transformation_strategy transformation_strategy = lazy,
         const mcrl2::bes::remove_level erase_unused_bes_variables = mcrl2::bes::none,
-        const std::size_t maximum_todo_size = atermpp::npos,
+        const std::size_t maximum_todo_size = std::numeric_limits<std::size_t>::max(),
         const bool approximate_true = true
         )
       :
@@ -615,6 +599,7 @@ class pbesinst_alternative_lazy_algorithm
         make_pbesinst_substitution(eqn.variable().parameters(), X_e.parameters(), sigma);
         const pbes_expression& phi = eqn.formula();
         pbes_expression psi_e = R(phi, sigma);
+        R.clear_identifier_generator();
         try
         {
           check_whether_argument_is_a_well_formed_bes(psi_e);

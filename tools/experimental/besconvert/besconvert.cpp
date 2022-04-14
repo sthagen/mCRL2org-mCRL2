@@ -10,25 +10,15 @@
 /// Implements strong bisimulation and oblivious bisimulation reduction on
 /// boolean equation systems.
 
-#include <algorithm>
-#include <functional>
-
 #include "mcrl2/utilities/input_output_tool.h"
-#include "mcrl2/utilities/indexed_set.h"
 
 #include "mcrl2/bes/pbes_input_output_tool.h"
-#include "mcrl2/utilities/execution_timer.h"
 
 #include "mcrl2/bes/detail/bes_algorithm.h"
-#include "mcrl2/bes/boolean_equation_system.h"
 #include "mcrl2/bes/parse.h"
 #include "mcrl2/bes/bes2pbes.h"
 #include "mcrl2/bes/normal_forms.h"
-#include "mcrl2/bes/find.h"
-#include "mcrl2/bes/io.h"
 #include "mcrl2/bes/join.h"
-#include "mcrl2/process/process_expression.h"
-#include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/detail/liblts_bisim.h"
 
 using namespace mcrl2::bes;
@@ -265,7 +255,7 @@ class bes_reduction_algorithm: public detail::bes_algorithm
           label << "self:block(" << info.first << "),op(" << info.second << ")";
           process::action t(process::action_label(core::identifier_string(label.str()), data::sort_expression_list()), data::data_expression_list());
           std::size_t label_index = labs.index(t);
-          if (label_index == atermpp::npos)
+          if (label_index == labs.npos)
           {
             std::pair<std::size_t, bool> put_result = labs.insert(t);
             label_index = put_result.first;
@@ -323,7 +313,7 @@ class bes_reduction_algorithm: public detail::bes_algorithm
           std::size_t to = indices[*j];
           process::action t(process::action_label(core::identifier_string(label.str()), data::sort_expression_list()), data::data_expression_list());
           std::size_t label_index = labs.index(t);
-          if (label_index == atermpp::npos)
+          if (label_index == labs.npos)
           {
             assert(label.str()!="tau");
             std::pair<std::size_t, bool> put_result = labs.insert(t);
@@ -374,7 +364,7 @@ class bes_reduction_algorithm: public detail::bes_algorithm
         has_outgoing_transition[i] = false;
       }
 
-      m_lts.sort_transitions(lts::src_lbl_tgt);
+      sort_transitions(m_lts.get_transitions(), m_lts.hidden_label_set(), lts::src_lbl_tgt);
       const std::vector<lts::transition> &transitions=m_lts.get_transitions();
 
       for (std::vector<lts::transition>::const_iterator i = transitions.begin(); i != transitions.end(); ++i)

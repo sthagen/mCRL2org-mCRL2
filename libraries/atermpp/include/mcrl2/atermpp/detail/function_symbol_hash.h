@@ -12,10 +12,6 @@
 
 #include "mcrl2/atermpp/function_symbol.h"
 
-#include <assert.h>
-#include <string>
-#include <stddef.h>
-
 namespace std
 {
  
@@ -23,9 +19,6 @@ namespace std
 template<>
 struct hash<atermpp::function_symbol>
 {
-  /// Clang 3.8: Default initialization of an object of const type requires a user-provided default constructor
-  hash() {}
-
   std::size_t operator()(const atermpp::function_symbol& f) const
   {
     // Function symbols take 48 bytes in memory, so when they are packed there
@@ -39,9 +32,6 @@ struct hash<atermpp::function_symbol>
 template<>
 struct hash<atermpp::detail::_function_symbol>
 {
-  /// Clang 3.8: Default initialization of an object of const type requires a user-provided default constructor
-  hash() {}
-
   std::size_t operator()(const atermpp::detail::_function_symbol& f) const
   {
     std::hash<std::string> string_hasher;
@@ -61,6 +51,8 @@ namespace detail
 ///        function_symbol_key.
 struct function_symbol_hasher
 {
+  using is_transparent = void;
+
   inline std::size_t operator() (const _function_symbol& symbol) const noexcept;
   inline std::size_t operator() (const std::string& name, std::size_t arity) const noexcept;
 };

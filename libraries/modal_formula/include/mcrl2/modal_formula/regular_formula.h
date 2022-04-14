@@ -12,15 +12,7 @@
 #ifndef MCRL2_MODAL_FORMULA_REGULAR_FORMULA_H
 #define MCRL2_MODAL_FORMULA_REGULAR_FORMULA_H
 
-#include <iostream> // for debugging
-
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/core/detail/default_values.h"
-#include "mcrl2/core/detail/soundness_checks.h"
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/modal_formula/action_formula.h"
-#include <cassert>
-#include <string>
 
 namespace mcrl2
 {
@@ -265,7 +257,7 @@ class trans: public regular_formula
     }
 
     /// \brief Constructor.
-    trans(const regular_formula& operand)
+    explicit trans(const regular_formula& operand)
       : regular_formula(atermpp::aterm_appl(core::detail::function_symbol_RegTrans(), operand))
     {}
 
@@ -328,7 +320,7 @@ class trans_or_nil: public regular_formula
     }
 
     /// \brief Constructor.
-    trans_or_nil(const regular_formula& operand)
+    explicit trans_or_nil(const regular_formula& operand)
       : regular_formula(atermpp::aterm_appl(core::detail::function_symbol_RegTransOrNil(), operand))
     {}
 

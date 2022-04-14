@@ -1,4 +1,4 @@
-find_package(PythonInterp ${PythonModules_FIND_VERSION})
+find_package(PythonInterp 3.6.0)
 
 if(PYTHONINTERP_FOUND)
   if(PythonModules_FIND_COMPONENTS)
@@ -15,7 +15,6 @@ if(PYTHONINTERP_FOUND)
       endif()
     endforeach()
   endif()
-elseif(PythonModules_FIND_REQUIRED)
-  message(FATAL_ERROR "Python interpreter could not be found.")
+else()
+  message(FATAL_ERROR "Could not find a suitable python3 interpreter. Ensure that variable PYTHON_EXECUTABLE is set to a python3 interpreter.")
 endif()
-

@@ -12,23 +12,9 @@
 #ifndef MCRL2_DATA_STRUCTURED_SORT_H
 #define MCRL2_DATA_STRUCTURED_SORT_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/identifier_string.h"
-#include "mcrl2/data/bool.h"
-#include "mcrl2/data/data_equation.h"
-#include "mcrl2/data/function_sort.h"
-#include "mcrl2/data/function_symbol.h"
-#include "mcrl2/data/pos.h"
 #include "mcrl2/data/set_identifier_generator.h"
-#include "mcrl2/data/sort_expression.h"
-#include "mcrl2/data/standard.h"
 #include "mcrl2/data/standard_numbers_utility.h"
 #include "mcrl2/data/structured_sort_constructor.h"
-#include "mcrl2/data/variable.h"
-#include <iterator>
-#include <string>
 
 namespace mcrl2
 {
@@ -83,7 +69,7 @@ class structured_sort: public sort_expression
     }
 
     /// \brief Constructor.
-    structured_sort(const structured_sort_constructor_list& constructors)
+    explicit structured_sort(const structured_sort_constructor_list& constructors)
       : sort_expression(atermpp::aterm_appl(core::detail::function_symbol_SortStruct(), constructors))
     {}
 
@@ -169,7 +155,7 @@ class structured_sort: public sort_expression
     function_symbol_vector projection_functions(const sort_expression& s) const
     {
       function_symbol_vector result;
-      for (const auto & i : constructors())
+      for (const structured_sort_constructor& i: constructors())
       {
         function_symbol_vector projections(i.projection_functions(s));
 
@@ -184,7 +170,7 @@ class structured_sort: public sort_expression
     function_symbol_vector recogniser_functions(const sort_expression& s) const
     {
       function_symbol_vector result;
-      for (const auto & i : constructors())
+      for (const structured_sort_constructor& i: constructors())
       {
         if (i.recogniser() != core::empty_identifier_string())
         {
@@ -198,6 +184,10 @@ class structured_sort: public sort_expression
     data_equation_vector comparison_equations(const sort_expression& s) const
     {
       data_equation_vector result;
+
+      // First add an equation "equal_arguments(v,v)=true", as it is sometimes useful.
+      variable v("v",s);
+      result.push_back(data_equation({ v }, sort_bool::true_(),application(equal_arguments_function(s),v,v),sort_bool::true_()));
 
       // give every constructor an index.
       std::size_t index = 1;
@@ -217,7 +207,7 @@ class structured_sort: public sort_expression
 
           std::vector< variable > variables1;
           std::vector< variable > variables2;
-          for (const auto & k : i->arguments())
+          for (const structured_sort_constructor_argument& k: i->arguments())
           {
             variables1.push_back(variable(generator("v"), k.sort()));
             variables2.push_back(variable(generator("w"), k.sort()));

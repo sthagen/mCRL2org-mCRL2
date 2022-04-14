@@ -22,15 +22,15 @@ struct stochastic_lts_builder
 {
   // All LTS classes use integers to represent actions in transitions. A mapping from actions to integers
   // is needed to avoid duplicates.
-  std::unordered_map<process::timed_multi_action, std::size_t> m_actions;
+  utilities::unordered_map_large<lps::multi_action, std::size_t> m_actions;
 
   stochastic_lts_builder()
   {
-    process::timed_multi_action tau(process::action_list(), data::undefined_real());
+    lps::multi_action tau(process::action_list(), data::undefined_real());
     m_actions.emplace(std::make_pair(tau, m_actions.size()));
   }
 
-  std::size_t add_action(const process::timed_multi_action& a)
+  std::size_t add_action(const lps::multi_action& a)
   {
     auto i = m_actions.find(a);
     if (i == m_actions.end())
@@ -44,10 +44,10 @@ struct stochastic_lts_builder
   virtual void set_initial_state(const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) = 0;
 
   // Add a transition to the LTS
-  virtual void add_transition(std::size_t from, const process::timed_multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) = 0;
+  virtual void add_transition(std::size_t from, const lps::multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) = 0;
 
   // Add actions and states to the LTS
-  virtual void finalize(const std::unordered_map<lps::state, std::size_t>& state_map) = 0;
+  virtual void finalize(const utilities::indexed_set<lps::state>& state_map, bool timed) = 0;
 
   // Save the LTS to a file
   virtual void save(const std::string& filename) = 0;
@@ -61,10 +61,10 @@ class stochastic_lts_none_builder: public stochastic_lts_builder
     void set_initial_state(const std::list<std::size_t>& /* to */, const std::vector<data::data_expression>& /* probabilities */) override
     {}
 
-    void add_transition(std::size_t /* from */, const process::timed_multi_action& /* a */, const std::list<std::size_t>& /* targets */, const std::vector<data::data_expression>& /* probabilities */) override
+    void add_transition(std::size_t /* from */, const lps::multi_action& /* a */, const std::list<std::size_t>& /* targets */, const std::vector<data::data_expression>& /* probabilities */) override
     {}
 
-    void finalize(const std::unordered_map<lps::state, std::size_t>& /* state_map */) override
+    void finalize(const utilities::indexed_set<lps::state>& /* state_map */, bool /* timed */) override
     {}
 
     void save(const std::string& /* filename */) override
@@ -129,7 +129,7 @@ class stochastic_lts_aut_builder: public stochastic_lts_builder
     }
 
     // Add a transition to the LTS
-    void add_transition(std::size_t from, const process::timed_multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) override
+    void add_transition(std::size_t from, const lps::multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) override
     {
       std::size_t to = m_stochastic_states.size();
       std::size_t label = add_action(a);
@@ -138,14 +138,14 @@ class stochastic_lts_aut_builder: public stochastic_lts_builder
     }
 
     // Add actions and states to the LTS
-    void finalize(const std::unordered_map<lps::state, std::size_t>& state_map) override
+    void finalize(const utilities::indexed_set<lps::state>& state_map, bool /* timed */) override
     {
       m_number_of_states = state_map.size();
     }
 
     void save(std::ostream& out) const
     {
-      std::vector<process::timed_multi_action> actions{ m_actions.size() };
+      std::vector<lps::multi_action> actions{ m_actions.size() };
       for (const auto& p: m_actions)
       {
         actions[p.second] = p.first;
@@ -187,16 +187,24 @@ class stochastic_lts_lts_builder: public stochastic_lts_builder
 {
   protected:
     probabilistic_lts_lts_t m_lts;
+    bool m_discard_state_labels = false;
+    probabilistic_state<std::size_t, lps::probabilistic_data_expression> m_initial_state;
 
   public:
-    stochastic_lts_lts_builder(const data::data_specification& dataspec, const process::action_label_list& action_labels, const data::variable_list& process_parameters)
+    stochastic_lts_lts_builder(
+      const data::data_specification& dataspec,
+      const process::action_label_list& action_labels,
+      const data::variable_list& process_parameters,
+      bool discard_state_labels = false
+    )
+      : m_discard_state_labels(discard_state_labels)
     {
       m_lts.set_data(dataspec);
       m_lts.set_process_parameters(process_parameters);
       m_lts.set_action_label_declarations(action_labels);
     }
 
-    probabilistic_state<std::size_t, lps::probabilistic_data_expression> make_probabilistic_state(const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) const
+    static probabilistic_state<std::size_t, lps::probabilistic_data_expression> make_probabilistic_state(const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities)
     {
       probabilistic_state<std::size_t, lps::probabilistic_data_expression> result;
       auto ti = targets.begin();
@@ -211,11 +219,11 @@ class stochastic_lts_lts_builder: public stochastic_lts_builder
     // Set the initial (stochastic) state of the LTS
     void set_initial_state(const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) override
     {
-      m_lts.set_initial_probabilistic_state(make_probabilistic_state(targets, probabilities));
+      m_initial_state = make_probabilistic_state(targets, probabilities);
     }
 
     // Add a transition to the LTS
-    void add_transition(std::size_t from, const process::timed_multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) override
+    void add_transition(std::size_t from, const lps::multi_action& a, const std::list<std::size_t>& targets, const std::vector<data::data_expression>& probabilities) override
     {
       auto s1 = make_probabilistic_state(targets, probabilities);
       std::size_t label = add_action(a);
@@ -224,7 +232,7 @@ class stochastic_lts_lts_builder: public stochastic_lts_builder
     }
 
     // Add actions and states to the LTS
-    void finalize(const std::unordered_map<lps::state, std::size_t>& state_map) override
+    void finalize(const utilities::indexed_set<lps::state>& state_map, bool timed) override
     {
       // add actions
       m_lts.set_num_action_labels(m_actions.size());
@@ -233,14 +241,27 @@ class stochastic_lts_lts_builder: public stochastic_lts_builder
         m_lts.set_action_label(p.second, action_label_lts(lps::multi_action(p.first.actions(), p.first.time())));
       }
 
-      // add states
-      std::vector<state_label_lts> state_labels(state_map.size());
-      for (const auto& p: state_map)
+      // add state labels
+      if (!m_discard_state_labels)
       {
-        state_labels[p.second] = state_label_lts(p.first);
+        std::size_t n = state_map.size();
+        std::vector<state_label_lts> state_labels(n);
+        for (std::size_t i = 0; i < n; i++)
+        {
+          if (timed)
+          {
+            state_labels[i] = state_label_lts(remove_time_stamp(state_map[i]));
+          }
+          else
+          {
+            state_labels[i] = state_label_lts(state_map[i]);
+          }
+        }
+        m_lts.state_labels() = std::move(state_labels);
       }
-      m_lts.state_labels() = std::move(state_labels);
+
       m_lts.set_num_states(state_map.size(), true);
+      m_lts.set_initial_probabilistic_state(m_initial_state); // This can't be done at the start :-(
     }
 
     // Save the LTS to a file
@@ -249,6 +270,34 @@ class stochastic_lts_lts_builder: public stochastic_lts_builder
       m_lts.save(filename);
     }
 };
+
+class stochastic_lts_fsm_builder: public stochastic_lts_lts_builder
+{
+  public:
+    typedef stochastic_lts_lts_builder super;
+    stochastic_lts_fsm_builder(const data::data_specification& dataspec, const process::action_label_list& action_labels, const data::variable_list& process_parameters)
+      : super(dataspec, action_labels, process_parameters)
+    { }
+
+    void save(const std::string& filename) override
+    {
+      probabilistic_lts_fsm_t fsm;
+      detail::lts_convert(m_lts, fsm);
+      fsm.save(filename);
+    }
+};
+
+inline
+std::unique_ptr<stochastic_lts_builder> create_stochastic_lts_builder(const lps::stochastic_specification& lpsspec, const lps::explorer_options& options, lts_type output_format)
+{
+  switch (output_format)
+  {
+    case lts_aut: return std::make_unique<stochastic_lts_aut_builder>();
+    case lts_lts: return std::make_unique<stochastic_lts_lts_builder>(lpsspec.data(), lpsspec.action_labels(), lpsspec.process().process_parameters(), options.discard_lts_state_labels);
+    case lts_fsm: return std::make_unique<stochastic_lts_fsm_builder>(lpsspec.data(), lpsspec.action_labels(), lpsspec.process().process_parameters());
+    default: return std::make_unique<stochastic_lts_none_builder>();
+  }
+}
 
 } // namespace lts
 

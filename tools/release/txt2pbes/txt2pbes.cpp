@@ -12,15 +12,8 @@
 #define NAME "txt2pbes"
 #define AUTHOR "Aad Mathijssen, Wieger Wesselink"
 
-//C++
-#include <cstdio>
-#include <fstream>
-#include <string>
-
 //mCRL2 specific
 #include "mcrl2/pbes/tools.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/text_utility.h"
 #include "mcrl2/utilities/input_output_tool.h"
 #include "mcrl2/bes/pbes_output_tool.h"
 
@@ -36,15 +29,15 @@ class txt2pbes_tool: public pbes_output_tool<input_output_tool>
   typedef pbes_output_tool<input_output_tool> super;
 
   protected:
-    bool m_normalize;
+    bool m_normalize = false;
 
-    void parse_options(const command_line_parser& parser)
+    void parse_options(const command_line_parser& parser) override
     {
       super::parse_options(parser);
       m_normalize = 0 < parser.options.count("normalize");
     }
 
-    void add_options(interface_description& desc)
+    void add_options(interface_description& desc) override
     {
       super::add_options(desc);
       desc.add_option("normalize",
@@ -60,7 +53,7 @@ class txt2pbes_tool: public pbes_output_tool<input_output_tool>
               )
     {}
 
-    bool run()
+    bool run() override
     {
       txt2pbes(input_filename(),
                output_filename(),

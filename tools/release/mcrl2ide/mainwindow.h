@@ -10,17 +10,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "filesystem.h"
-#include "processsystem.h"
 #include "propertiesdock.h"
-#include "consoledock.h"
-#include "addeditpropertydialog.h"
 #include "findandreplacedialog.h"
-#include "mcrl2/gui/codeeditor.h"
-#include "utilities.h"
 
 #include <QMainWindow>
-#include <QSettings>
 
 class FileSystem;
 
@@ -87,6 +80,17 @@ class MainWindow : public QMainWindow
   void actionOpenProjectFolderInExplorer();
 
   /**
+   * @brief actionImportProperties Allows the user to import property files to
+   *   this project
+   */
+  void actionImportProperties();
+
+  /**
+   * @brief actionOpenMcrl2gui Allows the user to open mcrl2-gui
+   */
+  void actionOpenMcrl2gui();
+
+  /**
    * @brief actionFindAndReplace Allows the user to find and replace strings in
    *   the text editor
    */
@@ -118,17 +122,6 @@ class MainWindow : public QMainWindow
    * @brief actionAddProperty Allows the user to add a property
    */
   void actionAddProperty();
-
-  /**
-   * @brief actionAddPropertyResult Handles the result of adding a property
-   */
-  void actionAddPropertyResult();
-
-  /**
-   * @brief actionImportProperties Allows the user to import property files to
-   *   this project
-   */
-  void actionImportProperties();
 
   /**
    * @brief actionVerifyAllProperties Allows the user to verify all defined
@@ -187,6 +180,7 @@ class MainWindow : public QMainWindow
 
   QAction* openProjectFolderInExplorerAction;
   QAction* importPropertiesAction;
+  QAction* openGuiAction;
   QAction* exitAction;
 
   QAction* undoAction;
@@ -270,7 +264,7 @@ class MainWindow : public QMainWindow
   /**
    * @brief assertProjectOpened Forces the user to make a project if no project
    *   was opened
-   * @return Whether a project has been succesfully made
+   * @return Whether a project has been successfully made
    */
   bool assertProjectOpened();
 

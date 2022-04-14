@@ -6,24 +6,17 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file typecheck_test.cpp
-/// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE typecheck_test
 
 // Some tests rely on type check failures, so we have to set this flag.
 #define MCRL2_DISABLE_TYPECHECK_ASSERTIONS
 
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/experimental/type_check_tree.h"
-#include "mcrl2/data/parse.h"
-#include "mcrl2/data/print.h"
-#include "mcrl2/data/typecheck.h"
-#include "mcrl2/data/untyped_sort.h"
-#include "mcrl2/utilities/text_utility.h"
 #include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <sstream>
+
+#include "mcrl2/data/data_io.h"
+#include "mcrl2/data/experimental/type_check_tree.h"
+#include "mcrl2/data/print.h"
 
 using namespace mcrl2;
 
@@ -66,7 +59,7 @@ data::sort_expression parse_sort_expression(const std::string& de_in)
 {
   data::sort_expression result;
   try {
-    result = data::detail::parse_sort_expression_new(de_in);
+    result = data::detail::parse_sort_expression(de_in);
     std::string de_out = data::pp(result);
     if (de_in != de_out)
     {
@@ -88,7 +81,7 @@ data::data_expression parse_data_expression(const std::string& de_in)
 {
   data::data_expression result;
   try {
-    result = data::detail::parse_data_expression_new(de_in);
+    result = data::detail::parse_data_expression(de_in);
 #ifdef MCRL2_ENABLE_TYPECHECK_PP_TESTS
     std::string de_out = data::pp(result);
     if (de_in != de_out)
@@ -147,7 +140,7 @@ void test_data_expression(const std::string& de_in,
             << "  de_out: " << pp(x) << std::endl
             << "  expect success: " << (expect_success?("yes"):("no")) << std::endl
             << "  expected type: " << expected_sort << std::endl
-            << "  detected type: " << pp(x.sort()) << " (before typecheckeing) " << std::endl;
+            << "  detected type: " << pp(x.sort()) << " (before typechecking) " << std::endl;
 
 
   if (test_type_checker)

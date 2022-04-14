@@ -10,17 +10,9 @@
 #ifndef DETAIL_FUNCTION_SYMBOL_POOL_H
 #define DETAIL_FUNCTION_SYMBOL_POOL_H
 
-#include "mcrl2/atermpp/function_symbol.h"
 #include "mcrl2/atermpp/detail/function_symbol_hash.h"
-#include "mcrl2/utilities/block_allocator.h"
 #include "mcrl2/utilities/cache_metric.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/noncopyable.h"
 #include "mcrl2/utilities/unordered_set.h"
-
-#include <map>
-#include <memory>
-#include <string>
 
 namespace atermpp
 {
@@ -48,7 +40,7 @@ public:
   function_symbol create(const std::string& name, const std::size_t arity, const bool check_for_registered_functions = false);
 
   /// \brief Frees the memory used by the passed element and remove it from the set.
-  void destroy(_function_symbol* f);
+  void destroy(const _function_symbol& f);
 
   /// \brief Restore the index back to index before registering this prefix.
   void deregister(const std::string& prefix);

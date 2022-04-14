@@ -10,14 +10,10 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE rename_test
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/lps/linearise.h"
-#include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <iterator>
-#include <set>
 
-using namespace std;
+#include <boost/test/included/unit_test_framework.hpp>
+
 using namespace mcrl2;
 using namespace mcrl2::core;
 using namespace mcrl2::data;

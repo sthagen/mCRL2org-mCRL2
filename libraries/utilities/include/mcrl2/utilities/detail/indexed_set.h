@@ -6,18 +6,13 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file atermpp/detail/indexed_set.cpp
+/// \file utilities/detail/indexed_set.cpp
 /// \brief This file contains some constants and functions shared
 ///        between indexed_sets and tables.
 
 #ifndef MCRL2_UTILITIES_DETAIL_INDEXED_SET_H
 #define MCRL2_UTILITIES_DETAIL_INDEXED_SET_H
 #pragma once
-
-#include <cstddef>
-#include <limits>
-#include <cassert>
-#include <deque>
 
 #include "mcrl2/utilities/indexed_set.h"    // necessary for header test. 
 
@@ -31,13 +26,13 @@ namespace detail
 static const std::size_t STEP = 1; ///< The position on which the next hash entry is searched.
 
 /// in the hashtable we use the following constant to indicate free positions.
-static const std::size_t EMPTY(std::numeric_limits<std::size_t>::max());
+static constexpr std::size_t EMPTY(std::numeric_limits<std::size_t>::max());
 
-static const float max_load_factor = 0.75f; ///< The load factor before the hash table is resized.
+static constexpr float max_load_factor = 0.75f; ///< The load factor before the hash table is resized.
 
-static const size_t minimal_hashtable_size = 8;  ///< With a max_load of 0.75 the minimal size of the hashtable must be 8.
+static constexpr size_t minimal_hashtable_size = 8;  ///< With a max_load of 0.75 the minimal size of the hashtable must be 8.
 
-static const std::size_t PRIME_NUMBER = 999953;
+static constexpr std::size_t PRIME_NUMBER = 999953;
 
 } // namespace detail
 
@@ -133,10 +128,10 @@ inline typename indexed_set<Key,Hash,Equals,Allocator>::size_type indexed_set<Ke
 template <class Key, typename Hash, typename Equals, typename Allocator>
 inline typename indexed_set<Key,Hash,Equals,Allocator>::const_iterator indexed_set<Key,Hash,Equals,Allocator>::find(const key_type& key) const
 {
-  const std::size_t index = index(key);
-  if (index < m_keys.size())
+  const std::size_t idx = index(key);
+  if (idx < m_keys.size())
   {
-    return m_keys[index];
+    return begin() + idx;
   }
 
   return end();

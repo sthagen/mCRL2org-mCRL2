@@ -6,9 +6,8 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file transform.cpp
+/// \file confcheck.cpp
 
-#include <string>
 #include "mcrl2/data/rewriter_tool.h"
 #include "mcrl2/lps/confluence.h"
 #include "mcrl2/lps/io.h"
@@ -26,6 +25,7 @@ class confcheck_tool: public rewriter_tool<input_output_tool>
   protected:
     /// \brief Confluence types for which the tool should check.
     std::string m_conditions;
+    bool m_use_smt_solver = false;
 
   public:
     confcheck_tool()
@@ -43,9 +43,11 @@ class confcheck_tool: public rewriter_tool<input_output_tool>
       super::add_options(desc);
       desc.add_option("conditions", utilities::make_optional_argument("CONDITIONS", "C"),
                  "use the confluence conditions specified by individual characters ("
+                 "Q: commutative confluence; "
                  "C: square confluence; "
                  "T: triangular confluence; "
                  "Z: trivial confluence)", 'x');
+      desc.add_option("use-smt-solver", "Use the SMT solver Z3 (must be in the path)", 's');
     }
 
     void parse_options(const utilities::command_line_parser& parser) override
@@ -55,6 +57,7 @@ class confcheck_tool: public rewriter_tool<input_output_tool>
       {
         m_conditions = parser.option_argument_as<std::string>("conditions");
       }
+      m_use_smt_solver = parser.has_option("use-smt-solver");
     }
 
     bool run() override
@@ -62,7 +65,7 @@ class confcheck_tool: public rewriter_tool<input_output_tool>
       lps::stochastic_specification lpsspec;
       lps::load_lps(lpsspec, input_filename());
       lps::confluence_checker checker;
-      checker.run(lpsspec, m_conditions[0]);
+      checker.run(lpsspec, m_conditions[0], m_use_smt_solver);
       lps::save_lps(lpsspec, output_filename());
       return true;
     }

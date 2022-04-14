@@ -19,21 +19,10 @@
 #ifndef MCRL2_LTS_LTS_MCRL2_H
 #define MCRL2_LTS_LTS_MCRL2_H
 
-#include <string>
-#include <vector>
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/parse.h"
-#include "mcrl2/data/variable.h"
-#include "mcrl2/process/action_parse.h"
 #include "mcrl2/lps/parse.h"
 #include "mcrl2/lps/print.h"
-#include "mcrl2/lps/specification.h"
-#include "mcrl2/lps/multi_action.h"
-#include "mcrl2/lps/typecheck.h"
 #include "mcrl2/lps/state.h"
 #include "mcrl2/lps/probabilistic_data_expression.h"
-#include "mcrl2/lts/probabilistic_state.h"
 #include "mcrl2/lts/probabilistic_lts.h"
 
 namespace mcrl2
@@ -43,16 +32,16 @@ namespace lts
 
 /** \brief This class contains state labels for an labelled transition system in .lts format.
     \details A state label in .lts format consists of lists of balanced tree of data expressions.
-             These represent sets of state vectors. The reason for the sets is that states can 
-             be merged by operations on state spaces, and if so, the sets of labels can easily 
-             be joined. 
+             These represent sets of state vectors. The reason for the sets is that states can
+             be merged by operations on state spaces, and if so, the sets of labels can easily
+             be joined.
 */
 class state_label_lts : public atermpp::term_list< lps::state >
 {
   public:
     typedef atermpp::term_list< lps::state > super;
 
-    /** \brief Default constructor. 
+    /** \brief Default constructor.
     */
     state_label_lts()
     {}
@@ -76,7 +65,7 @@ class state_label_lts : public atermpp::term_list< lps::state >
     */
     explicit state_label_lts(const lps::state& l)
     {
-      this->push_front(lps::state(l.begin(),l.size()));
+      this->push_front(l);
     }
 
     /** \brief Construct a state label out of list of balanced trees of data expressions, representing a state label.
@@ -105,7 +94,7 @@ class state_label_lts : public atermpp::term_list< lps::state >
 
 /** \brief Pretty print a state value of this LTS.
     \details The label is printed as (t1,...,tn) if it consists of a single label.
-             Otherwise the labels are printed with square brackets surrounding it. 
+             Otherwise the labels are printed with square brackets surrounding it.
     \param[in] label  The state value to pretty print.
     \return           The pretty-printed representation of value. */
 
@@ -117,7 +106,7 @@ inline std::string pp(const state_label_lts& label)
     s += "[";
   }
   bool first=true;
-  for(const lps::state& l: label) 
+  for(const lps::state& l: label)
   {
     if (!first)
     {
@@ -139,7 +128,7 @@ inline std::string pp(const state_label_lts& label)
   {
     s += "]";
   }
-  return s; 
+  return s;
 }
 
 /** \brief A class containing the values for action labels for the .lts format.
@@ -160,7 +149,7 @@ class action_label_lts: public mcrl2::lps::multi_action
 
     /** \brief Constructor. */
     explicit action_label_lts(const mcrl2::lps::multi_action& a)
-     : mcrl2::lps::multi_action(a)
+     : mcrl2::lps::multi_action(sort_multiactions(a))
     {
     }
 
@@ -169,19 +158,16 @@ class action_label_lts: public mcrl2::lps::multi_action
     */
     void hide_actions(const std::vector<std::string>& tau_actions)
     {
-      const process::action_list mas = this->actions();
-      process::action_list new_action_list;
-      for (process::action_list:: const_iterator i=mas.begin(); i!=mas.end(); ++i)
+      process::action_vector new_multi_action;
+      for (const process::action& a: this->actions()) 
       {
-        const process::action a=*i;
-
         if (std::find(tau_actions.begin(),tau_actions.end(),
                       std::string(a.label().name()))==tau_actions.end())  // this action must not be hidden.
         {
-          new_action_list.push_front(a);
+          new_multi_action.push_back(a);
         }
       }
-      m_actions=new_action_list;
+      *this= action_label_lts(lps::multi_action(process::action_list(new_multi_action.begin(), new_multi_action.end()),time()));
     }
 
     /* \brief The action label that represents the internal action.
@@ -192,6 +178,17 @@ class action_label_lts: public mcrl2::lps::multi_action
       return tau_action;
     }
 
+  protected:
+    /// A function to sort a multi action to guarantee that multi-actions are compared properly. 
+    static mcrl2::lps::multi_action sort_multiactions(const mcrl2::lps::multi_action& a)
+    {
+      if (a.actions().size()<=1)
+      {
+        return a;
+      }
+      std::multiset<process::action> sorted_actions(a.actions().begin(), a.actions().end());
+      return  mcrl2::lps::multi_action(process::action_list(sorted_actions.begin(),sorted_actions.end()),a.time());
+    }
 };
 
 /** \brief Print the action label to string. */
@@ -213,14 +210,14 @@ inline action_label_lts parse_lts_action(
   const data::data_specification& data_spec,
   lps::multi_action_type_checker& typechecker)
 {
-  std::string l(multi_action_string); 
+  std::string l(multi_action_string);
   lps::multi_action al;
   // Find an @ symbol in the action, in which case it is timed.
   size_t position_of_at=l.find_first_of('@');
   std::string time_expression_string;
   if (position_of_at!=std::string::npos)
   {
-    // The at symbol is found. It is a timed action. 
+    // The at symbol is found. It is a timed action.
     time_expression_string=l.substr(position_of_at+1,l.size());
     l=l.substr(0,position_of_at-1);
   }
@@ -232,7 +229,7 @@ inline action_label_lts parse_lts_action(
   {
     throw mcrl2::runtime_error("Parse error in action label " + multi_action_string + ".\n" + e.what());
   }
-  
+
   if (time_expression_string.size()>0)
   {
     try
@@ -252,7 +249,7 @@ inline action_label_lts parse_lts_action(
         time = data::sort_real::creal(time, data::sort_pos::c1());
       }
       if (time.sort()!=data::sort_real::real_())
-      {  
+      {
         throw mcrl2::runtime_error("The time is not of sort Pos, Nat, Int or Real\n");
       }
       return action_label_lts(lps::multi_action(al.actions(),time));
@@ -280,13 +277,6 @@ class lts_lts_base
   public:
     /// \brief Default constructor
     lts_lts_base()
-    {}
-
-    /// \brief Copy constructor
-    lts_lts_base(const lts_lts_base& l)
-    : m_data_spec(l.m_data_spec),
-      m_parameters(l.m_parameters),
-      m_action_decls(l.m_action_decls) 
     {}
 
     void swap(lts_lts_base& l)
@@ -375,24 +365,8 @@ class lts_lts_base
 class lts_lts_t : public lts< state_label_lts, action_label_lts, detail::lts_lts_base >
 {
   public:
-    typedef lts< state_label_lts, action_label_lts, detail::lts_lts_base > super;
-
     /** \brief Creates an object containing no information. */
-    lts_lts_t()
-    {}
-
-    /** \brief Creates an object containing a muCRL specification.
-     * \param[in] t The muCRL specification that will be stored in the object. */
-    lts_lts_t(const atermpp::aterm& t);
-
-    /** \brief Creates an object containing an mCRL2 specification.
-     * \param[in] spec The mCRL2 specification that will be stored in the object. */
-    lts_lts_t(lps::specification const& spec);
-
-    /** \brief Copy constructor */
-    lts_lts_t(const lts_lts_t& l):
-      super(l)
-    {}
+    lts_lts_t() {}
 
     /** \brief Load the labelled transition system from file.
      *  \details If the filename is empty, the result is read from stdout.
@@ -412,34 +386,15 @@ class lts_lts_t : public lts< state_label_lts, action_label_lts, detail::lts_lts
            state label is an expression of the form STATE(t1,...,tn) where
            ti are data expressions.
 */
-class probabilistic_lts_lts_t : 
-         public probabilistic_lts< state_label_lts, 
-                                   action_label_lts, 
-                                   probabilistic_state<std::size_t, lps::probabilistic_data_expression>, 
+class probabilistic_lts_lts_t :
+         public probabilistic_lts< state_label_lts,
+                                   action_label_lts,
+                                   probabilistic_state<std::size_t, lps::probabilistic_data_expression>,
                                    detail::lts_lts_base >
 {
   public:
-    typedef probabilistic_lts< state_label_lts, 
-                               action_label_lts, 
-                               probabilistic_state_t,
-                               detail::lts_lts_base > super;
-
     /** \brief Creates an object containing no information. */
-    probabilistic_lts_lts_t()
-    {}
-
-    /** \brief Creates an object containing a muCRL specification.
-     * \param[in] t The muCRL specification that will be stored in the object. */
-    probabilistic_lts_lts_t(const atermpp::aterm& t);
-
-    /** \brief Creates an object containing an mCRL2 specification.
-     * \param[in] spec The mCRL2 specification that will be stored in the object. */
-    probabilistic_lts_lts_t(lps::specification const& spec);
-
-    /** \brief Copy constructor */
-    probabilistic_lts_lts_t(const probabilistic_lts_lts_t& l):
-      super(l)
-    {}
+    probabilistic_lts_lts_t() {}
 
     /** \brief Load the labelled transition system from file.
      *  \details If the filename is empty, the result is read from stdout.
@@ -455,5 +410,22 @@ class probabilistic_lts_lts_t :
 };
 } // namespace lts
 } // namespace mcrl2
+
+namespace std
+{
+
+/// \brief specialization of the standard std::hash function for an action_label_string.
+template<>
+struct hash< mcrl2::lts::action_label_lts >
+{
+  std::size_t operator()(const mcrl2::lts::action_label_lts& as) const
+  {
+    hash<mcrl2::lps::multi_action> hasher;
+    return hasher(as);
+  }
+};
+
+} // namespace std
+
 
 #endif

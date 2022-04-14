@@ -10,15 +10,10 @@
 #define NAME "ltspbisim"
 #define AUTHOR "Hector Joao Rivera Verduzco"
 
-#include <string>
-#include <iostream>
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/input_output_tool.h"
-#include "mcrl2/lps/io.h"
 #include "mcrl2/lts/lts_probabilistic_equivalence.h"
 #include "mcrl2/lts/lts_io.h"
 #include "mcrl2/lts/lts_algorithm.h"
-#include "mcrl2/lts/detail/lts_convert.h"
 #include "mcrl2/lts/detail/liblts_pbisim_bem.h"
 #include "mcrl2/lts/detail/liblts_pbisim_grv.h"
 
@@ -91,7 +86,6 @@ class t_tool_options
 
 };
 
-using namespace std;
 
 class ltsconvert_tool : public input_output_tool
 {
@@ -125,7 +119,7 @@ class ltsconvert_tool : public input_output_tool
 
       LTS_TYPE l;
       l.load(tool_options.infilename);
-      l.hide_actions(tool_options.tau_actions);
+      l.record_hidden_actions(tool_options.tau_actions);
       if (tool_options.check_reach)
       {
         reachability_check(l, true); // Remove unreachable states from the input transition system.
@@ -228,6 +222,7 @@ class ltsconvert_tool : public input_output_tool
       {
         case lts_none:
           mCRL2log(warning) << "Cannot determine type of input. Assuming .aut.\n";
+          [[fallthrough]];
         case lts_aut:
         {
           return load_convert_and_save<probabilistic_lts_aut_t>();

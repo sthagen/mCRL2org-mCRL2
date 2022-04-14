@@ -14,11 +14,6 @@
 #include "mcrl2/gui/glu.h"
 #include "utils.h"
 
-#include <QtCore>
-#include <QtGui>
-
-#include <string>
-
 static inline QColor alpha(QColor color, double alpha) { color.setAlphaF(alpha); return color; }
 
 // -- structs for positions -----------------------------------------
@@ -59,12 +54,12 @@ class VisUtils
   class ListColorMap
   {
     public:
-      ListColorMap(QList<QColor> colors): m_colors(QVector<QColor>::fromList(colors)) {}
+      ListColorMap(QList<QColor> colors): m_colors(colors.begin(),colors.end()) {}
       QColor operator()(double fraction) const;
       QColor operator()(int numerator, int denominator) const;
 
     private:
-      QVector<QColor> m_colors;
+      std::vector<QColor> m_colors;
   };
 
   public:
@@ -314,10 +309,10 @@ class VisUtils
     // -- transformations -------------------------------------------
     /*
     static void setTransf(
-        const double &xCtr, const double &yCtr,
-        const double &xDOF, const double &yDOF,
-        const double &xHge, const double &yHge,
-        const double &aglCtr );
+        const double& xCtr, const double& yCtr,
+        const double& xDOF, const double& yDOF,
+        const double& xHge, const double& yHge,
+        const double& aglCtr );
     */
     static void setTransf(
       const double& xCtr,   const double& yCtr,

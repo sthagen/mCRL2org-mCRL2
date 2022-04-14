@@ -7,18 +7,16 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
+#include "cleave.h"
+
+#include "mcrl2/data/parse.h"
+#include "mcrl2/data/standard_utility.h"
 #include "mcrl2/lps/io.h"
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/input_output_output_tool.h"
 
-#include "dependency_cleave.h"
 #include "lpscleave_utility.h"
 
-#include <fstream>
-#include <iostream>
-#include <list>
-#include <string>
-#include <vector>
+#include <queue>
 
 namespace mcrl2
 {
@@ -57,42 +55,87 @@ public:
     if (m_parameters.empty())
     {
       // Print the parameters and exit
-      print_names("Parameters", spec.process().process_parameters());
+      mCRL2log(log::info) << "Process parameters: ";
+      print_names(log::info, spec.process().process_parameters());
+      mCRL2log(log::info) << "\n";
+
+
       mCRL2log(log::info) << "Number of summands: " << spec.process().summand_count() << "\n";
     }
     else
     {
-      // Here, we should decide on a good cleaving.
-
-      // For now, the parameters are given by the user.
+      // Here, we should decide on a good cleaving, but for now the parameters are given by the user.
       auto parameters = project_parameters(spec.process().process_parameters(), m_parameters);
 
       // Cleave the process, requires the indices to be sorted.
       m_indices.sort();
       m_indices.unique();
 
-      // Compute the independent summands for this process.
-      print_elements("Independent summands", compute_indices(spec, parameters));
+      // Compute the projection V.
+      auto duplicated = project_parameters(spec.process().process_parameters(), m_duplicated);
+      auto left_parameters = parameters + duplicated;
 
-      // Save the resulting left-cleave.
-      {
-        stochastic_specification left_spec = dependency_cleave(spec, parameters, m_indices, false);
-        std::ofstream file(output_filename1(), std::ios::binary);
-        left_spec.save(file, true);
-      }
-
-      // Take the complement of the indices.
-      m_indices = get_other_indices(spec.process(), m_indices);
-
-      // Take the complement of the parameters
+      // Take the complement of the parameters for the projection W.
       parameters = get_other_parameters(spec.process(), parameters);
+      auto right_parameters = parameters;
 
-      // Save the resulting right-cleave.
+      // Ensure that parameters are unique.
+      for (const data::variable& param : duplicated)
       {
-        stochastic_specification right_spec = dependency_cleave(spec, parameters, m_indices, true);
-        std::ofstream file(output_filename2(), std::ios::binary);
-        right_spec.save(file, true);
+        if (std::find(right_parameters.begin(), right_parameters.end(), param) == right_parameters.end())
+        {
+          right_parameters.push_front(param);
+        }
       }
+
+      mCRL2log(log::verbose) << "Left parameters: ";
+      print_names(log::verbose, left_parameters);
+      mCRL2log(log::verbose) << "\nRight parameters: ";
+      print_names(log::verbose, right_parameters);
+      mCRL2log(log::verbose) << "\n";
+
+      // Load the invariant.
+      data::data_expression invariant;
+
+      if (!m_invariant_filename.empty())
+      {
+        std::ifstream instream(m_invariant_filename.c_str());
+
+        if (!instream.is_open())
+        {
+          throw mcrl2::runtime_error("cannot open input file '" + m_invariant_filename + "'");
+        }
+
+        mCRL2log(log::verbose) << "parsing input file '" <<  m_invariant_filename << "'..." << std::endl;
+        invariant = data::parse_data_expression(instream, spec.process().process_parameters(), spec.data());
+      }
+
+      // Split the summands based on disjunctive conditions.
+      if (m_split_summands)
+      {
+        std::vector<lps::stochastic_action_summand> summands;
+        for (const lps::stochastic_action_summand& summand : spec.process().action_summands())
+        {
+          for (const data::data_expression& clause : split_disjunction(summand.condition()))
+          {
+            summands.emplace_back(summand.summation_variables(), clause, summand.multi_action(), summand.assignments(), summand.distribution());
+          }
+        }
+        
+        spec = lps::stochastic_specification(spec.data(), 
+          spec.action_labels(), 
+          spec.global_variables(), 
+          lps::stochastic_linear_process(spec.process().process_parameters(), spec.process().deadlock_summands(), summands), 
+          spec.initial_process());
+      }
+
+      // The resulting LPSs
+      stochastic_specification left_spec, right_spec;
+      std::tie(left_spec, right_spec) = cleave(spec, left_parameters, right_parameters, m_indices, invariant, m_action_prefix, m_split_condition, m_split_action, m_merge_heuristic, m_use_next_state);
+
+      // Save the resulting components.
+      lps::save_lps(left_spec, output_filename1());
+      lps::save_lps(right_spec, output_filename2());
     }
 
     return true;
@@ -104,7 +147,15 @@ protected:
     super::add_options(desc);
 
     desc.add_option("parameters", utilities::make_mandatory_argument("PARAMS"), "A comma separated list of PARAMS that are used for the left process of the cleave.", 'p');
-    desc.add_option("summands", utilities::make_mandatory_argument("INDICES"), "A comma separated list of INDICES of summands where the left process generates the action.", 's');
+    desc.add_option("shared", utilities::make_mandatory_argument("PARAMS"), "A comma separated list of shared PARAMS that occur in both processes of the cleave.", 's');
+    desc.add_option("summands", utilities::make_mandatory_argument("INDICES"), "A comma separated list of INDICES of summands where the left process generates the action.", 'l');
+    desc.add_option("split-condition", "Enable heuristics to split the condition expression of each summand.", 'c');
+    desc.add_option("split-action", "Enable heuristics to split the action expression of each summand, where the indices in INDICES are used as a fallback (if no optimal choice is available).", 'a');
+    desc.add_option("split-summands", "Split each summand with a disjunctive condition into one summand per clause", 't');
+    desc.add_option("merge-heuristic", "Enable heuristics to merge synchronization indices of summands.", 'm');
+    desc.add_option("invariant", utilities::make_mandatory_argument("FILE"), "A FILE which contains a data expression to strengthen the condition expressions.", 'i');
+    desc.add_option("use-next-state", "Apply the invariant to the parameter values after the update instead of the current value", 'u');
+    desc.add_option("prefix", utilities::make_mandatory_argument("PREFIX"),"Add a prefix to the synchronisation action labels to ensure that do not already occur in the specification", 'f');
   }
 
   void parse_options(const utilities::command_line_parser& parser) override
@@ -116,6 +167,11 @@ protected:
       m_parameters = split_actions(parser.option_argument("parameters"));
     }
 
+    if (parser.options.count("shared"))
+    {
+      m_duplicated = split_actions(parser.option_argument("shared"));
+    }
+
     if (parser.options.count("summands"))
     {
       std::list<std::string> indices = split_actions(parser.option_argument("summands"));
@@ -124,11 +180,40 @@ protected:
         m_indices.emplace_back(std::stoul(string));
       }
     }
+
+    if (parser.options.count("invariant"))
+    {
+      m_invariant_filename = parser.option_argument_as< std::string >("invariant");
+    }
+
+    m_use_next_state = parser.options.count("use-next-state") > 0;
+    if (m_use_next_state && m_invariant_filename.empty())
+    {
+      parser.error("The --use-next-state (-u) option requires an invariant file to be passed with --invariant=FILE.");
+    }
+
+    if (parser.options.count("prefix"))
+    {
+      m_action_prefix = parser.option_argument_as< std::string >("prefix");
+    }
+
+    m_split_condition = parser.options.count("split-condition") > 0;
+    m_split_action = parser.options.count("split-action") > 0;
+    m_split_summands = parser.options.count("split-summands") > 0;
+    m_merge_heuristic = parser.options.count("merge-heuristic") > 0;
   }
 
 private:
   std::list<std::string> m_parameters;
+  std::list<std::string> m_duplicated;
   std::list<std::size_t> m_indices;
+  std::string m_invariant_filename;
+  std::string m_action_prefix;
+  bool m_use_next_state;
+  bool m_split_condition;
+  bool m_split_action;
+  bool m_split_summands;
+  bool m_merge_heuristic;
 };
 
 } // namespace mcrl2

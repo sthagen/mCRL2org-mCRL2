@@ -12,12 +12,9 @@
 #define BOOST_TEST_MODULE lps_algorithm_test
 #include "mcrl2/lps/detail/lps_algorithm.h"
 #include "mcrl2/lps/linearise.h"
-#include "mcrl2/lps/specification.h"
-#include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <iterator>
 
-using namespace std;
+#include <boost/test/included/unit_test_framework.hpp>
+
 using namespace mcrl2;
 using namespace mcrl2::lps;
 using namespace mcrl2::lps::detail;

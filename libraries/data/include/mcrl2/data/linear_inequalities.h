@@ -16,13 +16,7 @@
 #ifndef MCRL2_DATA_LINEAR_INEQUALITY_H
 #define MCRL2_DATA_LINEAR_INEQUALITY_H
 
-#include <algorithm>
-
-#include "mcrl2/data/standard.h"
-#include "mcrl2/data/standard_utility.h"
 #include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/function_symbol.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/data/substitutions/map_substitution.h"
 
 namespace mcrl2
@@ -180,9 +174,14 @@ namespace detail
   class lhs_t: public atermpp::term_list<variable_with_a_rational_factor>
   {
     public:
-      /// \brief Constructor
+      /// \brief Constructor.
       lhs_t()
        : atermpp::term_list<variable_with_a_rational_factor>()
+      {}
+
+      /// \brief Constructor from an aterm.
+      explicit lhs_t(const aterm& t)
+       : atermpp::term_list<variable_with_a_rational_factor>(t)
       {}
 
       /// \brief Constructor

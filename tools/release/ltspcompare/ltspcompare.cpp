@@ -9,26 +9,15 @@
 /// \file ltscompare.cpp
 /// \brief A tool to calculate whether probabilistic transition systems are equival
 
-#include <string>
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/exception.h"
-
 #include "mcrl2/utilities/input_tool.h"
-#include "mcrl2/utilities/tool.h"
 
 #include "mcrl2/lts/lts_probabilistic_equivalence.h"
 #include "mcrl2/lts/detail/liblts_pbisim_grv.h"
 #include "mcrl2/lts/detail/liblts_pbisim_bem.h"
 #include "mcrl2/lts/lts_io.h"
 
-#include "mcrl2/lts/lts_lts.h"
-#include "mcrl2/lts/lts_aut.h"
-#include "mcrl2/lts/lts_fsm.h"
-#include "mcrl2/lts/lts_dot.h"
-
 // #include "mcrl2/lps/exploration_strategy.h"
 
-using namespace std;
 using namespace mcrl2::lts;
 using namespace mcrl2::lts::detail;
 using namespace mcrl2::utilities::tools;
@@ -107,8 +96,8 @@ class ltspcompare_tool : public ltscompare_base
       l1.load(tool_options.name_for_first);
       l2.load(tool_options.name_for_second);
 
-      l1.hide_actions(tool_options.tau_actions);
-      l2.hide_actions(tool_options.tau_actions);
+      l1.record_hidden_actions(tool_options.tau_actions);
+      l2.record_hidden_actions(tool_options.tau_actions);
 
       bool result = true;
       if (tool_options.equivalence != lts_probabilistic_eq_none)
@@ -181,6 +170,7 @@ class ltspcompare_tool : public ltscompare_base
         }
         case lts_none:
           mCRL2log(mcrl2::log::warning) << "No input format is specified. Assuming .aut format.\n";
+          [[fallthrough]];
         case lts_aut:
         {
           return lts_probabilistic_compare<probabilistic_lts_aut_t>();

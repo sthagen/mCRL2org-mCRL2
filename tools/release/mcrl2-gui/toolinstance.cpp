@@ -8,24 +8,13 @@
 
 
 #include "toolinstance.h"
-#include "ui_toolinstance.h"
-
-#include "filepicker.h"
 
 #include <cassert>
-#include <limits>
-#include <QCheckBox>
-#include <QRadioButton>
-#include <QButtonGroup>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QLineEdit>
-#include <QSpinBox>
-#include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QSpacerItem>
-#include <QFileDialog>
 #include <QScrollBar>
 #include "mcrl2/utilities/logger.h"
 
@@ -79,12 +68,12 @@ ToolInstance::ToolInstance(QString filename, ToolInformation information, mcrl2:
   if (m_info.hasOutput())
   {
     QDir dir = fileInfo.absoluteDir();
-    QString newfile = fileInfo.baseName().append(".%1").arg(m_info.output);
+    QString newfile = fileInfo.completeBaseName().append(".%1").arg(m_info.output);
     int filenr = 0;
     while(dir.exists(newfile))
     {
       filenr++;
-      newfile = fileInfo.baseName().append("_%1.%2").arg(filenr).arg(m_info.output);
+      newfile = fileInfo.completeBaseName().append("_%1.%2").arg(filenr).arg(m_info.output);
     }
     m_pckFileOut = new FilePicker(m_fileDialog, m_ui.pckFileOut);
     m_ui.pckFileOut->layout()->addWidget(m_pckFileOut);
@@ -264,6 +253,7 @@ ToolInstance::ToolInstance(QString filename, ToolInformation information, mcrl2:
             {
               ToolValue val = option.argument.values.at(j);
               QRadioButton *rbVal = new QRadioButton(val.nameLong, this);
+              rbVal->setProperty("valueName", val.nameLong);
               rbVal->setChecked(val.standard);
               grpValues->addButton(rbVal);
 
@@ -305,7 +295,7 @@ QString ToolInstance::executable()
   return m_info.path;
 }
 
-QStringList ToolInstance::arguments()
+QStringList ToolInstance::arguments(bool addQuotesAroundValuesWithSpaces)
 {
   QFileInfo info(m_filename);
   QStringList result(info.fileName());
@@ -331,9 +321,10 @@ QStringList ToolInstance::arguments()
   for (int i = 0; i < m_optionValues.count(); i++)
   {
     OptionValue& val =  *m_optionValues[i];
-    if (!val.value().isEmpty())
+    QString valueAsString = val.value(addQuotesAroundValuesWithSpaces);
+    if (!valueAsString.isEmpty())
     {
-      result.append(val.value());
+      result.append(valueAsString);
     }
   }
 
@@ -433,25 +424,25 @@ void ToolInstance::onRun()
   {
     // For GUI-based tools we spawn a new process
     m_mprocess->setProgram(executable());
-    m_mprocess->setArguments(arguments());
+    m_mprocess->setArguments(arguments(false));
     m_process = m_mprocess->start(QIODevice::ReadOnly);
   }
   else
   {
     m_process->setProgram(executable());
-    m_process->setArguments(arguments());
+    m_process->setArguments(arguments(false));
     m_process->start(QIODevice::ReadOnly);
   }
 
   if (m_process->waitForStarted(1000))
   {
-    mCRL2log(mcrl2::log::info) << "Started " << executable().toStdString() << std::endl;
+    mCRL2log(mcrl2::log::info) << "Started " << executable().toStdString() << arguments(true).join(" ").toStdString() << std::endl;
     m_ui.tabWidget->setCurrentIndex(1);
   }
   else
   {
     mCRL2log(mcrl2::log::error) << m_process->errorString().toStdString()
-      << " (" << executable().toStdString() << ")" << std::endl;
+      << " (" << executable().toStdString() << arguments(true).join(" ").toStdString() << ")" << std::endl;
     onStateChange(QProcess::NotRunning);
   }
 }

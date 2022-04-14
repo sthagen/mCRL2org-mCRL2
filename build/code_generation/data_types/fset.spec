@@ -28,23 +28,21 @@
 
 sort FSet(S) <"fset">;
 
-cons {} <"empty"> : FSet(S);
-     @fset_insert <"insert">: S <"left"> # FSet(S) <"right"> -> FSet(S);
+cons {} <"empty"> : FSet(S)                                                                                                              external defined_by_rewrite_rules;
+     @fset_insert <"insert">: S <"left"> # FSet(S) <"right"> -> FSet(S)                                                                  internal defined_by_rewrite_rules;
 
-map  @fset_cons <"cons_"> : S <"left"> # FSet(S) <"right"> -> FSet(S);
-     @fset_cinsert <"cinsert">: S <"arg1"> # Bool <"arg2"> # FSet(S) <"arg3"> -> FSet(S);
-     in <"in">: S <"left"> # FSet(S) <"right"> -> Bool;
-     @fset_union <"fset_union"> : (S -> Bool) <"arg1"> # (S -> Bool) <"arg2"> # FSet(S) <"arg3"> # FSet(S) <"arg4"> -> FSet(S);
-     @fset_inter <"fset_intersection">: (S -> Bool) <"arg1"> # (S -> Bool) <"arg2"> # FSet(S) <"arg3"> # FSet(S) <"arg4"> -> FSet(S);
-     - <"difference">: FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S);
-     + <"union_"> : FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S);
-     * <"intersection"> : FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S);
-     # <"count"> : FSet(S) <"arg"> -> Nat;
+map  @fset_cons <"cons_"> : S <"left"> # FSet(S) <"right"> -> FSet(S)                                                                    internal defined_by_rewrite_rules;
+     @fset_cinsert <"cinsert">: S <"arg1"> # Bool <"arg2"> # FSet(S) <"arg3"> -> FSet(S)                                                 internal defined_by_rewrite_rules;
+     in <"in">: S <"left"> # FSet(S) <"right"> -> Bool                                                                                   external defined_by_rewrite_rules;
+%     @fset_union <"fset_union"> : (S -> Bool) <"arg1"> # (S -> Bool) <"arg2"> # FSet(S) <"arg3"> # FSet(S) <"arg4"> -> FSet(S)           internal defined_by_rewrite_rules;
+%     @fset_inter <"fset_intersection">: (S -> Bool) <"arg1"> # (S -> Bool) <"arg2"> # FSet(S) <"arg3"> # FSet(S) <"arg4"> -> FSet(S)     internal defined_by_rewrite_rules;
+     - <"difference">: FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S)                                                                   external defined_by_rewrite_rules;
+     + <"union_"> : FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S)                                                                      external defined_by_rewrite_rules;
+     * <"intersection"> : FSet(S) <"left"> # FSet(S) <"right"> -> FSet(S)                                                                external defined_by_rewrite_rules;
+     # <"count"> : FSet(S) <"arg"> -> Nat                                                                                                external defined_by_rewrite_rules;
 
 var d:S;
     e:S;
-    f:S->Bool;
-    g:S->Bool;
     s:FSet(S);
     t:FSet(S);
 eqn ==({}, @fset_cons(d, s))  =  false;
@@ -66,18 +64,6 @@ eqn ==({}, @fset_cons(d, s))  =  false;
     in(d,@fset_cons(e,s)) = ||(==(d,e),in(d,s));
 % The rule below is added such that set membership can still be calculated although the set elements cannot be effectively ordered.
     in(d,@fset_insert(e,s)) = ||(==(d,e),in(d,s));
-    @fset_union(f, g, {}, {})  =  {};
-    @fset_union(f, g, @fset_cons(d, s), {})  =  @fset_cinsert(d, !(g(d)), @fset_union(f, g, s, {}));
-    @fset_union(f, g, {}, @fset_cons(e, t))  =  @fset_cinsert(e, !(f(e)), @fset_union(f, g, {}, t));
-    @fset_union(f, g, @fset_cons(d, s), @fset_cons(d, t))  =  @fset_cinsert(d, ==(f(d), g(d)), @fset_union(f, g, s, t));
-    <(d, e)  ->  @fset_union(f, g, @fset_cons(d, s), @fset_cons(e, t))  =  @fset_cinsert(d, !(g(d)), @fset_union(f, g, s, @fset_cons(e, t)));
-    <(e, d)  ->  @fset_union(f, g, @fset_cons(d, s), @fset_cons(e, t))  =  @fset_cinsert(e, !(f(e)), @fset_union(f, g, @fset_cons(d, s), t));
-    @fset_inter(f, g, {}, {})  =  {};
-    @fset_inter(f, g, @fset_cons(d, s), {})  =  @fset_cinsert(d, g(d), @fset_inter(f, g, s, {}));
-    @fset_inter(f, g, {}, @fset_cons(e, t))  =  @fset_cinsert(e, f(e), @fset_inter(f, g, {}, t));
-    @fset_inter(f, g, @fset_cons(d, s), @fset_cons(d, t))  =  @fset_cinsert(d, ==(f(d), g(d)), @fset_inter(f, g, s, t));
-    <(d, e)  ->  @fset_inter(f, g, @fset_cons(d, s), @fset_cons(e, t))  =  @fset_cinsert(d, g(d), @fset_inter(f, g, s, @fset_cons(e, t)));
-    <(e, d)  ->  @fset_inter(f, g, @fset_cons(d, s), @fset_cons(e, t))  =  @fset_cinsert(e, f(e), @fset_inter(f, g, @fset_cons(d, s), t));
     -(s,{}) = s;
     -({},t) = {};
     -(@fset_cons(d,s),@fset_cons(d,t)) = -(s,t);

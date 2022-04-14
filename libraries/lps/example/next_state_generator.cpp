@@ -1,8 +1,8 @@
 #include "mcrl2/lps/next_state_generator.h"
+#include "mcrl2/lps/io.h"
+
 #include <fstream>
-#include <iostream>
 #include <queue>
-#include <string>
 
 using namespace mcrl2;
 
@@ -76,8 +76,7 @@ int main(int argc, char* argv[])
     std::string filename(argv[1]);
     std::cout << "loading LPS from file " << filename << std::endl;
     lps::stochastic_specification spec;
-    std::ifstream stream(filename);
-    spec.load(stream);
+    lps::load_lps(spec, filename);
     std::cout << "traversing states..." << std::endl;
     data::rewriter r;
     traverse_states(spec,r);

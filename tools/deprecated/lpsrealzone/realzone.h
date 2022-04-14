@@ -13,11 +13,8 @@
 #define MCRL2_LPSREALZONE_REALZONE_H
 
 
-#include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
 #include "mcrl2/data/fourier_motzkin.h"
 #include "mcrl2/lps/detail/lps_algorithm.h"
-#include "mcrl2/lps/stochastic_specification.h"
 
 #include "dbm.h"
 #include "summand_information.h"
@@ -480,7 +477,7 @@ protected:
                                     variable_list(),
                                     nonreal_summation_variables,
                                     std::vector< linear_inequality >(),
-                                    std::map< variable, data_expression >()
+                                    data::mutable_map_substitution<>(std::map< variable, data_expression >())
                                     ));
 
       next_zone++;
@@ -497,9 +494,11 @@ protected:
     }
     m_spec.process().process_parameters().push_front(dbm_var);
 
+    // TODO: clean this code up
+    assignment_list initial_assignments = make_assignment_list(m_spec.process().process_parameters(), m_spec.initial_process().expressions());
     assignment_list al;
-    for(assignment_list::const_iterator i = m_spec.initial_process().assignments().begin();
-          i != m_spec.initial_process().assignments().end(); i++)
+    //for(assignment_list::const_iterator i = m_spec.initial_process().assignments().begin(); i != m_spec.initial_process().assignments().end(); i++)
+    for(assignment_list::const_iterator i = initial_assignments.begin(); i != initial_assignments.end(); i++)
     {
       if(i->lhs().sort() != sort_real::real_())
       {
@@ -507,7 +506,8 @@ protected:
       }
     }
     al.push_front(assignment(dbm_var, normalize_sorts(sort_dbm::dbm_zero(), m_spec.data())));
-    m_spec.initial_process() = stochastic_process_initializer(al, m_spec.initial_process().distribution());
+    //m_spec.initial_process() = stochastic_process_initializer(al, m_spec.initial_process().distribution());
+    m_spec.initial_process() = stochastic_process_initializer(right_hand_sides(al), m_spec.initial_process().distribution());
   }
 
   void add_constructors(data_specification& d, function_symbol_vector cons) {

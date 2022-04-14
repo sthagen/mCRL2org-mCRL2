@@ -1,4 +1,4 @@
-// Author(s): Rimco Boudewijns and Sjoerd Cranen
+// Author(s): Ferry Timmers
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
 //
@@ -12,125 +12,212 @@
 
 #include "graph.h"
 
-#include "mcrl2/gui/glu.h"
-
-#include <QtOpenGL>
-#include <QString>
+#include <cstdlib>
 #include <QFile>
 
-namespace
+/** @brief Graph file export utilities */
+namespace Export
 {
-QString tikzNode(Graph::Graph& graph, std::size_t i, float aspectRatio)
+
+class Node;
+class Edge;
+class Exporter;
+
+/** @brief base class for graph node and edge descriptors */
+class Entity
 {
-  Graph::NodeNode& node = graph.node(i);
-  QVector3D line(node.color());
+  protected:
+    const Graph::Graph& m_graph;
+    const std::size_t m_id;
 
-  QString ret = "\\definecolor{currentcolor}{rgb}{%1,%2,%3}\n\\node at (%4pt, %5pt) [fill=currentcolor, %6state%8] (state%7) {%7};\n";
-
-  ret = ret.arg(line.x(), 0, 'f', 3).arg(line.y(), 0, 'f', 3).arg(line.z(), 0, 'f', 3);
-  ret = ret.arg(node.pos().x() / 10.0f * aspectRatio, 6, 'f').arg(node.pos().y() / 10.0f, 6, 'f');
-  ret = ret.arg(graph.initialState() == i ? "init" : "");
-  ret = ret.arg(i);
-  ret = ret.arg(node.active() ? "" : ", dashed");
-
-  return ret;
-}
-
-QString escapeLatex(const QString& str)
-{
-  QString escaped;
-  QRegExp rx("[#$%_&{}^]");
-  for (QChar x : str) {
-    if (rx.indexIn(x) != -1) {
-      escaped.append('\\');
+    constexpr Entity(const Graph::Graph& graph, std::size_t id)
+      : m_graph(graph), m_id(id) {}
+  public:
+    /**
+     * @brief A number that uniquely describes this entity
+     * @note The Ids are not unique among different entity types.
+     */
+    constexpr const std::size_t& id() const
+    {
+      return m_id;
     }
-    escaped.append(x);
-  }
-  return escaped;
-}
+};
 
-QString tikzEdge(Graph::Graph& graph, std::size_t i, float aspectRatio)
+/** @brief A descriptor class for graph nodes being exported */
+class Node : public Entity
 {
-  Graph::LabelNode& label = graph.transitionLabel(i);
-  Graph::Edge edge = graph.edge(i);
-  QVector3D ctrl[4];
-  QVector3D& from = ctrl[0];
-  QVector3D& to = ctrl[3];
-  QVector3D via = graph.handle(i).pos();
-  from = graph.node(edge.from()).pos();
-  to = graph.node(edge.to()).pos();
+  private:
+    using Entity::Entity;
+    friend class Edge;
+    friend class Exporter;
+  public:
+    /** @brief Returns true when this node represents the initial state */
+    bool initial() const
+    {
+      return m_graph.initialState() == m_id;
+    }
+    /** @brief Returns false when the node is not being explored in exploration mode */
+    bool active() const
+    {
+      return !m_graph.hasExploration() || m_graph.node(m_id).active();
+    }
+    /** @brief Returns true when the node represents a probabilistic state */
+    bool probabilistic() const
+    {
+      return m_graph.node(m_id).is_probabilistic();
+    }
+    const QString& label() const
+    {
+      return m_graph.stateLabelstring(m_graph.stateLabel(m_id).labelindex());
+    }
+    const QVector3D& pos() const
+    {
+      return m_graph.node(m_id).pos();
+    }
+    const QVector3D& color() const
+    {
+      return m_graph.node(m_id).color();
+    }
+    const QVector3D& labelPos() const
+    {
+      return m_graph.stateLabel(m_id).pos();
+    }
+    const QVector3D& labelColor() const
+    {
+      return m_graph.stateLabel(m_id).color();
+    }
+};
 
-  // Calculate control points from handle
-  ctrl[1] = via * 1.33333f - (from + to) / 6.0f;
-  ctrl[2] = ctrl[1];
-
-  QString extraControls("");
-
-  // For self-loops, ctrl[1] and ctrl[2] need to lie apart, we'll spread
-  // them in x-y direction.
-  if (edge.from() == edge.to())
-  {
-    QVector3D diff = ctrl[1] - ctrl[0];
-    diff = QVector3D::crossProduct(diff, QVector3D(0, 0, 1));
-    diff = diff * ((via - from).length() / (diff.length() * 2.0));
-    ctrl[1] = ctrl[1] + diff;
-    ctrl[2] = ctrl[2] - diff;
-
-    extraControls = QString(" and (%1pt, %2pt)").arg(ctrl[2].x() / 10.0f * aspectRatio, 6, 'f').arg(ctrl[2].y() / 10.0f, 6, 'f');
-  }
-
-  QString ret = "\\draw [transition] (state%1) .. node[auto] {%3} controls (%4pt, %5pt)%6 .. (state%2);\n";
-  ret = ret.arg(edge.from()).arg(edge.to());
-  ret = ret.arg(escapeLatex(graph.transitionLabelstring(label.labelindex())));
-  ret = ret.arg(ctrl[1].x() / 10.0f * aspectRatio, 6, 'f').arg(ctrl[1].y() / 10.0f, 6, 'f');
-  ret = ret.arg(extraControls);
-
-  return ret;
-}
-} // unnamed namespace
-
-/// \brief Exports the given graph as a tikz output in the given aspect ratio to a file.
-inline void export_graph_as_tikz_input(Graph::Graph& graph, const QString& filename, float aspectRatio)
+/** @brief A descriptor class for graph edges being exported */
+class Edge : public Entity
 {
-  QString tikz_code  = "\\documentclass[10pt, a4paper]{article}\n\n";
-  tikz_code += "\\usepackage{tikz}\n";
-  tikz_code += "\\usetikzlibrary{arrows}\n\n";
+  private:
+    const Node m_from;
+    const Node m_to;
 
-  tikz_code += "\\begin{document}\n";
-  tikz_code += "\\begin{tikzpicture}\n";
-  tikz_code += "  [scale=2]\n\n";
-  tikz_code += "   \\tikzstyle{state}=[circle, draw]\n";
-  tikz_code += "   \\tikzstyle{initstate}=[state,fill=green]\n";
-  tikz_code += "   \\tikzstyle{transition}=[->,>=stealth']\n";
+    Edge(const Graph::Graph& graph, std::size_t id)
+      : Entity(graph, id),
+      m_from(graph, graph.edge(id).from()),
+      m_to(graph, graph.edge(id).to()) {}
 
-  graph.lock(GRAPH_LOCK_TRACE);
+    friend class Exporter;
+  public:
+    constexpr const Node& from() const
+    {
+      return m_from;
+    }
+    constexpr const Node& to() const
+    {
+      return m_to;
+    }
+    /** @brief Returns true when the edge has the same source and destination node */
+    constexpr bool selfLoop() const
+    {
+      return m_from.m_id == m_to.m_id;
+    }
+    const QString& label() const
+    {
+      return m_graph.transitionLabelstring(m_graph.transitionLabel(m_id).labelindex());
+    }
+    const QVector3D& handlePos() const
+    {
+      return m_graph.handle(m_id).pos();
+    }
+    const QVector3D& labelPos() const
+    {
+      return m_graph.transitionLabel(m_id).pos();
+    }
+    const QVector3D& labelColor() const
+    {
+      return m_graph.transitionLabel(m_id).color();
+    }
+    std::array<QVector3D, 4> quadraticCurve() const
+    {
+      return GLScene::calculateArc(from().pos(), handlePos(), to().pos(), selfLoop());
+    }
+};
 
-  bool sel = graph.hasExploration();
-  std::size_t nodeCount = sel ? graph.explorationNodeCount() : graph.nodeCount();
-  std::size_t edgeCount = sel ? graph.explorationEdgeCount() : graph.edgeCount();
+/**
+ * @brief Helper class for exporting graphs to a file.
+ * This class provides access to the underlying graph, efficiently and thread-safe.
+ * It abstract away details that are not relevant for exporting and makes sure
+ * the graph remains locked until the export is ready.
+ */
+class Exporter
+{
+  protected:
+    Graph::Graph::Guard m_guard;
+    QFile m_file;
+    bool m_valid;
 
-  for (std::size_t i = 0; i < nodeCount; ++i)
-  {
-    tikz_code += tikzNode(graph, sel ? graph.explorationNode(i) : i, aspectRatio);
-  }
+    const bool m_exploring;
+    const std::size_t m_nodeCount;
+    const std::size_t m_edgeCount;
 
-  for (std::size_t i = 0; i < edgeCount; ++i)
-  {
-    tikz_code += tikzEdge(graph, sel ? graph.explorationEdge(i) : i, aspectRatio);
-  }
+    constexpr std::size_t nodeId(std::size_t index) const
+    {
+      return m_exploring ? m_guard.graph.explorationNode(index) : index;
+    }
+    constexpr std::size_t edgeId(std::size_t index) const
+    {
+      return m_exploring ? m_guard.graph.explorationEdge(index) : index;
+    }
 
-  graph.unlock(GRAPH_LOCK_TRACE);
+  public:
+    /**
+     * @brief Construct a new graph export
+     * @param graph The graph that should be exported
+     * @param filename The file the export should be written to
+     * During the lifetime of this object the graph remains locked, and the file remains open.
+     */
+    Exporter(Graph::Graph& graph, const QString& fileName)
+      : m_guard(graph), m_file(fileName), m_valid(false),
+      m_exploring(m_guard.graph.hasExploration()),
+      m_nodeCount(m_exploring ? m_guard.graph.explorationNodeCount() : m_guard.graph.nodeCount()),
+      m_edgeCount(m_exploring ? m_guard.graph.explorationEdgeCount() : m_guard.graph.edgeCount())
+    {
+      m_valid = m_file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
+    }
 
-  tikz_code += "\n\\end{tikzpicture}\n";
-  tikz_code += "\\end{document}\n";
+    /** @brief Writes a string to the output file */
+    inline void operator +=(const QString& str)
+    {
+      if (m_valid && m_file.write(str.toLatin1()) == -1)
+      {
+        m_valid = false;
+      }
+    }
+    /** @brief Returns true when operations on the output file were, so far, successful */
+    constexpr operator bool() const { return m_valid; }
 
-  QFile file(filename);
+    /** @brief Returns the number of nodes in the exported graph */
+    constexpr const std::size_t& nodeCount() const
+    {
+      return m_nodeCount;
+    }
+    /** @brief Returns the number of edges in the exported graph */
+    constexpr const std::size_t& edgeCount() const
+    {
+      return m_edgeCount;
+    }
+    /**
+     * @brief Returns a descriptor of the node at the specified index
+     * @pre 0 <= index < nodeCount()
+     */
+    constexpr Node node(std::size_t index) const
+    {
+      return Node(m_guard.graph, nodeId(index));
+    }
+    /**
+     * @brief Returns a descriptor of the edge at the specified index
+     * @pre 0 <= index < edgeCount()
+     */
+    Edge edge(std::size_t index) const
+    {
+      return Edge(m_guard.graph, edgeId(index));
+    }
+};
 
-  if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-  {
-    file.write(tikz_code.toLatin1());
-    file.close();
-  }
 }
 
 #endif // MCRL2_LTSGRAPH_EXPORT_H

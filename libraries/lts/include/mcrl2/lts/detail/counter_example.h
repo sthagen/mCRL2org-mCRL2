@@ -19,7 +19,7 @@
 #define _LIBLTS_COUNTER_EXAMPLE_H
 
 #include "mcrl2/lts/lts_lts.h"
-#include "mcrl2/trace/trace.h"
+#include "mcrl2/lts/trace.h"
 
 
 namespace mcrl2
@@ -69,11 +69,21 @@ class counter_example_constructor
 
     static const index_type m_root_index=-1;
     std::deque< action_index_pair > m_backward_tree;
-    const std::string m_filename;
+    const std::string m_name;
+    const std::string m_counter_example_file;
+    const bool m_structured_output;
   
   public:
-    counter_example_constructor(const std::string& filename)
-     : m_filename(filename)
+    /// \brief Constructor
+    //  \param name The name of the model that the counter example is for
+    //  \param counter_example_file The name of the file to save the counter example to
+    //  \param structured_output Whether the counterexample should be printed to std:cout
+    //  \detail If structured_output=true, the counter example is not saved to file.
+    //          If counter_example_file="", the name of the counter example file name is derived from name (the parameter)
+    counter_example_constructor(const std::string& name, const std::string& counter_example_file, bool structured_output)
+     : m_name(name)
+     , m_counter_example_file(counter_example_file)
+     , m_structured_output(structured_output)
     {}
 
     /// \brief Return the index of the root.
@@ -106,10 +116,10 @@ class counter_example_constructor
         reversed_label_indices.push(m_backward_tree[current_index].label_index());
       }
 
-      trace::Trace result;
+      trace result;
       while (!reversed_label_indices.empty())
       {
-        result.addAction(mcrl2::lps::multi_action(mcrl2::process::action(
+        result.add_action(mcrl2::lps::multi_action(mcrl2::process::action(
                                 mcrl2::process::action_label(
                                        core::identifier_string(mcrl2::lts::pp(l.action_label(reversed_label_indices.top()))),
                                        mcrl2::data::sort_expression_list()),
@@ -120,20 +130,40 @@ class counter_example_constructor
       /* Add the actions in extra actions. */
       for(const size_t& a: extra_actions)
       {
-        result.addAction(mcrl2::lps::multi_action(mcrl2::process::action(
+        result.add_action(mcrl2::lps::multi_action(mcrl2::process::action(
                                 mcrl2::process::action_label(
                                        core::identifier_string(mcrl2::lts::pp(l.action_label(a))),
                                        mcrl2::data::sort_expression_list()),
                                 mcrl2::data::data_expression_list())));
       }
-      mCRL2log(log::verbose) << "Saved trace to file " + m_filename + "\n";
-      result.save(m_filename);
+      if (m_structured_output)
+      {
+        std::cout << m_name << ": ";
+        result.save("", mcrl2::lts::trace::tfPlain);   // Write to stdout. 
+      }
+      else
+      {
+        std::string filename = m_name + ".trc";
+        if (!m_counter_example_file.empty())
+        {
+          filename = m_counter_example_file;
+        }
+        mCRL2log(log::verbose) << "Saved trace to file " + filename + "\n";
+        result.save(filename);
+      }
     }
 
     /// \brief This function indicates that this is not a dummy counterexample class and that a serious counterexample is required.
     bool is_dummy() const
     {
       return false;
+    }
+
+    /// \brief Returns whether this counter-example is printed in a machine-readable way to stdout
+    /// If false is returned, the counter-example is written to a file.
+    bool is_structured() const
+    {
+      return m_structured_output;
     }
 };
 
@@ -166,6 +196,13 @@ class dummy_counter_example_constructor
     bool is_dummy() const
     {
       return true;
+    }
+
+    /// \brief Returns whether this counter-example is printed in a machine-readable way to stdout
+    /// If false is returned, the counter-example is written to a file.
+    bool is_structured() const
+    {
+      return false;
     }
 };
 

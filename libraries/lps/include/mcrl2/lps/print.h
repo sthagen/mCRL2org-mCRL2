@@ -12,7 +12,6 @@
 #ifndef MCRL2_LPS_PRINT_H
 #define MCRL2_LPS_PRINT_H
 
-#include "mcrl2/core/print.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/lps/traverser.h"
 #include "mcrl2/process/print.h"
@@ -182,7 +181,7 @@ struct printer: public lps::add_traverser_sort_expressions<process::detail::prin
   {
     derived().enter(x);
     derived().print("init P");
-    print_assignments(x.assignments(), false, "(", ")", ", ");
+    print_variables(x.expressions(), false);
     derived().print(";");
     derived().leave(x);
   }
@@ -197,7 +196,7 @@ struct printer: public lps::add_traverser_sort_expressions<process::detail::prin
       derived().print(" . ");
     }
     derived().print("P");
-    print_assignments(x.assignments(), false, "(", ")", ", ");
+    print_variables(x.expressions(), false);
     derived().print(";");
     derived().leave(x);
   }

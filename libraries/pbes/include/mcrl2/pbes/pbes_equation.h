@@ -12,14 +12,9 @@
 #ifndef MCRL2_PBES_PBES_EQUATION_H
 #define MCRL2_PBES_PBES_EQUATION_H
 
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/detail/sequence_algorithm.h"
 #include "mcrl2/pbes/fixpoint_symbol.h"
 #include "mcrl2/pbes/pbes_expression.h"
-#include "mcrl2/pbes/propositional_variable.h"
-#include <sstream>
-#include <string>
-#include <utility>
 
 namespace mcrl2
 {
@@ -57,29 +52,6 @@ class pbes_equation
 
     /// \brief Constructor.
     pbes_equation() = default;
-
-    /// \brief Constructor.
-    /// \param t A term
-    pbes_equation(const atermpp::aterm_appl& t)
-    {
-      assert(core::detail::check_rule_PBEqn(t));
-      atermpp::aterm_appl::iterator i = t.begin();
-      m_symbol   = fixpoint_symbol(*i++);
-      m_variable = propositional_variable(*i++);
-      m_formula  = pbes_expression(*i);
-    }
-
-    /// \brief Constructor.
-    /// \param t1 A term
-    explicit pbes_equation(const atermpp::aterm& t1)
-    {
-      atermpp::aterm_appl t=atermpp::down_cast<atermpp::aterm_appl>(t1);
-      assert(core::detail::check_rule_PBEqn(t));
-      atermpp::aterm_appl::iterator i = t.begin();
-      m_symbol   = fixpoint_symbol(*i++);
-      m_variable = propositional_variable(*i++);
-      m_formula  = pbes_expression(*i);
-    }
 
     /// \brief Constructor.
     /// \param symbol A fixpoint symbol

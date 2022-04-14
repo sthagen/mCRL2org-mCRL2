@@ -11,7 +11,6 @@
 #ifndef MCRL2_DATA_DETAIL_REWRITE_H
 #define MCRL2_DATA_DETAIL_REWRITE_H
 
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/detail/enumerator_identifier_generator.h"
 #include "mcrl2/data/rewrite_strategy.h"
 #include "mcrl2/data/selection.h"
@@ -197,10 +196,10 @@ void CheckRewriteRule(const data_equation& data_eqn);
 bool isValidRewriteRule(const data_equation& data_eqn);
 
 
+// This function calculates the cumulated length of all
+// potential function arguments.
 inline std::size_t getArity(const data::function_symbol& op)
 {
-  // This function calculates the cumulated length of all
-  // potential function arguments.
   sort_expression sort = op.sort();
   std::size_t arity = 0;
 
@@ -212,6 +211,17 @@ inline std::size_t getArity(const data::function_symbol& op)
     sort = fsort.codomain();
   }
   return arity;
+}
+
+// This function calculates the number of direct function arguments.
+inline std::size_t get_direct_arity(const data::function_symbol& op)
+{
+  sort_expression sort = op.sort();
+  if (is_function_sort(sort))
+  {
+    return atermpp::down_cast<function_sort>(sort).domain().size();
+  }
+  return 0;
 }
 
 } // namespace detail

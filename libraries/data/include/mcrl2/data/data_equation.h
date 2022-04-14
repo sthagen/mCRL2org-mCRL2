@@ -12,13 +12,8 @@
 #ifndef MCRL2_DATA_DATA_EQUATION_H
 #define MCRL2_DATA_DATA_EQUATION_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
-#include "mcrl2/core/detail/default_values.h"
 #include "mcrl2/data/basic_sort.h"
-#include "mcrl2/data/data_expression.h"
 #include "mcrl2/data/function_symbol.h"
-#include "mcrl2/data/variable.h"
 
 namespace mcrl2
 {
@@ -87,7 +82,7 @@ class data_equation: public atermpp::aterm_appl
       return atermpp::down_cast<data_expression>((*this)[3]);
     }
 //--- start user section data_equation ---//
-    /// \brief Constructor
+    /// \brief Constructor.
     ///
     /// \param[in] variables The free variables of the data_equation.
     /// \param[in] lhs The left hand side of the data_equation.
@@ -102,7 +97,7 @@ class data_equation: public atermpp::aterm_appl
       : atermpp::aterm_appl(core::detail::function_symbol_DataEqn(), variable_list(variables.begin(),variables.end()), sort_bool::true_(), lhs, rhs)
     {}
 
-    /// \brief Constructor
+    /// \brief Constructor.
     ///
     /// \param[in] lhs The left hand side of the data equation.
     /// \param[in] rhs The right hand side of the data equation.
@@ -140,6 +135,14 @@ inline void swap(data_equation& t1, data_equation& t2)
   t1.swap(t2);
 }
 //--- end generated class data_equation ---//
+
+/// \brief Recognizer function.
+/// \param[in] t A aterm appl of which it is checked whether it is a data_equation.
+/// \returns True if the provided argument is a data_equation. 
+inline bool is_data_equation(const atermpp::aterm_appl& t)
+{
+  return t.function()==core::detail::function_symbol_DataEqn();
+}
 
 // template function overloads
 std::string pp(const data_equation_list& x);

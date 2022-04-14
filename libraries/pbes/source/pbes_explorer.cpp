@@ -8,14 +8,11 @@
 //
 /// \file mcrl2/pbes/pbes_explorer.cpp
 /// \brief
+#include <climits>
 #include <queue>
-#include <set>
 
-#include "mcrl2/atermpp/aterm_io.h"
 #include "mcrl2/data/detail/io.h"
-#include "mcrl2/data/rewrite_strategy.h"
 #include "mcrl2/data/representative_generator.h"
-#include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/detail/ppg_visitor.h"
 #include "mcrl2/pbes/io.h"
 #include "mcrl2/pbes/pbes_explorer.h"
@@ -1375,14 +1372,10 @@ ltsmin_state explorer::false_state()
 }
 
 
-data::data_expression explorer::string_to_data(const std::string& s) {
-    atermpp::aterm t = data::detail::add_index(atermpp::read_term_from_string(s));
-    return atermpp::down_cast<data::data_expression>(t);
-    //aterm t = atermpp::read_term_from_string(s);
-    //std::clog << "string_to_data: [" << s << "] -> " << t << std::endl;
-    //data::data_expression value(t);
-    //pbes_expression result = pgg->rewrite_and_simplify_expression(value);
-    //return atermpp::down_cast<const data::data_expression>(result);
+data::data_expression explorer::string_to_data(const std::string& s)
+{
+  atermpp::aterm t = atermpp::read_term_from_string(s);
+  return atermpp::down_cast<data::data_expression>(data::detail::add_index(static_cast<const atermpp::aterm_appl&>(t)));
 }
 
 
@@ -1545,7 +1538,7 @@ std::string explorer::get_value(int type_no, int index)
         //write_term_to_text_stream(value, os);
         //std::string s = atermpp::pp(value);
         //return os.str();
-        atermpp::aterm t = data::detail::remove_index(static_cast<atermpp::aterm>(value));
+        atermpp::aterm t = data::detail::remove_index(value);
         return pp(t);
     }
 }

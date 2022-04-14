@@ -6,8 +6,6 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file mcrl2/lps/stochastic_specification.h
-/// \brief add your file description here.
 
 #ifndef MCRL2_LPS_STOCHASTIC_SPECIFICATION_H
 #define MCRL2_LPS_STOCHASTIC_SPECIFICATION_H
@@ -18,12 +16,6 @@
 namespace mcrl2 {
 
 namespace lps {
-
-namespace detail {
-
-
-
-} // namespace detail
 
 class stochastic_specification;
 void complete_data_specification(stochastic_specification& spec);
@@ -50,19 +42,6 @@ class stochastic_specification: public specification_base<stochastic_linear_proc
     { }
 
     /// \brief Constructor.
-    stochastic_specification(const stochastic_specification& other)
-      : super(other)
-    { }
-
-    /// \brief Constructor.
-    /// \param t A term
-    stochastic_specification(const atermpp::aterm_appl& t)
-      : super(t)
-    {
-      complete_data_specification(*this);
-    }
-
-    /// \brief Constructor.
     /// \param data A data specification
     /// \param action_labels A sequence of action labels
     /// \param global_variables A set of global variables
@@ -83,22 +62,9 @@ class stochastic_specification: public specification_base<stochastic_linear_proc
       : super(other.data(), 
         other.action_labels(), 
         other.global_variables(), 
-        other.process(), 
-        stochastic_process_initializer(other.initial_process().assignments(),stochastic_distribution()))
+        stochastic_linear_process(other.process()),
+        stochastic_process_initializer(other.initial_process().expressions(),stochastic_distribution()))
     { } 
-
-    void save(std::ostream& stream, bool binary=true) const
-    {
-      assert(check_well_typedness(*this));
-      super::save(stream, binary);
-    }
-
-    void load(std::istream& stream, bool binary=true, const std::string& source = "")
-    {
-      super::load(stream, binary, source);
-      complete_data_specification(*this);
-      assert(check_well_typedness(*this));
-    }
 };
 
 //--- start generated class stochastic_specification ---//
@@ -170,7 +136,7 @@ specification remove_stochastic_operators(const stochastic_specification& spec)
   {
     throw mcrl2::runtime_error("initial state has non-empty stochastic distribution");
   }
-  result.initial_process() = process_initializer(spec.initial_process().assignments());
+  result.initial_process() = process_initializer(spec.initial_process().expressions());
   return result;
 }
 

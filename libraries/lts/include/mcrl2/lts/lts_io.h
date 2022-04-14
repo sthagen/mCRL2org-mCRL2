@@ -19,16 +19,12 @@
 #ifndef MCRL2_LTS_LTS_IO_H
 #define MCRL2_LTS_LTS_IO_H
 
-
-#include "mcrl2/data/parse.h"
 #include "mcrl2/lps/io.h"
-#include "mcrl2/lts/transition.h"
 #include "mcrl2/lts/detail/lts_convert.h"
 
+#include "mcrl2/atermpp/aterm_io.h"
 
-namespace mcrl2
-{
-namespace lts
+namespace mcrl2::lts
 {
 
 /// \brief Type for data files that contain extra information for an lts in .aut or .fsm
@@ -136,7 +132,8 @@ inline void read_data_context(const std::string& data_file,
   // "init delta;" must appear at the front, such that a second init clause will be
   // reported as wrong. 
   const std::string input="init delta; " + utilities::read_text(data_file);
-  process::process_specification procspec = process::parse_process_specification(input);
+  process::process_specification procspec =
+      process::parse_process_specification(input);
   data=procspec.data();
   action_labels=procspec.action_labels();
 }
@@ -145,7 +142,8 @@ inline void read_mcrl2_context(const std::string& data_file,
                                data::data_specification& data,
                                process::action_label_list& action_labels)
 {
-  process::process_specification procspec = process::parse_process_specification(utilities::read_text(data_file), false);
+  process::process_specification procspec =
+      process::parse_process_specification(utilities::read_text(data_file));
   data = procspec.data();
   action_labels = procspec.action_labels();
 }
@@ -219,6 +217,7 @@ inline void load_lts(lts_lts_t& result,
     }
     case lts_none:
       mCRL2log(log::warning) << "Cannot determine type of input. Assuming .aut.\n";
+      [[fallthrough]]; // For the default (lts_none) load as aut file.
     case lts_aut:
     {
       lts_aut_t l;
@@ -261,6 +260,7 @@ inline void load_lts_as_fsm_file(const std::string& path, lts_fsm_t& l)
     }
     case lts_none:
       mCRL2log(log::warning) << "Cannot determine type of input. Assuming .aut.\n";
+      [[fallthrough]]; // For the default (lts_none) load as aut file.
     case lts_aut:
     {
       lts_aut_t l1;
@@ -280,7 +280,40 @@ inline void load_lts_as_fsm_file(const std::string& path, lts_fsm_t& l)
   }
 }
 
-}
-}
+// Proper interface.
+
+/// \brief Read a (probabilistic) LTS from the given stream.
+atermpp::aterm_istream& operator>>(atermpp::aterm_istream& stream, lts_lts_t& lts);
+atermpp::aterm_istream& operator>>(atermpp::aterm_istream& stream, probabilistic_lts_lts_t& lts);
+
+/// \brief Write a (probabilistic) LTS to the given stream at once.
+atermpp::aterm_ostream& operator<<(atermpp::aterm_ostream& stream, const lts_lts_t& lts);
+atermpp::aterm_ostream& operator<<(atermpp::aterm_ostream& stream, const probabilistic_lts_lts_t& lts);
+
+// Streaming an LTS to disk:
+//  write_lts_header(data_spec, parameters, action_labels)
+//
+// In any order:
+//  Write transitions (to, label, from), where 'to' and 'from' are indices and 'label' the multi_action, as necessary.
+//  Write state labels (state_label_lts) in their order such that writing the i-th state label belongs to state with index i.
+//  Write the initial state.
+
+/// \brief Writes the start of an LTS stream.
+void write_lts_header(atermpp::aterm_ostream& stream,
+  const data::data_specification& data,
+  const data::variable_list& parameters,
+  const process::action_label_list& action_labels);
+
+/// \brief Write a transition to the LTS stream.
+void write_transition(atermpp::aterm_ostream& stream, std::size_t from, const lps::multi_action& label, std::size_t to);
+void write_transition(atermpp::aterm_ostream& stream, std::size_t from, const lps::multi_action& label, const probabilistic_lts_lts_t::probabilistic_state_t& to);
+
+/// \brief Write a state label to the LTS stream.
+void write_state_label(atermpp::aterm_ostream& stream, const state_label_lts& label);
+
+/// \brief Write the initial state to the LTS stream.
+void write_initial_state(atermpp::aterm_ostream& stream, std::size_t index);
+
+} // namespace mcrl2::lts
 
 #endif // MCRL2_LTS_LTS_IO_H

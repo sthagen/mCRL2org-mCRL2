@@ -14,13 +14,8 @@
 
 #include "mcrl2/lps/linearise.h"
 #include "mcrl2/modal_formula/algorithms.h"
-#include "mcrl2/modal_formula/state_formula.h"
 #include "mcrl2/pbes/complps2pbes.h"
 #include "mcrl2/pbes/io.h"
-#include "mcrl2/process/parse.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/text_utility.h"
-#include <fstream>
 
 namespace mcrl2 {
 
@@ -51,8 +46,8 @@ void complps2pbes(const std::string& input_filename,
     text = utilities::read_text(from);
   }
   // TODO: check if alpha reduction should be applied
-  process::process_specification procspec = process::parse_process_specification(text, false);
-  lps::specification spec=remove_stochastic_operators(lps::linearise(procspec));
+  process::process_specification procspec = process::parse_process_specification(text);
+  lps::specification spec = remove_stochastic_operators(lps::linearise(procspec));
 
   // load state formula
   mCRL2log(log::verbose) << "reading formula from file '" <<  formula_filename << "'..." << std::endl;

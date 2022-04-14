@@ -10,9 +10,9 @@
 #ifndef MCRL2_UTILITIES_SHARED_REFERENCE_H_
 #define MCRL2_UTILITIES_SHARED_REFERENCE_H_
 
-#include <assert.h>
+#include <cassert>
 #include <atomic>
-#include <utility>
+#include <type_traits>
 
 namespace mcrl2
 {
@@ -40,14 +40,14 @@ public:
   }
 
   /// \brief Increment the reference count by one.
-  void increment_reference_count()
+  void increment_reference_count() const
   {
     ++m_reference_count;
     increment_reference_count_changes();
   }
 
   /// \brief Decrement the reference count by one.
-  void decrement_reference_count()
+  void decrement_reference_count() const
   {
     --m_reference_count;
     increment_reference_count_changes();
@@ -72,7 +72,8 @@ public:
 protected:
   using SizeType = typename std::conditional<ThreadSafe, std::atomic<std::size_t>, std::size_t>::type;
 
-  SizeType m_reference_count;
+  // The underlying reference counter can always be changed.
+  mutable SizeType m_reference_count;
 };
 
 /// \brief A reference counted reference to a shared_reference_counted object.

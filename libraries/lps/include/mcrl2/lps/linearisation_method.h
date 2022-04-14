@@ -1,4 +1,4 @@
-// Author(s): Unknown
+// Author(s): Jan Friso Groote
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
 //
@@ -12,7 +12,6 @@
 #define MCRL2_LPS_LINEARISATION_METHOD_H
 
 #include "mcrl2/utilities/exception.h"
-#include <iostream>
 #include <string>
 
 namespace mcrl2

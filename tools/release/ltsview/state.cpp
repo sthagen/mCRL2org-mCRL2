@@ -6,12 +6,9 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <cstddef>
-
 #include "state.h"
 #include "transition.h"
 
-using namespace std;
 
 State::State(int aid):
   cluster(NULL),

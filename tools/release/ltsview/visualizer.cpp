@@ -11,16 +11,12 @@
 #include <cstdlib>
 #include <fstream>
 #include "cluster.h"
-#include "lts.h"
 #include "mathutils.h"
-#include "settings.h"
 #include "state.h"
 #include "transition.h"
-#include "vectors.h"
 
 #include <QtOpenGL>
 
-using namespace std;
 using namespace MathUtils;
 
 #define SELECT_BLEND 0.3f
@@ -83,7 +79,7 @@ void Visualizer::setClusterHeight()
 {
   float ratio = ltsManager->lts()->getInitialState()->getCluster()->getBCRadius() /
                 ltsManager->lts()->getInitialState()->getCluster()->getBCHeight();
-  settings->clusterHeight.setValue(max(4,round_to_int(40.0f * ratio)) / 10.0f);
+  settings->clusterHeight.setValue(std::max(4,round_to_int(40.0f * ratio)) / 10.0f);
   dirtyObjects();
 }
 
@@ -127,20 +123,20 @@ void Visualizer::computeSubtreeBounds(Cluster* root, float& bw, float& bh)
           float dw = 0.0f;
           float dh = 0.0f;
           computeSubtreeBounds(desc,dw,dh);
-          bw = max(bw,dw);
-          bh = max(bh,dh);
+          bw = std::max(bw,dw);
+          bh = std::max(bh,dh);
         }
         else
         {
           float dw = 0.0f;
           float dh = 0.0f;
           computeSubtreeBounds(desc,dw,dh);
-          bw = max(bw,root->getBaseRadius() + dh*sin_obt + dw*cos_obt);
-          bh = max(bh,dh*cos_obt + dw*sin_obt);
+          bw = std::max(bw,root->getBaseRadius() + dh*sin_obt + dw*cos_obt);
+          bh = std::max(bh,dh*cos_obt + dw*sin_obt);
         }
       }
     }
-    bw = max(bw,root->getTopRadius());
+    bw = std::max(bw,root->getTopRadius());
     bh += settings->clusterHeight.value();
   }
 }
@@ -196,7 +192,7 @@ void Visualizer::traverseTreeC(Cluster* root,bool topClosed,int rot)
     float r = root->getTopRadius();
     glPushMatrix();
     glScalef(r,r,r);
-    vector<int> ids;
+    std::vector<int> ids;
     ids.push_back(root->getRank());
     ids.push_back(root->getPositionInRank());
     if (update_objects)
@@ -263,7 +259,7 @@ void Visualizer::traverseTreeC(Cluster* root,bool topClosed,int rot)
       glScalef(root->getBaseRadius(),root->getBaseRadius(),
                settings->clusterHeight.value());
 
-      vector<int> ids;
+      std::vector<int> ids;
       ids.push_back(root->getRank());
       ids.push_back(root->getPositionInRank());
 
@@ -285,7 +281,7 @@ void Visualizer::traverseTreeC(Cluster* root,bool topClosed,int rot)
     {
       glScalef(root->getTopRadius(),root->getTopRadius(),settings->clusterHeight.value());
 
-      vector<int> ids;
+      std::vector<int> ids;
       ids.push_back(root->getRank());
       ids.push_back(root->getPositionInRank());
 
@@ -314,10 +310,10 @@ void Visualizer::traverseTreeT(Cluster* root, bool topClosed, int rot)
     // root has no descendants; so draw it as a hemispheroid
     glPushMatrix();
     glScalef(root->getTopRadius(),root->getTopRadius(),
-             min(root->getTopRadius(),settings->clusterHeight.value()));
+             std::min(root->getTopRadius(),settings->clusterHeight.value()));
     if (update_objects)
     {
-      vector<int> ids;
+      std::vector<int> ids;
       ids.push_back(root->getRank());
       ids.push_back(root->getPositionInRank());
       if (root == ltsManager->lts()->getInitialState()->getCluster())
@@ -405,7 +401,7 @@ void Visualizer::traverseTreeT(Cluster* root, bool topClosed, int rot)
           glScalef(sz,sz,sz);
           if (update_objects)
           {
-            vector<int> ids;
+            std::vector<int> ids;
             ids.push_back(root->getRank());
             ids.push_back(root->getPositionInRank());
             root->addBranchVisObject(visObjectFactory.makeObject(
@@ -436,10 +432,10 @@ void Visualizer::traverseTreeT(Cluster* root, bool topClosed, int rot)
       // root has no centered descendant, so draw it as a hemispheroid
       glPushMatrix();
       glScalef(root->getTopRadius(),root->getTopRadius(),
-               min(root->getTopRadius(),settings->clusterHeight.value()));
+               std::min(root->getTopRadius(),settings->clusterHeight.value()));
       if (update_objects)
       {
-        vector<int> ids;
+        std::vector<int> ids;
         ids.push_back(root->getRank());
         ids.push_back(root->getPositionInRank());
         if (root == ltsManager->lts()->getInitialState()->getCluster())
@@ -477,7 +473,7 @@ void Visualizer::traverseTreeT(Cluster* root, bool topClosed, int rot)
         glScalef(baserad,baserad,settings->clusterHeight.value());
         if (update_objects)
         {
-          vector<int> ids;
+          std::vector<int> ids;
           ids.push_back(root->getRank());
           ids.push_back(root->getPositionInRank());
           root->setVisObject(visObjectFactory.makeObject(
@@ -495,7 +491,7 @@ void Visualizer::traverseTreeT(Cluster* root, bool topClosed, int rot)
                  settings->clusterHeight.value());
         if (update_objects)
         {
-          vector<int> ids;
+          std::vector<int> ids;
           ids.push_back(root->getRank());
           ids.push_back(root->getPositionInRank());
           root->setVisObject(visObjectFactory.makeObject(
@@ -610,7 +606,7 @@ void Visualizer::updateColors()
          ++ci)
     {
       cl = *ci;
-      vector<QColor> rule_colours;
+      std::vector<QColor> rule_colours;
 
       c = QColor(255, 255, 255);
       if (markManager->isMarked(cl))
@@ -686,7 +682,7 @@ void Visualizer::drawSimStates(QList<State*> historicStates,
   QColor c;
   QVector3D p;
 
-  set<State*> drawnStates;
+  std::set<State*> drawnStates;
 
   // Draw the current state.
   //QColor hisStateColor = settings->simStateColor.value();

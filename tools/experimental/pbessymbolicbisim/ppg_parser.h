@@ -14,16 +14,13 @@
 #ifndef MCRL2_PBESSYMBOLICBISIM_PPG_PARSER_H
 #define MCRL2_PBESSYMBOLICBISIM_PPG_PARSER_H
 
-#include "mcrl2/data/bool.h"
 #include "mcrl2/data/fourier_motzkin.h"
-#include "mcrl2/data/replace.h"
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/pbes/detail/ppg_rewriter.h"
 #include "mcrl2/pbes/detail/ppg_traverser.h"
-#include "mcrl2/pbes/pbes.h"
+#include "mcrl2/pbes/replace.h"
 #include "mcrl2/pbes/rewrite.h"
 #include "mcrl2/pbes/rewriters/pbes2data_rewriter.h"
-#include "mcrl2/pbes/rewriters/one_point_rule_rewriter.h"
+#include "mcrl2/pbes/rewriters/quantifiers_inside_rewriter.h"
 
 namespace mcrl2
 {
@@ -64,7 +61,7 @@ public:
     pbes_expression expr = e;
     if(is_exists(expr) || is_forall(expr))
     {
-      m_quantification_domain = accessors::var(e);
+      m_quantification_domain = accessors::var(expr);
       expr = accessors::arg(expr);
     }
     if(is_or(expr))
@@ -104,6 +101,15 @@ public:
     else
     {
       m_condition = data::sort_bool::true_();
+    }
+    // Quantifier may occur just before predicate variable instance due to use
+    // of quantifier-inside rewriter.
+    if(is_exists(expr) || is_forall(expr))
+    {
+      for(const data::variable& v: accessors::var(expr)) {
+        m_quantification_domain.push_front(v);
+      }
+      expr = accessors::arg(expr);
     }
     assert(is_propositional_variable_instantiation(expr));
     m_new_state = atermpp::down_cast<propositional_variable_instantiation>(expr);
@@ -329,16 +335,26 @@ public:
       q = to_ppg(p);
       assert(is_ppg(q));
     }
-    // Apply the one point rewriter since the ppg rewriter may
-    // leave nested quantification, which this parse doesn't
+    // Apply the quantifier inside rewriter since the ppg rewriter may
+    // leave nested quantification, which this parser doesn't
     // deal with.
-    pbes_rewrite(q, one_point_rule_rewriter());
+    replace_pbes_expressions(q, quantifiers_inside_rewriter(), false);
+
+    data::set_identifier_generator id_gen;
+    for(auto& eq: p.equations())
+    {
+      id_gen.add_identifier(eq.variable().name());
+    }
 
     // Group equations by fixpoint symbol. Each mu group gets its
     // own instances of X_false. Each nu group gets its own instances
     // of X_true.
     fixpoint_symbol previous_symbol(q.equations()[0].symbol());
     int rank = previous_symbol == fixpoint_symbol::nu() ? 0 : 1;
+
+    const std::string x_true_name = id_gen("X_true");
+    const std::string x_false_name = id_gen("X_false");
+
     std::string x_false_conj_name;
     std::string x_true_conj_name;
     std::string x_false_disj_name;
@@ -346,18 +362,18 @@ public:
     if(previous_symbol == fixpoint_symbol::mu())
     {
       // For a mu block we can only use local X_false
-      x_false_conj_name = "X_false_conj" + std::to_string(rank);
-      x_true_conj_name = "X_true";
-      x_false_disj_name = "X_false_disj" + std::to_string(rank);
-      x_true_disj_name = "X_true";
+      x_false_conj_name = id_gen("X_false_conj");
+      x_true_conj_name = x_true_name;
+      x_false_disj_name = id_gen("X_false_disj");
+      x_true_disj_name = x_true_name;
     }
     else
     {
       // For a nu block we can only use local X_true
-      x_false_conj_name = "X_false";
-      x_true_conj_name = "X_true_conj" + std::to_string(rank);
-      x_false_disj_name = "X_false";
-      x_true_disj_name = "X_true_disj" + std::to_string(rank);
+      x_false_conj_name = x_false_name;
+      x_true_conj_name = id_gen("X_true_conj");
+      x_false_disj_name = x_false_name;
+      x_true_disj_name = id_gen("X_true_disj");
     }
     for(const pbes_equation& eq: q.equations())
     {
@@ -375,18 +391,18 @@ public:
         if(previous_symbol == fixpoint_symbol::mu())
         {
           // For a mu block we can only use local X_false
-          x_false_conj_name = "X_false_conj" + std::to_string(rank);
-          x_true_conj_name = "X_true";
-          x_false_disj_name = "X_false_disj" + std::to_string(rank);
-          x_true_disj_name = "X_true";
+          x_false_conj_name = id_gen("X_false_conj");
+          x_true_conj_name = x_true_name;
+          x_false_disj_name = id_gen("X_false_disj");
+          x_true_disj_name = x_true_name;
         }
         else
         {
           // For a nu block we can only use local X_true
-          x_false_conj_name = "X_false";
-          x_true_conj_name = "X_true_conj" + std::to_string(rank);
-          x_false_disj_name = "X_false";
-          x_true_disj_name = "X_true_disj" + std::to_string(rank);
+          x_false_conj_name = x_false_name;
+          x_true_conj_name = id_gen("X_true_conj");
+          x_false_disj_name = x_false_name;
+          x_true_disj_name = id_gen("X_true_disj");
         }
       }
       m_equations.emplace_back(eq, x_false_conj_name, x_true_conj_name, x_false_disj_name, x_true_disj_name);
@@ -397,8 +413,8 @@ public:
 
     // Add global equations for X_true and X_false that are used throughout the
     // PBES
-    m_equations.emplace_back("X_false", fixpoint_symbol::mu(), true);
-    m_equations.emplace_back("X_true", fixpoint_symbol::nu(), true);
+    m_equations.emplace_back(x_false_name, fixpoint_symbol::mu(), true);
+    m_equations.emplace_back(x_true_name, fixpoint_symbol::nu(), true);
   }
 
   const std::vector<ppg_equation>& equations() const

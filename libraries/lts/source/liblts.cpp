@@ -8,20 +8,6 @@
 //
 /// \file liblts.cpp
 
-#include <string>
-#include <set>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <cassert>
-#include <cstdlib>
-#include <algorithm>
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/parse.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/lps/specification.h"
-#include "mcrl2/lts/lts_utilities.h"
 #include "mcrl2/lts/lts_algorithm.h"
 #include "mcrl2/lts/lts_io.h"
 
@@ -30,8 +16,6 @@ using namespace mcrl2::core::detail;
 using namespace mcrl2::log;
 
 
-using namespace std;
-
 namespace mcrl2
 {
 namespace lts
@@ -39,13 +23,13 @@ namespace lts
 namespace detail
 {
 
-lts_type guess_format(string const& s, const bool be_verbose/*=true*/)
+lts_type guess_format(std::string const& s, const bool be_verbose/*=true*/)
 {
-  string::size_type pos = s.find_last_of('.');
+  std::string::size_type pos = s.find_last_of('.');
 
-  if (pos != string::npos)
+  if (pos != std::string::npos)
   {
-    string ext = s.substr(pos+1);
+    std::string ext = s.substr(pos+1);
 
     if (ext == "aut")
     {
@@ -168,12 +152,12 @@ bool lts_named_cmp(std::string N[], T a, T b)
 
 std::string supported_lts_formats_text(lts_type default_format, const std::set<lts_type>& supported)
 {
-  vector<lts_type> types(supported.begin(), supported.end());
+  std::vector<lts_type> types(supported.begin(), supported.end());
   std::sort(types.begin(), types.end(),
             std::bind(lts_named_cmp<lts_type>, type_strings, std::placeholders::_1, std::placeholders::_2));
 
-  string r;
-  for (vector<lts_type>::iterator i=types.begin(); i!=types.end(); ++i)
+  std::string r;
+  for (std::vector<lts_type>::iterator i=types.begin(); i!=types.end(); ++i)
   {
     r += "  '" + type_strings[*i] + "' for the " + type_desc_strings[*i];
 
@@ -204,13 +188,13 @@ std::string supported_lts_formats_text(const std::set<lts_type>& supported)
 
 std::string lts_extensions_as_string(const std::string& sep, const std::set<lts_type>& supported)
 {
-  vector<lts_type> types(supported.begin(), supported.end());
+  std::vector<lts_type> types(supported.begin(), supported.end());
   std::sort(types.begin(), types.end(),
             std::bind(lts_named_cmp<lts_type>, extension_strings, std::placeholders::_1, std::placeholders::_2));
 
-  string r, prev;
+  std::string r, prev;
   bool first = true;
-  for (vector<lts_type>::iterator i=types.begin(); i!=types.end(); i++)
+  for (std::vector<lts_type>::iterator i=types.begin(); i!=types.end(); i++)
   {
     if (extension_strings[*i] == prev)   // avoid mentioning extensions more than once
     {

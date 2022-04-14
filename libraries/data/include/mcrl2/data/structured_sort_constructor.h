@@ -12,12 +12,8 @@
 #ifndef MCRL2_DATA_STRUCTURED_SORT_CONSTRUCTOR_H
 #define MCRL2_DATA_STRUCTURED_SORT_CONSTRUCTOR_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
 #include "mcrl2/data/bool.h"
 #include "mcrl2/data/structured_sort_constructor_argument.h"
-#include <iterator>
-#include <string>
 
 namespace mcrl2
 {
@@ -81,10 +77,8 @@ class structured_sort_constructor: public atermpp::aterm_appl
 
   private:
 
-    struct get_argument_sort : public
-        std::unary_function< structured_sort_constructor_argument const&, sort_expression >
+    struct get_argument_sort
     {
-
       sort_expression operator()(structured_sort_constructor_argument const& s) const
       {
         return s.sort();

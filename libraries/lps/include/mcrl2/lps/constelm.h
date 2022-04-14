@@ -12,21 +12,7 @@
 #ifndef MCRL2_LPS_CONSTELM_H
 #define MCRL2_LPS_CONSTELM_H
 
-#include "mcrl2/data/data_expression.h"
-#include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
-#include "mcrl2/data/variable.h"
 #include "mcrl2/lps/detail/lps_algorithm.h"
-#include "mcrl2/lps/remove.h"
-#include "mcrl2/lps/rewrite.h"
-#include "mcrl2/lps/specification.h"
-#include "mcrl2/utilities/detail/container_utility.h"
-#include "mcrl2/utilities/logger.h"
-#include <algorithm>
-#include <list>
-#include <map>
-#include <set>
-#include <vector>
 
 namespace mcrl2
 {
@@ -137,7 +123,7 @@ class constelm_algorithm: public lps::detail::lps_algorithm<Specification>
 
       m_instantiate_global_variables = instantiate_global_variables;
       m_ignore_conditions = ignore_conditions;
-      data::data_expression_list initial_state = super::m_spec.initial_process().state(super::m_spec.process().process_parameters());
+      data::data_expression_list initial_state = super::m_spec.initial_process().expressions();
       data::data_expression_vector r(initial_state.begin(), initial_state.end());
 
       // essential: rewrite the initial state vector r to normal form. Essential
@@ -148,6 +134,7 @@ class constelm_algorithm: public lps::detail::lps_algorithm<Specification>
       auto& process = super::m_spec.process();
       const std::set<data::variable>& global_variables = super::m_spec.global_variables();
       const data::variable_list& d = process.process_parameters();
+      const data::data_expression_list& e = super::m_spec.initial_process().expressions();
 
       // initialize m_index_of
       unsigned index = 0;
@@ -158,17 +145,19 @@ class constelm_algorithm: public lps::detail::lps_algorithm<Specification>
 
       std::set<data::variable> G(d.begin(), d.end());
       std::set<data::variable> dG;
-      for (const data::assignment& a: super::m_spec.initial_process().assignments())
+      auto di = d.begin();
+      auto ei = e.begin();
+      for (; di != d.end(); ++di, ++ei)
       {
         // The rewriter requires that the right hand sides of a substitution are in normal form.
-        data::data_expression rhs = R(a.rhs());
+        data::data_expression rhs = R(*ei);
         if (is_constant(rhs, global_variables))
         {
-          sigma[a.lhs()] = rhs;
+          sigma[*di] = rhs;
         }
         else
         {
-          G.erase(a.lhs());
+          G.erase(*di);
         }
       }
 

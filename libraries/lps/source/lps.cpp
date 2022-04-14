@@ -9,9 +9,9 @@
 /// \file lps.cpp
 /// \brief
 
-#include "mcrl2/lps/find.h"
 #include "mcrl2/lps/is_well_typed.h"
 #include "mcrl2/lps/normalize_sorts.h"
+#include "mcrl2/lps/parse_impl.h"
 #include "mcrl2/lps/print.h"
 #include "mcrl2/lps/replace.h"
 #include "mcrl2/lps/translate_user_notation.h"
@@ -35,9 +35,9 @@ std::string pp(const lps::stochastic_distribution& x) { return lps::pp< lps::sto
 std::string pp(const lps::stochastic_linear_process& x) { return lps::pp< lps::stochastic_linear_process >(x); }
 std::string pp(const lps::stochastic_process_initializer& x) { return lps::pp< lps::stochastic_process_initializer >(x); }
 std::string pp(const lps::stochastic_specification& x) { return lps::pp< lps::stochastic_specification >(x); }
-void normalize_sorts(lps::multi_action& x, const data::sort_specification& sortspec) { lps::normalize_sorts< lps::multi_action >(x, sortspec); }
+lps::multi_action normalize_sorts(const lps::multi_action& x, const data::sort_specification& sortspec) { return lps::normalize_sorts< lps::multi_action >(x, sortspec); }
 void normalize_sorts(lps::specification& x, const data::sort_specification& /* sortspec */) { lps::normalize_sorts< lps::specification >(x, x.data()); }
-void translate_user_notation(lps::multi_action& x) { lps::translate_user_notation< lps::multi_action >(x); }
+lps::multi_action translate_user_notation(const lps::multi_action& x) { return lps::translate_user_notation< lps::multi_action >(x); }
 std::set<data::sort_expression> find_sort_expressions(const lps::specification& x) { return lps::find_sort_expressions< lps::specification >(x); }
 std::set<data::sort_expression> find_sort_expressions(const lps::stochastic_specification& x) { return lps::find_sort_expressions< lps::stochastic_specification >(x); }
 std::set<data::variable> find_all_variables(const lps::linear_process& x) { return lps::find_all_variables< lps::linear_process >(x); }
@@ -106,6 +106,54 @@ bool check_well_typedness(const stochastic_specification& x)
 {
   return lps::detail::check_well_typedness(x);
 }
+
+namespace detail {
+
+process::untyped_multi_action parse_multi_action_new(const std::string& text)
+{
+  core::parser p(parser_tables_mcrl2, core::detail::ambiguity_fn, core::detail::syntax_error_fn);
+  unsigned int start_symbol_index = p.start_symbol_index("MultAct");
+  bool partial_parses = false;
+  core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
+  process::untyped_multi_action result = multi_action_actions(p).parse_MultAct(node);
+  return result;
+}
+
+multi_action complete_multi_action(process::untyped_multi_action& x, multi_action_type_checker& typechecker, const data::data_specification& data_spec = data::detail::default_specification())
+{
+  multi_action result = lps::typecheck_multi_action(x, typechecker);
+  lps::translate_user_notation(result);
+  lps::normalize_sorts(result, data_spec);
+  return result;
+}
+
+multi_action complete_multi_action(process::untyped_multi_action& x, const process::action_label_list& action_decls, const data::data_specification& data_spec = data::detail::default_specification())
+{
+  multi_action result = lps::typecheck_multi_action(x, data_spec, action_decls);
+  lps::translate_user_notation(result);
+  lps::normalize_sorts(result, data_spec);
+  return result;
+}
+
+action_rename_specification parse_action_rename_specification_new(const std::string& text)
+{
+  core::parser p(parser_tables_mcrl2, core::detail::ambiguity_fn, core::detail::syntax_error_fn);
+  unsigned int start_symbol_index = p.start_symbol_index("ActionRenameSpec");
+  bool partial_parses = false;
+  core::parse_node node = p.parse(text, start_symbol_index, partial_parses);
+  action_rename_specification result = action_rename_actions(p).parse_ActionRenameSpec(node);
+  return result;
+}
+
+void complete_action_rename_specification(action_rename_specification& x, const lps::stochastic_specification& spec)
+{
+  using namespace mcrl2::data;
+  x = lps::typecheck_action_rename_specification(x, spec);
+  x = action_rename_specification(x.data() + spec.data(), x.action_labels(), x.rules());
+  detail::translate_user_notation(x);
+}
+
+} // namespace detail
 
 } // namespace lps
 

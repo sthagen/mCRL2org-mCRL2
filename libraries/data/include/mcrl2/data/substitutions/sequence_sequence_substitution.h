@@ -14,11 +14,6 @@
 
 #include "mcrl2/data/is_simple_substitution.h"
 #include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
@@ -27,13 +22,15 @@ namespace data {
 /// \brief Generic substitution function. The substitution is stored as a sequence
 /// of variables and a sequence of expressions.
 template <typename VariableContainer, typename ExpressionContainer>
-struct sequence_sequence_substitution: public std::unary_function<typename VariableContainer::value_type, typename ExpressionContainer::value_type>
+struct sequence_sequence_substitution
 {
   /// \brief type used to represent variables
   typedef typename VariableContainer::value_type variable_type;
 
   /// \brief type used to represent expressions
   typedef typename ExpressionContainer::value_type  expression_type;
+
+  using argument_type = variable_type;
 
   const VariableContainer& variables;
   const ExpressionContainer& expressions;
@@ -58,13 +55,6 @@ struct sequence_sequence_substitution: public std::unary_function<typename Varia
       }
     }
     return expression_type(v);
-  }
-
-  template <typename Expression>
-  expression_type operator()(const Expression&) const
-  {
-    throw mcrl2::runtime_error("data::sequence_sequence_substitution::operator(const Expression&) is a deprecated interface!");
-    return data::undefined_data_expression();
   }
 
   std::string to_string() const

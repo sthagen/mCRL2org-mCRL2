@@ -12,15 +12,8 @@
 #ifndef MCRL2_DATA_ASSIGNMENT_H
 #define MCRL2_DATA_ASSIGNMENT_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
-#include "mcrl2/core/detail/default_values.h"
-#include "mcrl2/core/detail/soundness_checks.h"
-#include "mcrl2/data/data_expression.h"
 #include "mcrl2/data/undefined.h"
 #include "mcrl2/data/untyped_identifier.h"
-#include "mcrl2/data/variable.h"
-#include <stdexcept>
 
 namespace mcrl2
 {
@@ -137,15 +130,6 @@ class assignment: public assignment_expression
     const data_expression &operator()(const variable& x) const
     {
       return x == lhs() ? rhs() : x;
-    }
-
-    /// \brief Applies the assignment to a term
-    /// \return The value <tt>x[lhs() := rhs()]</tt>.
-    template < typename Expression >
-    data_expression operator()(const Expression& /*x*/) const
-    {
-      throw std::runtime_error("data::assignment::operator(const Expression&) is a deprecated interface!");
-      return data::undefined_data_expression();
     }
 //--- end user section assignment ---//
 };
@@ -309,12 +293,15 @@ assignment_list make_assignment_list(const VariableSequence& variables, const Ex
 inline
 variable_list left_hand_sides(const assignment_list& x)
 {
-  std::vector<variable> result;
-  for (const assignment& a : x)
-  {
-    result.push_back(a.lhs());
-  }
-  return variable_list(result.begin(), result.end());
+  return variable_list(x.begin(), x.end(), [](const assignment& a) { return a.lhs(); });
+}
+
+/// \brief Returns the right hand sides of an assignment list
+/// \param x An assignment list
+inline
+data_expression_list right_hand_sides(const assignment_list& x)
+{
+  return data_expression_list(x.begin(), x.end(), [](const assignment& a) { return a.rhs(); });
 }
 
 // template function overloads

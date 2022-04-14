@@ -11,12 +11,10 @@
 #define MCRL2_ATERMPP_DETAIL_ATERM_LIST_IMPLEMENTATION_H
 #pragma once
 
-#include "mcrl2/atermpp/detail/atypes.h"
 #include "mcrl2/atermpp/aterm_appl.h"
 #include "mcrl2/atermpp/aterm_list.h"
 
 #include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/detail/memory_utility.h"
 #include "mcrl2/utilities/workarounds.h"
 
 namespace atermpp
@@ -101,6 +99,67 @@ term_list<Term> reverse(const term_list<Term>& l)
   for(const Term& t: l)
   {
     result.push_front(t);
+  }
+  return result;
+}
+
+template <typename Term>
+inline
+term_list<Term> sort_list(const term_list<Term>& l, 
+                             const std::function<bool(const Term&, const Term&)>& ordering 
+                                  /* = [](const Term& t1, const Term& t2){ return t1<t2;}*/ )
+{
+  const std::size_t len = l.size();
+  if (len<=1)
+  {
+    return l;
+  }
+ 
+  // The resulting list
+  term_list<Term> result;
+
+  if (len < LengthOfShortList)
+  {
+    // The list is short, use the stack for temporal storage.
+    Term* buffer = MCRL2_SPECIFIC_STACK_ALLOCATOR(Term, len);
+
+    // Collect all elements of list in buffer.
+    std::size_t j=0;
+    for (const Term& t: l)
+    {
+      new (buffer+j) Term(t); // A mcrl2 stack allocator does not handle construction by default. 
+      ++j;
+    }
+   
+    std::sort(buffer, buffer+len, ordering);
+
+    // Insert elements at the front of the list.
+    while (j>0)
+    {
+      j=j-1;
+      result.push_front(buffer[j]);
+      buffer[j].~Term();    // Explicitly call the destructor, as an mCRL2 stack allocator does not do that itself. . 
+    }
+  }
+  else
+  {
+    // The list is long. Use the heap to store intermediate data.
+    std::vector<Term> buffer;
+    buffer.reserve(len);
+
+    for (const Term& t: l)
+    {
+      buffer.push_back(t);
+    }
+
+    // Sort using a standard algorithm.
+    std::sort(buffer.begin(), buffer.end(), ordering);
+
+    // Insert elements at the front of the list
+    for (typename std::vector<Term>::reverse_iterator i=buffer.rbegin(); i!=buffer.rend(); ++i)
+    {
+      result.push_front(*i);
+    }
   }
   return result;
 }

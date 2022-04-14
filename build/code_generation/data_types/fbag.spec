@@ -9,7 +9,7 @@
 % Specification of the FBag data sort, denoting finite bags.
 % Note that the specification relies on the underlying data type S to have a total ordering.
 %
-% The definition of an FBag originally had the shape 
+% The definition of an FBag originally had the shape
 %
 % sort FBag(S) <"fbag"> = struct {:} <"empty"> | @fbag_cons <"cons_"> : S <"arg1"> # Pos <"arg2"> # FBag(S) <"arg3">;
 %
@@ -19,9 +19,9 @@
 %
 % Also changed @fbag_insert to become the constructor and @fbag_cons to become a map. All bags should have
 % their elements in a list with @fbag_cons as head symbol be ordered. This is not the case in lists with @fbag_insert.
-% If the @fbag_cons would be a constructor illegal lists would be constructed when evaluationg quantifications and 
-% sum operators. Now it is the case that too many bags will be generated when evaluating for instance a sum operator, 
-% but they are at least not incorrect. 
+% If the @fbag_cons would be a constructor illegal lists would be constructed when evaluationg quantifications and
+% sum operators. Now it is the case that too many bags will be generated when evaluating for instance a sum operator,
+% but they are at least not incorrect.
 
 #using S
 #include bool.spec
@@ -31,22 +31,18 @@
 
 sort FBag(S) <"fbag">;
 
-cons {:} <"empty"> : FBag(S);
-     @fbag_insert <"insert"> : S <"arg1"> # Pos <"arg2"> # FBag(S) <"arg3"> -> FBag(S);
+cons {:} <"empty"> : FBag(S)                                                               external defined_by_rewrite_rules;
+     @fbag_insert <"insert"> : S <"arg1"> # Pos <"arg2"> # FBag(S) <"arg3"> -> FBag(S)     internal defined_by_rewrite_rules;
 
-map @fbag_cons <"cons_"> : S <"arg1"> # Pos <"arg2"> # FBag(S) <"arg3"> -> FBag(S);
-    @fbag_cinsert <"cinsert"> : S <"arg1"> # Nat <"arg2"> # FBag(S) <"arg3"> -> FBag(S);
-    count <"count"> : S <"left"> # FBag(S) <"right"> -> Nat;
-    in <"in"> : S <"left"> # FBag(S) <"right"> -> Bool;
-    @fbag_join <"join"> : (S -> Nat) <"arg1"> # (S -> Nat) <"arg2"> # FBag(S) <"arg3"> # FBag(S) <"arg4"> -> FBag(S);
-    @fbag_inter <"fbag_intersect">: (S -> Nat) <"arg1"> # (S -> Nat) <"arg2"> # FBag(S) <"arg3"> # FBag(S) <"arg4"> -> FBag(S);
-    @fbag_diff <"fbag_difference">: (S -> Nat) <"arg1"> # (S -> Nat) <"arg2"> # FBag(S) <"arg3"> # FBag(S) <"arg4"> -> FBag(S);
-    @fbag2fset <"fbag2fset">: (S -> Nat) <"left"> # FBag(S) <"right"> -> FSet(S);
-    @fset2fbag <"fset2fbag">: FSet(S) <"arg"> -> FBag(S);
-    + <"union_"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S);
-    * <"intersection"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S);
-    - <"difference"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S);
-    # <"count_all"> : FBag(S) <"arg"> -> Nat;
+map @fbag_cons <"cons_"> : S <"arg1"> # Pos <"arg2"> # FBag(S) <"arg3"> -> FBag(S)         internal defined_by_rewrite_rules;
+    @fbag_cinsert <"cinsert"> : S <"arg1"> # Nat <"arg2"> # FBag(S) <"arg3"> -> FBag(S)    internal defined_by_rewrite_rules;
+    count <"count"> : S <"left"> # FBag(S) <"right"> -> Nat                                external defined_by_rewrite_rules;
+    in <"in"> : S <"left"> # FBag(S) <"right"> -> Bool                                     external defined_by_rewrite_rules;
+    @fset2fbag <"fset2fbag">: FSet(S) <"arg"> -> FBag(S)                                   internal defined_by_rewrite_rules;
+    + <"union_"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S)                         external defined_by_rewrite_rules;
+    * <"intersection"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S)                   external defined_by_rewrite_rules;
+    - <"difference"> : FBag(S) <"left"> # FBag(S) <"right"> -> FBag(S)                     external defined_by_rewrite_rules;
+    # <"count_all"> : FBag(S) <"arg"> -> Nat                                               external defined_by_rewrite_rules;
 
 
 var d: S;
@@ -56,8 +52,6 @@ var d: S;
     b: FBag(S);
     c: FBag(S);
     s: FSet(S);
-    f: S -> Nat;
-    g: S -> Nat;
 eqn ==(@fbag_cons(d, p, b), {:})  =  false;
     ==({:}, @fbag_cons(d, p, b))  =  false;
     ==(@fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  &&(==(p, q), &&(==(d,e),==(b, c)));
@@ -78,26 +72,6 @@ eqn ==(@fbag_cons(d, p, b), {:})  =  false;
      <(d, e)  ->  count(d, @fbag_cons(e, p, b))  =  @c0;
      <(e, d)  ->  count(d, @fbag_cons(e, p, b))  =  count(d, b);
      in(d, b)  =  >(count(d, b), @c0);
-     @fbag_join(f, g, {:}, {:})  =  {:};
-     @fbag_join(f, g, @fbag_cons(d, p, b), {:})  =  @fbag_cinsert(d, @swap_zero_add(f(d), g(d), @cNat(p), @c0), @fbag_join(f, g, b, {:}));
-     @fbag_join(f, g, {:}, @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_add(f(e), g(e), @c0, @cNat(q)), @fbag_join(f, g, {:}, c));
-     @fbag_join(f, g, @fbag_cons(d, p, b), @fbag_cons(d, q, c))  =  @fbag_cinsert(d, @swap_zero_add(f(d), g(d), @cNat(p), @cNat(q)), @fbag_join(f, g, b, c));
-     <(d, e)  ->  @fbag_join(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(d, @swap_zero_add(f(d), g(d), @cNat(p), @c0), @fbag_join(f, g, b, @fbag_cons(e, q, c)));
-     <(e, d)  ->  @fbag_join(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_add(f(e), g(e), @c0, @cNat(q)), @fbag_join(f, g, @fbag_cons(d, p, b), c));
-     @fbag_inter(f, g, {:}, {:})  =  {:};
-     @fbag_inter(f, g, @fbag_cons(d, p, b), {:})  =  @fbag_cinsert(d, @swap_zero_min(f(d), g(d), @cNat(p), @c0), @fbag_inter(f, g, b, {:}));
-     @fbag_inter(f, g, {:}, @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_min(f(e), g(e), @c0, @cNat(q)), @fbag_inter(f, g, {:}, c));
-     @fbag_inter(f, g, @fbag_cons(d, p, b), @fbag_cons(d, q, c))  =  @fbag_cinsert(d, @swap_zero_min(f(d), g(d), @cNat(p), @cNat(q)), @fbag_inter(f, g, b, c));
-     <(d, e)  ->  @fbag_inter(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(d, @swap_zero_min(f(d), g(d), @cNat(p), @c0), @fbag_inter(f, g, b, @fbag_cons(e, q, c)));
-     <(e, d)  ->  @fbag_inter(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_min(f(e), g(e), @c0, @cNat(q)), @fbag_inter(f, g, @fbag_cons(d, p, b), c));
-     @fbag_diff(f, g, {:}, {:})  =  {:};
-     @fbag_diff(f, g, @fbag_cons(d, p, b), {:})  =  @fbag_cinsert(d, @swap_zero_monus(f(d), g(d), @cNat(p), @c0), @fbag_diff(f, g, b, {:}));
-     @fbag_diff(f, g, {:}, @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_monus(f(e), g(e), @c0, @cNat(q)), @fbag_diff(f, g, {:}, c));
-     @fbag_diff(f, g, @fbag_cons(d, p, b), @fbag_cons(d, q, c))  =  @fbag_cinsert(d, @swap_zero_monus(f(d), g(d), @cNat(p), @cNat(q)), @fbag_diff(f, g, b, c));
-     <(d, e)  ->  @fbag_diff(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(d, @swap_zero_monus(f(d), g(d), @cNat(p), @c0), @fbag_diff(f, g, b, @fbag_cons(e, q, c)));
-     <(e, d)  ->  @fbag_diff(f, g, @fbag_cons(d, p, b), @fbag_cons(e, q, c))  =  @fbag_cinsert(e, @swap_zero_monus(f(e), g(e), @c0, @cNat(q)), @fbag_diff(f, g, @fbag_cons(d, p, b), c));
-     @fbag2fset(f, {:})  =  {};
-     @fbag2fset(f, @fbag_cons(d, p, b))  =  @fset_cinsert(d, ==(==(f(d), @cNat(p)), >(f(d), @c0)), @fbag2fset(f, b));
      @fset2fbag({})  =  {:};
      @fset2fbag(@fset_cons(d, s))  =  @fbag_cinsert(d, @cNat(@c1), @fset2fbag(s));
     -(b,{:}) = b;
@@ -106,7 +80,7 @@ eqn ==(@fbag_cons(d, p, b), {:})  =  false;
     <(p,q) -> -(@fbag_cons(d,p,b),@fbag_cons(d,q,c)) = -(b,c);
     <(q,p) -> -(@fbag_cons(d,p,b),@fbag_cons(d,q,c)) = @fbag_cons(d,Nat2Pos(@gtesubtb(false,p,q)),-(b,c));
     <(d,e) -> -(@fbag_cons(d,p,b),@fbag_cons(e,q,c)) = @fbag_cons(d,p,-(b,@fbag_cons(e,q,c)));
-    <(e,d) -> -(@fbag_cons(d,p,b),@fbag_cons(e,q,c)) = @fbag_cons(e,q,-(@fbag_cons(d,p,b),c));
+    <(e,d) -> -(@fbag_cons(d,p,b),@fbag_cons(e,q,c)) = -(@fbag_cons(d,p,b),c);
     +(b,{:}) = b;
     +({:},c) = c;
     +(@fbag_cons(d,p,b),@fbag_cons(d,q,c)) = @fbag_cons(d,@addc(false,p,q),+(b,c));

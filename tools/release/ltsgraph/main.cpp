@@ -49,24 +49,22 @@ class ltsgraph_tool : public ltsgraph_base
 
     bool run() override
     {
-      // Check the version string without QVersionNumber requires extensive work. Unfortunately, QVersionNumber was introduced in Qt 5.6, which is above our
-      // minimum required for compilation (Qt 5.5), and as such we conditionally disable this check for older setups.
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+      // This tool requires at least Qt 5.9 as runtime library.
       QVersionNumber runtime_version = QVersionNumber::fromString(qVersion());
       QVersionNumber required_version(5,9,0);
 
       if (QVersionNumber::compare(required_version, runtime_version) > 0)
       {
-        // Check if the required version is above the currently used version.
+        // Print a message to the console and show a message box.
         std::stringstream message;
 
-        message << "Your version of Qt (" << runtime_version.toString().toStdString() << ") is below the minimally supported version of Qt ("
-          << required_version.toString().toStdString() << ") and might lead to instabilities.";
+        message << "The runtime version of Qt (" << runtime_version.toString().toStdString() << ") is below the least supported version of Qt ("
+          << required_version.toString().toStdString() << ").";
+        mCRL2log(mcrl2::log::error) << message.str().c_str() << "\n";
 
         QMessageBox box(QMessageBox::Warning, "Unsupported Qt Version", message.str().c_str(), QMessageBox::Ok);
         box.exec();
       }
-#endif // QT_VERSION
 
       MainWindow window;
 

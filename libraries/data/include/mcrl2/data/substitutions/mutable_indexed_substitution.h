@@ -23,11 +23,6 @@
 
 #include "mcrl2/data/is_simple_substitution.h"
 #include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
@@ -45,7 +40,7 @@ namespace data {
 ///          the substitution automatically maintains these variables. This requires
 ///          time O(n log n) per rhs, where n is the size of the rhs. 
 template <typename VariableType = data::variable, typename ExpressionType = data_expression >
-class mutable_indexed_substitution : public std::unary_function<VariableType, ExpressionType>
+class mutable_indexed_substitution
 {
 protected:
   typedef std::pair <VariableType, ExpressionType> substitution_type;
@@ -58,8 +53,8 @@ protected:
   std::vector < substitution_type > m_container;
   std::vector <std::size_t> m_index_table;
   std::stack<std::size_t> m_free_positions;
-  bool m_variables_in_rhs_set_is_defined;
-  std::multiset<variable> m_variables_in_rhs;
+  mutable bool m_variables_in_rhs_set_is_defined;
+  mutable std::multiset<variable> m_variables_in_rhs;
 
 public:
 
@@ -68,6 +63,8 @@ public:
 
   /// \brief Type of expressions
   typedef ExpressionType expression_type;
+
+  using argument_type = variable_type;
 
   /// \brief Default constructor
   mutable_indexed_substitution()
@@ -231,9 +228,9 @@ public:
     return false;
   }
 
-  /// \brief Provides a set of variables that occur in the right hand sides of the assignments.
-//   const std::multiset<variable>& variables_in_rhs()
-  bool variable_occurs_in_a_rhs(const variable& v)
+  /// \brief Provides a multiset containing the variables in the rhs.
+  /// \return A multiset with variables in the right hand side. 
+  const std::multiset<variable>& variables_occurring_in_right_hand_sides() const
   {
     if (!m_variables_in_rhs_set_is_defined)
     {
@@ -247,7 +244,15 @@ public:
       }
       m_variables_in_rhs_set_is_defined=true;
     }
-    return m_variables_in_rhs.find(v)!=m_variables_in_rhs.end();
+    return m_variables_in_rhs;
+  }
+
+  /// \brief Checks whether a variable v occurs in one of the rhs's of the current substitution.
+  /// \return A boolean indicating whether v occurs in sigma(x) for some variable x. 
+  bool variable_occurs_in_a_rhs(const variable& v)
+  {
+    const std::multiset<variable>& variables_in_rhs=variables_occurring_in_right_hand_sides();
+    return variables_in_rhs.find(v)!=variables_in_rhs.end();
   }
 
   /// \brief Returns the number of assigned variables in the substitution.
@@ -299,6 +304,12 @@ template <typename VariableType, typename ExpressionType>
 std::ostream& operator<<(std::ostream& out, const mutable_indexed_substitution<VariableType, ExpressionType>& sigma)
 {
   return out << sigma.to_string();
+}
+
+template <typename VariableType = variable, typename ExpressionType = data_expression>
+std::multiset<variable> substitution_variables(const mutable_indexed_substitution<VariableType, ExpressionType>& sigma)
+{
+  return sigma.variables_occurring_in_right_hand_sides();
 }
 
 } // namespace data

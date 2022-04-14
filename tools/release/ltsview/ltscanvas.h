@@ -10,20 +10,16 @@
 #define LTSCANVAS_H
 
 #include <QCursor>
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QImage>
 #include <QMouseEvent>
 #include <QPoint>
 #include <QWheelEvent>
 #include <QQuaternion>
 
-#include "ltsmanager.h"
-#include "markmanager.h"
-#include "settings.h"
-#include "vectors.h"
 #include "visualizer.h"
 
-class LtsCanvas : public QGLWidget
+class LtsCanvas : public QOpenGLWidget
 {
   Q_OBJECT
 

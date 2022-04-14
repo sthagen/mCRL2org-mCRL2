@@ -19,11 +19,6 @@
 #ifndef MCRL2_LTS_DETAIL_LTS_CONVERT_H
 #define MCRL2_LTS_DETAIL_LTS_CONVERT_H
 
-#include <sstream>
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/data/parse.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/lts_aut.h"
 #include "mcrl2/lts/lts_fsm.h"
@@ -229,7 +224,7 @@ inline void convert_core_lts(CONVERTOR& c,
     }
   } * /
 
-  const std::vector<transition> &trans=lts_in.get_transitions();
+  const std::vector<transition>& trans=lts_in.get_transitions();
   for (std::vector<transition>::const_iterator r=trans.begin(); r!=trans.end(); ++r)
   {
     lts_out.add_transition(*r);
@@ -316,10 +311,9 @@ inline void lts_convert_base_class(const lts_lts_base& base_in, lts_fsm_base& ba
 {
   base_out.clear_process_parameters();
 
-  for (data::variable_list::const_iterator i=base_in.process_parameters().begin();
-       i!=base_in.process_parameters().end(); ++i)
+  for (const data::variable& v: base_in.process_parameters())
   {
-    base_out.add_process_parameter(data::pp(*i),data::pp(i->sort()));
+    base_out.add_process_parameter(data::pp(v),data::pp(v.sort()));
   }
 }
 
@@ -855,14 +849,14 @@ inline void lts_convert_aux(const lts<STATE_LABEL1, ACTION_LABEL1, LTS_BASE1>& l
     lts_out.add_action(lts_convert_translate_label(lts_in.action_label(i),c));
   }
 
-  const std::vector<transition> &trans=lts_in.get_transitions();
+  const std::vector<transition>& trans=lts_in.get_transitions();
   for (const transition& t: trans)
   {
     lts_out.add_transition(t);
   }
   lts_out.set_initial_state(lts_in.initial_state());
 
-  lts_out.set_hidden_label_map(lts_in.hidden_label_map());
+  lts_out.set_hidden_label_set(lts_in.hidden_label_set());
 }
 
 // ======================  lts -> lts  =============================

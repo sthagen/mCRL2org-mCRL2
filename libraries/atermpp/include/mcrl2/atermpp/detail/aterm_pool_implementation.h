@@ -12,7 +12,6 @@
 #pragma once
 
 #include "aterm_pool.h"
-#include "mcrl2/utilities/logger.h"
 
 #include <chrono>
 
@@ -44,50 +43,6 @@ aterm_pool::aterm_pool() :
 aterm_pool::~aterm_pool()
 {
   print_performance_statistics();
-}
-
-void aterm_pool::add_creation_hook(function_symbol sym, term_callback callback)
-{
-  const std::size_t arity = sym.arity();
-
-  switch (arity)
-  {
-  case 0:
-  {
-    if (sym == get_symbol_pool().as_int())
-    {
-      m_int_storage.add_creation_hook(sym, callback);
-    }
-    else
-    {
-      return std::get<0>(m_appl_storage).add_creation_hook(sym, callback);
-    }
-    break;
-  }
-  case 1:
-    std::get<1>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 2:
-    std::get<2>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 3:
-    std::get<3>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 4:
-    std::get<4>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 5:
-    std::get<5>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 6:
-    std::get<6>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  case 7:
-    std::get<7>(m_appl_storage).add_creation_hook(sym, callback);
-    break;
-  default:
-    m_appl_dynamic_storage.add_creation_hook(sym, callback);
-  }
 }
 
 void aterm_pool::add_deletion_hook(function_symbol sym, term_callback callback)
@@ -269,7 +224,15 @@ aterm aterm_pool::create_term(const atermpp::function_symbol& sym)
 template<class ...Terms>
 aterm aterm_pool::create_appl(const function_symbol& sym, const Terms&... arguments)
 {
-  return std::get<sizeof...(Terms)>(m_appl_storage).create_appl(sym, arguments...);
+  if constexpr (sizeof...(Terms) <= 7)
+  {
+    return std::get<sizeof...(Terms)>(m_appl_storage).create_appl(sym, arguments...);
+  }
+  else
+  {
+    std::array<unprotected_aterm, sizeof...(Terms)> array({arguments...});
+    return m_appl_dynamic_storage.create_appl_dynamic(sym, array.begin(), array.end());
+  }
 }
 
 template<typename ForwardIterator>

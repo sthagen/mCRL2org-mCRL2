@@ -12,14 +12,8 @@
 #define TOOLNAME "lpsactionrename"
 #define AUTHOR "Jan Friso Groote and Tom Haenen"
 
-#include <fstream>
-#include <iostream>
-#include <algorithm>
 #include "mcrl2/lps/parse.h"
-#include "mcrl2/lps/stochastic_specification.h"
-#include "mcrl2/lps/rewrite.h"
 #include "mcrl2/lps/sumelm.h"
-#include "mcrl2/lps/action_rename.h"
 #include "mcrl2/lps/io.h"
 #include "mcrl2/utilities/input_output_tool.h"
 #include "mcrl2/data/rewriter_tool.h"
@@ -84,11 +78,11 @@ class action_rename_tool: public rewriter_tool<input_output_tool >
 
       bool renamefile_argument_present = (parser.options.count("renamefile")!=0);
       bool regex_argument_present = (parser.options.count("regex")!=0);
-      if(renamefile_argument_present && regex_argument_present)
+      if (renamefile_argument_present && regex_argument_present)
       {
         throw mcrl2::runtime_error("More than one of the arguments --renamefile and --regex was provided.");
       }
-      if(!renamefile_argument_present && !regex_argument_present)
+      if (!renamefile_argument_present && !regex_argument_present)
       {
         throw mcrl2::runtime_error("Neither of the arguments --renamefile and --regex was provided.");
       }
@@ -126,7 +120,7 @@ class action_rename_tool: public rewriter_tool<input_output_tool >
       load_lps(old_spec, input_filename());
 
       stochastic_specification new_spec;
-      if(m_use_renamefile)
+      if (m_use_renamefile)
       {
         //load action rename file
         mCRL2log(verbose) << "Reading input from file '" <<  m_action_rename_filename << "'..." << std::endl;
@@ -150,7 +144,7 @@ class action_rename_tool: public rewriter_tool<input_output_tool >
       else
       {
         std::size_t slash_pos = m_regex.find('/');
-        if(slash_pos == std::string::npos)
+        if (slash_pos == std::string::npos)
         {
           throw mcrl2::runtime_error("The provided regular expression did not include a slash.");
         }
@@ -160,10 +154,10 @@ class action_rename_tool: public rewriter_tool<input_output_tool >
         mCRL2log(verbose) << "Renaming actions in LPS..." << std::endl;
         new_spec = action_rename(matching_regex, replacing_fmt, old_spec);
       }
-      if(m_typecheck)
+      if (m_typecheck)
       {
         mCRL2log(verbose) << "Type checking resulting LPS..." << std::endl;
-        if(!check_well_typedness(new_spec))
+        if (!check_well_typedness(new_spec))
         {
           throw mcrl2::runtime_error("Type checking the specification obtained after renaming was unsuccesful.");
         }

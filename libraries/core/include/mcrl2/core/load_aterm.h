@@ -12,10 +12,8 @@
 #ifndef MCRL2_CORE_LOAD_ATERM_H
 #define MCRL2_CORE_LOAD_ATERM_H
 
-#include "mcrl2/atermpp/aterm_io.h"
-#include "mcrl2/utilities/exception.h"
-#include <istream>
-#include <string>
+#include "mcrl2/atermpp/aterm_io_binary.h"
+#include "mcrl2/atermpp/aterm_io_text.h"
 
 namespace mcrl2 {
 
@@ -40,14 +38,26 @@ std::string file_source(const std::string& filename)
 /// \param[in] binary A boolean indicating whether the stream is in binary of textual format.
 /// \param[in] format The format that is being read (for example "LPS" or "PBES").
 /// \param[in] source The source from which the stream originates (the empty string is used for an unknown source).
+/// \param[in] transformer A funtion that is applied to every subterm of the read term.
 /// \exception Throws a mcrl2 runtime error when an error occurs when reading the term.
 inline
-atermpp::aterm load_aterm(std::istream& stream, bool binary = true, const std::string& format = "aterm", const std::string& source = "")
+atermpp::aterm load_aterm(std::istream& stream,
+  bool binary = true,
+  const std::string& format = "aterm",
+  const std::string& source = "",
+  atermpp::aterm_transformer transformer = atermpp::identity)
 {
   atermpp::aterm result;
   try
   {
-    result = binary ? atermpp::read_term_from_binary_stream(stream) : atermpp::read_term_from_text_stream(stream);
+    if (binary)
+    {
+      atermpp::binary_aterm_istream(stream) >> transformer >> result;
+    }
+    else
+    {
+      atermpp::text_aterm_istream(stream) >> transformer >> result;
+    }
   }
   catch (std::exception &e)
   {

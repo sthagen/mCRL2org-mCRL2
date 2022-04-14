@@ -12,21 +12,10 @@
 #ifndef MCRL2_PBES_BISIMULATION_H
 #define MCRL2_PBES_BISIMULATION_H
 
-#include "mcrl2/data/detail/data_functional.h"
 #include "mcrl2/data/merge_data_specifications.h"
-#include "mcrl2/data/set_identifier_generator.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
 #include "mcrl2/lps/replace.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/pbes/detail/lps2pbes_utility.h"
 #include "mcrl2/pbes/join.h"
-#include "mcrl2/pbes/pbes.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/number_postfix_generator.h"
-#include <algorithm>
-#include <set>
-#include <sstream>
-#include <vector>
 
 namespace mcrl2
 {
@@ -191,7 +180,7 @@ class bisimulation_algorithm
     /// \return The created propositional variable
     propositional_variable_instantiation var(const core::identifier_string& name, const data::variable_list& parameters) const
     {
-      return propositional_variable_instantiation(name, atermpp::down_cast<data::data_expression_list>(static_cast<atermpp::aterm>(parameters)));
+      return propositional_variable_instantiation(name, atermpp::down_cast<data::data_expression_list>(static_cast<const atermpp::aterm&>(parameters)));
     }
 
     /// \brief Creates a propositional variable.
@@ -344,7 +333,7 @@ class bisimulation_algorithm
       const lps::linear_process& m = M.process();
       const lps::linear_process& s = S.process();
 
-      propositional_variable_instantiation init(X(m, s), M.initial_process().state(M.process().process_parameters()) + S.initial_process().state(S.process().process_parameters()));
+      propositional_variable_instantiation init(X(m, s), M.initial_process().expressions() + S.initial_process().expressions());
 
       pbes result(M.data(), equations, init);
       assert(result.is_closed());

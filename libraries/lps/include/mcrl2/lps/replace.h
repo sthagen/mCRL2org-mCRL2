@@ -13,9 +13,6 @@
 #define MCRL2_LPS_REPLACE_H
 
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
-#include "mcrl2/lps/add_binding.h"
-#include "mcrl2/lps/builder.h"
-#include "mcrl2/lps/find.h"
 #include "mcrl2/lps/replace_capture_avoiding.h"
 #include "mcrl2/process/replace.h"
 
@@ -216,12 +213,12 @@ struct replace_process_parameter_builder: public Binder<Builder, replace_process
     x.assignments() = super::apply(x.assignments());
   }
 
-  lps::process_initializer apply(const lps::process_initializer& x)
-  {
-    count = 0;
-    lps::process_initializer result = super::apply(x);
-    return lps::process_initializer(super::apply(result.assignments()));
-  }
+//  lps::process_initializer apply(const lps::process_initializer& x)
+//  {
+//    count = 0;
+//    lps::process_initializer result = super::apply(x);
+//    return lps::process_initializer(super::apply(result.assignments()));
+//  }
 
   void update(lps::linear_process& x)
   {
@@ -262,7 +259,7 @@ void replace_summand_variables(specification& spec, data::mutable_map_substituti
   {
     s.summation_variables() = data::replace_variables(s.summation_variables(), sigma);
     s.condition() = data::replace_variables_capture_avoiding(s.condition(), sigma, id_generator);
-    lps::replace_variables_capture_avoiding(s.multi_action(), sigma, id_generator);
+    s.multi_action() = lps::replace_variables_capture_avoiding(s.multi_action(), sigma, id_generator);
     s.assignments() = data::replace_variables_capture_avoiding(s.assignments(), sigma, id_generator);
   }
   for (deadlock_summand& s: spec.process().deadlock_summands())

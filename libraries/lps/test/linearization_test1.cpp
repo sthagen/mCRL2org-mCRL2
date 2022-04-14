@@ -14,12 +14,8 @@
 
 #ifndef MCRL2_SKIP_LONG_TESTS
 
-#include <iostream>
-#include <string>
-
 #include "mcrl2/data/detail/rewrite_strategies.h"
 #include "mcrl2/lps/linearise.h"
-#include "mcrl2/utilities/logger.h"
 
 using namespace mcrl2;
 using namespace mcrl2::lps;
@@ -507,6 +503,24 @@ BOOST_AUTO_TEST_CASE(bug_report_1553)
     "\n"
     "init sum d1: D. a(d1) . X1;\n";
   run_linearisation_test_case(report_1553);
+}
+
+// The following testcase showed a problem with typechecking where the ambiguous type 
+// of the function f was not detected. This problem cannot be linearised, due to a type problem. 
+BOOST_AUTO_TEST_CASE(bug_report_1576)
+{
+  const std::string report_1576=
+    "map\n"
+    "  f : Nat # Nat -> Nat;\n"
+    "  f : Nat -> Nat;\n"
+    "  g : Nat # Nat -> Nat;\n"
+    "  g : Nat -> Nat;\n"
+    "\n"
+    "eqn\n"
+    "  f = g;\n"
+    "\n"
+    "init delta;\n";
+  run_linearisation_test_case(report_1576, false);
 }
 
 #else // ndef MCRL2_SKIP_LONG_TESTS

@@ -13,7 +13,6 @@
 #define MCRL2_DATA_FORALL_H
 
 #include "mcrl2/data/abstraction.h"
-#include "mcrl2/data/variable.h"
 
 namespace mcrl2
 {
@@ -29,10 +28,10 @@ class forall: public abstraction
 
     /// Constructor.
     ///
-    /// \param[in] d A data expression.
+    /// \param[in] d An aterm.
     /// \pre d has the interal structure of an abstraction.
     /// \pre d is a universal quantification.
-    forall(const data_expression& d)
+    explicit forall(const aterm& d)
       : abstraction(d)
     {
       assert(is_abstraction(d));

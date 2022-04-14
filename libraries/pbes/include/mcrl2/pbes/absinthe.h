@@ -14,27 +14,10 @@
 
 #define MCRL2_ABSINTHE_CHECK_EXPRESSIONS
 
-#include <algorithm>
-#include <sstream>
-#include <utility>
-
 #include "mcrl2/data/consistency.h"
 #include "mcrl2/data/detail/data_construction.h"
-#include "mcrl2/data/exists.h"
-#include "mcrl2/data/lambda.h"
-#include "mcrl2/data/parse.h"
-#include "mcrl2/data/set.h"
-#include "mcrl2/data/set_identifier_generator.h"
-#include "mcrl2/data/sort_expression.h"
-#include "mcrl2/data/standard.h"
-#include "mcrl2/data/standard_utility.h"
 #include "mcrl2/pbes/builder.h"
-#include "mcrl2/pbes/pbes.h"
-#include "mcrl2/utilities/detail/container_utility.h"
 #include "mcrl2/utilities/detail/separate_keyword_section.h"
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/text_utility.h"
 
 #ifdef MCRL2_ABSINTHE_CHECK_EXPRESSIONS
 #include "mcrl2/data/detail/print_parse_check.h"
@@ -266,8 +249,10 @@ struct absinthe_algorithm
   };
 
   // Applies sigmaS to a sort expression
-  struct sort_function: public std::unary_function<data::sort_expression, data::sort_expression>
+  struct sort_function
   {
+    using argument_type = data::sort_expression;
+
     absinthe_sort_expression_builder f;
 
     sort_function(const abstraction_map& sigmaH,
@@ -660,7 +645,7 @@ struct absinthe_algorithm
         else
         {
           data::function_symbol h = i->second;
-          rhs = data::application(h, { f1 });
+          rhs = data::application(h, f1);
           //pbes_system::detail::absinthe_check_expression(rhs);
         }
       }
@@ -681,22 +666,22 @@ struct absinthe_algorithm
 
         data::variable_vector x = make_variables(fs2.domain(), "x", sigma);
         variables = data::variable_list(x.begin(),x.end());
-        lhs = data::application(f2, data::data_expression_list(x.begin(), x.end()));
-        data::application f_x(f1, data::data_expression_list(x.begin(), x.end()));
+        lhs = data::application(f2, x.begin(), x.end());
+        data::application f_x(f1, x.begin(), x.end());
 
         data::function_symbol f1_sigma(f1.name(), sigma(f1.sort()));
 
         auto i = sigmaH.find(detail::target_sort(f1.sort()));
         if (i == sigmaH.end())
         {
-          data::application f1_sigma_x(f1_sigma, data::data_expression_list(x.begin(), x.end()));
+          data::application f1_sigma_x(f1_sigma, x.begin(), x.end());
           rhs = data::detail::create_finite_set(f_x);
           //pbes_system::detail::absinthe_check_expression(rhs);
         }
         else
         {
           data::function_symbol h = i->second;
-          rhs = data::detail::create_finite_set(data::application(h, { f_x }));
+          rhs = data::detail::create_finite_set(data::application(h, f_x));
           //pbes_system::detail::absinthe_check_expression(rhs);
         }
       }
@@ -788,9 +773,9 @@ struct absinthe_algorithm
         std::vector<data::variable> X = make_variables(fs3.domain(), "X", sigma);
 
         variables = data::variable_list(X.begin(), X.end());
-        lhs = data::application(f3, data::data_expression_list(X.begin(), X.end()));
+        lhs = data::application(f3, X.begin(), X.end());
         data::variable y("y", data::detail::get_set_sort(atermpp::down_cast<data::container_sort>(fs2.codomain())));
-        data::data_expression Y = data::application(f2, data::data_expression_list(x.begin(), x.end()));
+        data::data_expression Y = data::application(f2, x.begin(), x.end());
         data::data_expression body = data::and_(enumerate_domain(x, X), data::detail::create_set_in(y, Y));
         rhs = data::detail::create_set_comprehension(y, data::exists(x, body));
       }

@@ -10,14 +10,10 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE operators
-#include <iostream>
-#include <set>
 #include <boost/test/included/unit_test_framework.hpp>
-#include "mcrl2/atermpp/aterm_io.h"
-#include "mcrl2/atermpp/aterm_list.h"
-#include "mcrl2/atermpp/aterm_appl.h"
 
-using namespace std;
+#include "mcrl2/atermpp/aterm_io.h"
+
 using namespace atermpp;
 
 class D: public aterm_appl
@@ -37,15 +33,12 @@ BOOST_AUTO_TEST_CASE(test_main)
   aterm_list L  = l;
 
   // assignment
-  t = t;
   t = T;
   T = t;
 
-  a = a;
   a = A;
   A = a;
 
-  l = l;
   l = L;
   L = l;
 
@@ -54,41 +47,37 @@ BOOST_AUTO_TEST_CASE(test_main)
   // l = a;  this will give a runtime assertion failure
 
   // equality
-  t == t;
-  // t == T; Disabled this test as ATerms should not be compared to aterms.
-  // T == t;
+  bool b;
+  b = t == t;
 
-  a == a;
-  a == A;
-  A == a;
+  b = a == a;
+  b = a == A;
+  b = A == a;
 
-  l == l;
-  l == L;
-  L == l;
+  b = l == l;
+  b = l == L;
+  b = L == l;
 
-  t == a;
-  t == l;
-  // l == a;  Temporarily disabled. Should be reanabled in due time.
+  b = t == a;
+  b = t == l;
+  b = l == a;
 
   // inequality
-  t != t;
-  // t != T; Disabled this test as ATerms should not be compared to aterms.
-  // T != t;
+  b = t != t;
 
-  a != a;
-  a != A;
-  A != a;
+  b = a != a;
+  b = a != A;
+  b = A != a;
 
-  l != l;
-  l != L;
-  L != l;
+  b = l != l;
+  b = l != L;
+  b = L != l;
 
-  t != a;
-  t != l;
-  // l != a;  Temporarily disabled. Should be reanabled in due time.
+  b = t != a;
+  b = t != l;
+  b = l != a;
 
   // operator<
-  bool b;
   b = t < t;
   b = t < T;
   b = T < t;
@@ -101,11 +90,11 @@ BOOST_AUTO_TEST_CASE(test_main)
   static_cast<void>(b); // Silence compiler/static analysis warnings
 
   // set
-  set<atermpp::aterm> st;
-  set<aterm_appl> sa;
-  set<aterm_list> sl;
-  set<aterm> sT;
-  set<aterm_appl> sA;
-  set<aterm_list> sL;
-  set<D> sD;
+  std::set<atermpp::aterm> st;
+  std::set<aterm_appl> sa;
+  std::set<aterm_list> sl;
+  std::set<aterm> sT;
+  std::set<aterm_appl> sA;
+  std::set<aterm_list> sL;
+  std::set<D> sD;
 }

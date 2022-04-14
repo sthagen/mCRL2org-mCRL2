@@ -12,11 +12,8 @@
 #ifndef MCRL2_PBES_DETAIL_STATEGRAPH_GLOBAL_RESET_VARIABLES_H
 #define MCRL2_PBES_DETAIL_STATEGRAPH_GLOBAL_RESET_VARIABLES_H
 
-#include "mcrl2/data/consistency.h"
 #include "mcrl2/pbes/detail/stategraph_global_algorithm.h"
 #include "mcrl2/pbes/detail/stategraph_reset_variables.h"
-#include "mcrl2/pbes/traverser.h"
-#include "mcrl2/utilities/detail/container_utility.h"
 
 namespace mcrl2 {
 
@@ -351,7 +348,7 @@ struct reset_traverser: public pbes_expression_traverser<reset_traverser>
   void leave(const pbes_system::not_& /* x */)
   {
     pbes_expression operand = pop();
-    push(not_(atermpp::deprecated_cast<atermpp::aterm_appl>(operand)));
+    push(not_(static_cast<atermpp::aterm_appl>(operand)));
   }
 
   void leave(const pbes_system::and_& /* x */)

@@ -12,25 +12,13 @@
 #ifndef MCRL2_LPSSYMBOLICBISIM_SYMBOLIC_BISIM_H
 #define MCRL2_LPSSYMBOLICBISIM_SYMBOLIC_BISIM_H
 
-#include <string>
 #include <queue>
-#include <ctime>
-#include <chrono>
-#include <unordered_map>
-#include <unordered_set>
 
-#include "mcrl2/data/bool.h"
-#include "mcrl2/data/detail/linear_inequalities_utilities.h"
 #include "mcrl2/data/detail/prover/bdd_path_eliminator.h"
 #include "mcrl2/data/detail/prover/bdd2dot.h"
 #include "mcrl2/data/enumerator_with_iterator.h"
-#include "mcrl2/data/find.h"
 #include "mcrl2/data/fourier_motzkin.h"
-#include "mcrl2/data/lambda.h"
 #include "mcrl2/data/merge_data_specifications.h"
-#include "mcrl2/data/parse.h"
-#include "mcrl2/data/replace.h"
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/data/rewriters/quantifiers_inside_rewriter.h"
 #include "mcrl2/data/substitutions/data_expression_assignment.h"
@@ -38,11 +26,7 @@
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/smt/solver.h"
 #include "mcrl2/smt/translation_error.h"
-#include "mcrl2/smt/cvc4.h"
-#include "mcrl2/utilities/indexed_set.h"
-#include "mcrl2/utilities/logger.h"
 
-#include "../pbessymbolicbisim/simplifier_mode.h"
 #include "../pbessymbolicbisim/simplifier.h"
 #define THIN       "0"
 #define BOLD       "1"
@@ -68,7 +52,7 @@ struct hash<std::tuple<mcrl2::data::data_expression, mcrl2::data::data_expressio
     seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().actions()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     if(!get<2>(x).multi_action().actions().empty())
     {
-      seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().arguments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed = std::hash<atermpp::aterm>()(get<2>(x).multi_action().actions().front().arguments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
     seed = std::hash<atermpp::aterm>()(get<2>(x).assignments()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     seed = std::hash<atermpp::aterm>()(get<2>(x).summation_variables()) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -119,7 +103,7 @@ protected:
   std::list<data_expression>      partition;
   bool                           m_contains_reals;
   simplifier*                    simpl;
-  smt::solver                    m_smt_solver;
+  smt::smt_solver                m_smt_solver;
 
   typedef std::unordered_set< std::tuple< data_expression, data_expression, lps::action_summand > > refinement_cache_t;
   refinement_cache_t refinement_cache;
@@ -278,7 +262,7 @@ protected:
     // tau.
     if(!as.multi_action().actions().empty())
     {
-      for(const data_expression& expr: as.multi_action().arguments())
+      for(const data_expression& expr: as.multi_action().actions().front().arguments())
       {
         arguments_equal = lazy::and_(arguments_equal, equal_to(expr, rewr(expr, sub_primed)));
       }
@@ -359,7 +343,7 @@ protected:
 
     std::set< data_expression > new_blocks;
     // Enumerate over all values of primed variables to obtain the new blocks
-    enumerate(enumeration_condition, free_vars_list, split_block, lli, new_blocks);
+    enumerate(enumeration_condition, free_vars_list, atermpp::down_cast<lambda>(split_block), lli, new_blocks);
 
     // Update the caches and the partition
     refinement_cache.insert(std::make_tuple(phi_k, phi_l, as));
@@ -445,10 +429,10 @@ protected:
   bool refine()
   {
     int i = 0;
-    for(const data_expression phi_k: partition)
+    for(const data_expression& phi_k: partition)
     {
       int j = 0;
-      for(const data_expression phi_l: partition)
+      for(const data_expression& phi_l: partition)
       {
         int k = 0;
         for(const lps::action_summand& as: m_spec.process().action_summands())
@@ -530,7 +514,7 @@ protected:
   {
     for(const data_expression& block: blocks)
     {
-      if(rewr(application(block, m_spec.initial_process().state(process_parameters))) == sort_bool::true_())
+      if(rewr(application(block, m_spec.initial_process().expressions())) == sort_bool::true_())
       {
         // mCRL2log(log::verbose) << "Found initial block " << block << std::endl;
         return block;
@@ -541,19 +525,20 @@ protected:
 
   bool is_satisfiable(const variable_list& vars, const data_expression& expr)
   {
-    smt::smt_problem problem;
-    for(const variable& v: vars)
-    {
-      problem.add_variable(v);
-    }
-    problem.add_assertion(expr);
     try
     {
-      return m_smt_solver.solve(problem);
+      switch(m_smt_solver.solve(vars, expr))
+      {
+        case smt::answer::SAT: return true;
+        case smt::answer::UNSAT: return false;
+        // if UNKNOWN, we continue and try the rewriter
+        default: ;
+      }
     }
     catch(const smt::translation_error& e)
     {
       mCRL2log(log::warning) << e.what() << std::endl;
+      throw mcrl2::runtime_error("Solver failed!");
     }
 
     // The SMT solver failed, so we fallback to the rewriter
@@ -786,7 +771,7 @@ public:
 #endif
     , m_contains_reals(std::find_if(m_spec.process().process_parameters().begin(), m_spec.process().process_parameters().end(),[](const variable& v){ return v.sort() == sort_real::real_(); }) != m_spec.process().process_parameters().end())
     , simpl(get_simplifier_instance(simplify_strat, rewr, proving_rewr, m_spec.process().process_parameters(), m_spec.data()))
-    , m_smt_solver(new smt::smt4_data_specification(spec.data()))
+    , m_smt_solver(spec.data())
   {}
 
   void run()

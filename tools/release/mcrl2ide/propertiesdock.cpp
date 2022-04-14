@@ -10,7 +10,6 @@
 #include "propertiesdock.h"
 
 #include <QMainWindow>
-#include <QLabel>
 
 PropertiesDock::PropertiesDock(ProcessSystem* processSystem,
                                FileSystem* fileSystem, QWidget* parent)
@@ -31,6 +30,9 @@ PropertiesDock::PropertiesDock(ProcessSystem* processSystem,
   innerDockWidget->setFrameShape(QFrame::NoFrame);
 
   this->setWidget(innerDockWidget);
+
+  connect(fileSystem, SIGNAL(propertyAdded(Property)), this,
+          SLOT(addProperty(Property)));
 }
 
 PropertiesDock::~PropertiesDock()

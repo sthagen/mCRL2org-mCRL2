@@ -47,23 +47,14 @@ const atermpp::function_symbol& function_symbol_%(name)s()
         vtext = vtext + '  static const atermpp::function_symbol %s;\n' % name
 
     name_keys = names.keys()
-    name_keys.sort()
+    name_keys = sorted(name_keys)
     for name in name_keys:
         if name in skip_list:
             continue
         arity = names[name]
         ctext = ctext + CODE % {
             'name'  : name,
-            'name'  : name,
-            'name'  : name,
             'arity' : arity,
-            'name'  : name,
-            'name'  : name,
-            'name'  : name,
-            'name'  : name,
-            'name'  : name,
-            'name'  : name,
-            'name'  : name
         }
         comma = ''
         if calls[name] != "":
@@ -125,12 +116,8 @@ const atermpp::aterm_appl& default_value_%(name)s()
             arguments = ''
         ctext = ctext + TERM_FUNCTION % {
             'name'       : name,
-            'name'       : name,
             'arity'      : arity,
-            'name'       : name,
             'arguments'  : arguments,
-            'name'       : name,
-            'name'       : name
         }
         dtext = dtext + '  const atermpp::aterm_appl core::detail::default_values::%s = core::detail::default_value_%s();\n' % (name, name)
         vtext = vtext + '  static const atermpp::aterm_appl %s;\n' % name
@@ -147,7 +134,6 @@ const atermpp::aterm_appl& default_value_%(name)s()
                     break
             ptext = ptext + 'const atermpp::aterm_appl& default_value_%s();\n' % name
             ctext = ctext + RULE_FUNCTION % {
-                'name'       : name,
                 'name'       : name,
                 'fname'      : fname
             }
@@ -287,7 +273,7 @@ bool %(check_name)s(const Term& t)
         }
         ptext = ptext + 'template <typename Term> bool %s(const Term& t);\n' % f.check_name()
 
-    text = string.strip(ptext + '\n' + text)
+    text = ptext + '\n' + text.strip()
     text = text + '\n'
     return insert_text_in_file(filename, text, 'generated code')
 
@@ -308,7 +294,7 @@ def parse_ebnf(filename):
             continue
 
         #--- handle other paragraphs
-        lines  = string.split(paragraph, '\n')
+        lines  = paragraph.split('\n')
         clines = [] # comment lines
         glines = [] # grammar lines
         for line in lines:
@@ -316,22 +302,22 @@ def parse_ebnf(filename):
                 clines.append(line)
             else:
                 glines.append(line)
-        comment = string.join(clines, '\n')
+        comment = '\n'.join(clines)
 
         parser = EBNFParser(Mcrl2Actions())
         try:
-            newrules = parser(string.join(glines, '\n'))
+            newrules = parser('\n'.join(glines))
             for rule in newrules:
                 rule.comment = comment
             rules = rules + newrules
-        except tpg.SyntacticError, e:
-            print "------------------------------------------------------"
-            print 'grammar: ', string.join(glines, '\n')
-            print e
-        except tpg.LexicalError, e:
-            print "------------------------------------------------------"
-            print 'grammar: ', string.join(glines, '\n')
-            print e
+        except tpg.SyntacticError as e:
+            print("------------------------------------------------------")
+            print('grammar: ', '\n'.join(glines))
+            print(e)
+        except tpg.LexicalError as e:
+            print("------------------------------------------------------")
+            print('grammar: ', '\n'.join(glines))
+            print(e)
     return rules
 
 #---------------------------------------------------------------#

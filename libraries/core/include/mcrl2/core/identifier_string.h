@@ -12,11 +12,8 @@
 #ifndef MCRL2_CORE_IDENTIFIER_STRING_H
 #define MCRL2_CORE_IDENTIFIER_STRING_H
 
-#include "mcrl2/atermpp/aterm_list.h"
 #include "mcrl2/atermpp/aterm_string.h"
 #include "mcrl2/core/detail/function_symbols.h"
-#include <iostream>
-#include <vector>
 
 namespace mcrl2
 {
@@ -85,7 +82,7 @@ struct hash<mcrl2::core::identifier_string>
 {
   std::size_t operator()(const mcrl2::core::identifier_string& x) const
   {
-    return std::hash<atermpp::aterm>()(static_cast<atermpp::aterm>(x));
+    return std::hash<atermpp::aterm>()(static_cast<const atermpp::aterm&>(x));
   }
 };
 

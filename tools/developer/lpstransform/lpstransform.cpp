@@ -8,18 +8,12 @@
 //
 /// \file transform.cpp
 
-#include <iostream>
-#include <fstream>
-#include <memory>
-#include <string>
-
-#include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/rewriter_tool.h"
 #include "mcrl2/lps/detail/lps_command.h"
-#include "mcrl2/lps/detail/lps_io.h"
+#include "mcrl2/lps/if_rewrite.h"
 #include "mcrl2/lps/is_well_typed.h"
 #include "mcrl2/lps/one_point_rule_rewrite.h"
+#include "mcrl2/lps/rewrite.h"
 #include "mcrl2/utilities/detail/io.h"
 #include "mcrl2/utilities/detail/transform_tool.h"
 #include "mcrl2/utilities/input_output_tool.h"
@@ -29,16 +23,54 @@ using data::tools::rewriter_tool;
 using utilities::detail::transform_tool;
 using utilities::tools::input_output_tool;
 
-struct rewrite_lps_one_point_rule_rewriter_command: public lps::detail::lps_command
+struct one_point_rule_rewriter_command : public lps::detail::lps_command
 {
-  rewrite_lps_one_point_rule_rewriter_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
+  one_point_rule_rewriter_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
     : lps::detail::lps_command("lps-one-point-rule-rewriter", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     lps::detail::lps_command::execute();
     lps::one_point_rule_rewrite(lpsspec);
+    lps::detail::save_lps(lpsspec, output_filename);
+  }
+};
+
+struct if_rewriter_command: public lps::detail::lps_command
+{
+  if_rewriter_command(const std::string& input_filename, const std::string& output_filename, const std::vector<std::string>& options)
+      : lps::detail::lps_command("if-rewriter", input_filename, output_filename, options)
+  {}
+
+  void execute() override
+  {
+    lps::detail::lps_command::execute();
+    lps::if_rewrite(lpsspec);
+    lps::detail::save_lps(lpsspec, output_filename);
+  }
+};
+
+struct if_rewriter_with_rewriter_command: public lps::detail::lps_rewriter_command
+{
+  if_rewriter_with_rewriter_command(const std::string& input_filename,
+                                    const std::string& output_filename,
+                                    const std::vector<std::string>& options,
+                                    data::rewrite_strategy strategy)
+      : lps::detail::lps_rewriter_command("if-rewriter-with-rewriter",
+                                          input_filename, output_filename,
+                                          options, strategy)
+  {}
+
+  void execute() override
+  {
+    lps::detail::lps_command::execute();
+    data::rewriter rewr(lpsspec.data());
+    data::detail::if_rewrite_with_rewriter_builder f(rewr);
+    lps::rewrite(lpsspec, [&](const data::data_expression& x)
+    {
+      return f.apply(x);
+    });
     lps::detail::save_lps(lpsspec, output_filename);
   }
 };
@@ -49,7 +81,7 @@ struct is_well_typed_command: public lps::detail::lps_command
     : lps::detail::lps_command("is-well-typed", input_filename, output_filename, options)
   {}
 
-  void execute()
+  void execute() override
   {
     lps::detail::lps_command::execute();
     std::string result = lps::detail::is_well_typed(lpsspec) ? "true\n" : "false\n";
@@ -73,7 +105,9 @@ class lpstransform_tool: public transform_tool<rewriter_tool<input_output_tool>>
 
     void add_commands(const std::vector<std::string>& options) override
     {
-      add_command(std::make_shared<rewrite_lps_one_point_rule_rewriter_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<one_point_rule_rewriter_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<if_rewriter_command>(input_filename(), output_filename(), options));
+      add_command(std::make_shared<if_rewriter_with_rewriter_command>(input_filename(), output_filename(), options, rewrite_strategy()));
       add_command(std::make_shared<is_well_typed_command>(input_filename(), output_filename(), options));
     }
 };

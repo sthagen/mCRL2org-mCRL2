@@ -13,19 +13,10 @@
 #define MCRL2_LPS_ACTION_RENAME_H
 
 #include <regex>
-#include <algorithm>
 
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/logger.h"
-
-#include "mcrl2/core/detail/function_symbols.h"
 #include "mcrl2/core/parse.h"
 
-#include "mcrl2/data/replace.h"
 #include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/data_expression.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
 
 #include "mcrl2/lps/stochastic_specification.h"
@@ -171,6 +162,7 @@ class action_rename_rule
     }
 };
 
+
 /// \brief Read-only singly linked list of action rename rules
 // typedef atermpp::term_list<action_rename_rule> action_rename_rule_list;
 
@@ -305,8 +297,6 @@ namespace lps
 /// \cond INTERNAL_DOCS
 namespace detail
 {
-// using namespace data;
-
 // Put the equalities t==u in the replacement map as u:=t.
 inline void fill_replacement_map(const data::data_expression& equalities_in_conjunction, 
                                  std::map<data::data_expression, data::data_expression>& replacement_map)
@@ -455,7 +445,6 @@ lps::stochastic_specification action_rename(
   using namespace mcrl2::core;
   using namespace mcrl2::data;
   using namespace mcrl2::lps;
-  using namespace std;
 
   const std::vector <action_rename_rule>& rename_rules = action_rename_spec.rules();
   stochastic_action_summand_vector lps_old_action_summands = lps_old_spec.process().action_summands();
@@ -771,8 +760,8 @@ lps::stochastic_specification action_rename(
   process::action_label_list all=action_rename_spec.action_labels();
   for (const process::action_label& a: lps_old_spec.action_labels())
   {
-    if (find(action_rename_spec.action_labels().begin(),
-             action_rename_spec.action_labels().end(),a)==action_rename_spec.action_labels().end())
+    if (std::find(action_rename_spec.action_labels().begin(),
+                  action_rename_spec.action_labels().end(),a)==action_rename_spec.action_labels().end())
     {
       // Not found;
       all.push_front(a);
@@ -881,6 +870,37 @@ stochastic_specification action_rename(
 } // namespace lps
 
 } // namespace mcrl2
+
+namespace std
+{
+/// \brief Output an action_rename_rule to ostream. 
+/// \param out An output stream
+/// \param x An action_rename_rule. 
+/// \return The output stream
+// Currently, the variables are not printed. The shape is also not parseable. This may be mended. 
+inline
+std::ostream& operator<<(std::ostream& out, const mcrl2::lps::action_rename_rule& r)
+{
+  return out << "(" << r.condition() << ") -> " << r.lhs() << " => " << r.rhs();
+}
+
+/// \brief Output a action_rename_rule to ostream. 
+/// \param out An output stream
+/// \param x An action_rename_rule. 
+/// \return The output stream
+// Currently, the data declaration and the action declaration are not printed. 
+inline
+std::ostream& operator<<(std::ostream& out, const mcrl2::lps::action_rename_specification& s)
+{
+  for(const mcrl2::lps::action_rename_rule& r: s.rules())
+  {
+    out << r << "\n";
+  }
+  return out;
+}
+
+
+}  // end namespace std
 
 
 #endif // MCRL2_LPS_ACTION_RENAME_H

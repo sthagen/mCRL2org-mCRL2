@@ -10,15 +10,12 @@
 #include "glscene.h"
 
 #include "utility.h"
-#include "mcrl2/utilities/logger.h"
+#include "bezier.h"
 
 #include <QFont>
 #include <QFontMetrics>
 #include <QImage>
-#include <QPainter>
-
-#include <cassert>
-#include <cmath>
+#include <QStaticText>
 
 /// \brief Number of orthogonal slices from which a circle representing a node is constructed.
 constexpr int RES_NODE_SLICE = 32;
@@ -51,11 +48,12 @@ constexpr int OFFSET_ARROWHEAD  = OFFSET_HANDLE_OUTLINE + VERTICES_HANDLE_OUTLIN
 constexpr int OFFSET_ARROWHEAD_BASE = OFFSET_ARROWHEAD + VERTICES_ARROWHEAD;
 constexpr int OFFSET_ARC        = OFFSET_ARROWHEAD_BASE + VERTICES_ARROWHEAD_BASE;
 
-GLScene::GLScene(QOpenGLWidget& glwidget, Graph::Graph& g)
+GLScene::GLScene(QOpenGLWidget& glwidget, const Graph::Graph& g)
   :  m_glwidget(glwidget),
      m_graph(g)
 {
   setFontSize(m_fontsize);
+  rebuild();
 }
 
 void GLScene::initialize()
@@ -208,6 +206,27 @@ void GLScene::update()
   m_camera.update();
 }
 
+void GLScene::rebuild()
+{
+  // Update the state labels.
+  m_state_labels = std::vector<QStaticText>(m_graph.stateLabelCount());
+
+  for (std::size_t i = 0; i < m_graph.stateLabelCount(); ++i)
+  {
+    m_state_labels[i] = QStaticText(m_graph.stateLabelstring(i));
+    m_state_labels[i].setPerformanceHint(QStaticText::AggressiveCaching);
+  }
+
+  // Update the transition labels.
+  m_transition_labels = std::vector<QStaticText>(m_graph.transitionLabelCount());
+
+  for (std::size_t i = 0; i < m_graph.transitionLabelCount(); ++i)
+  {
+    m_transition_labels[i] = QStaticText(m_graph.transitionLabelstring(i));
+    m_transition_labels[i].setPerformanceHint(QStaticText::AggressiveCaching);
+  }
+}
+
 void GLScene::render(QPainter& painter)
 {
   // Qt: Direct OpenGL commands can still be issued. However, you must make sure these are enclosed by a call to the painter's beginNativePainting() and endNativePainting().
@@ -348,6 +367,23 @@ void GLScene::drawCenteredText3D(QPainter& painter, const QString& text, const Q
   }
 }
 
+void GLScene::drawCenteredStaticText3D(QPainter& painter, const QStaticText& text, const QVector3D& position, const QVector3D& color)
+{
+  QVector3D window = m_camera.worldToWindow(position);
+  float fog = 0.0f;
+  if (window.z() <= 1.0f && isVisible(position, fog)) // There is text, that is not behind the camera and it is visible.
+  {
+     QColor qcolor = vectorToColor(color);
+     qcolor.setAlpha(static_cast<int>(255 * (1.0f - fog)));
+
+     drawCenteredStaticText(painter,
+      window.x(),
+      window.y(),
+      text,
+      qcolor);
+  }
+}
+
 bool GLScene::isVisible(const QVector3D& position, float& fogamount)
 {
   // Should match the vertex shader: fogAmount = (1.0f - exp(-1.0f * pow(distance * g_density, 2)));
@@ -358,38 +394,17 @@ bool GLScene::isVisible(const QVector3D& position, float& fogamount)
 
 void GLScene::renderEdge(std::size_t i, const QMatrix4x4& viewProjMatrix)
 {
-  Graph::Edge edge = m_graph.edge(i);
-
-  // We define four control points of a spline.
-  std::array<QVector3D, 4> control;
-  QVector3D& from = control[0];
-  QVector3D& to = control[3];
-
-  // Calculate control points from handle
-  QVector3D via = m_graph.handle(i).pos();
-  from = m_graph.node(edge.from()).pos();
-  to = m_graph.node(edge.to()).pos();
-
-  // Move the control point a bit further from the middle point between the nodes.
-  // This is an affine combination of the points 'via' and '(from + to) / 2.0f'.
-  control[1] = via * 1.33333f - (from + to) / 6.0f;
-  // Standard case: use the same position for both points (effectively a quadratic curve).
-  control[2] = control[1];
-
-  if (edge.from() == edge.to())
+  const Graph::Edge& edge = m_graph.edge(i);
+  if (!m_drawselfloops && edge.is_selfloop())
   {
-    // For self-loops, ctrl[1] and ctrl[2] need to lie apart, we'll spread
-    // them in x-y direction.
-    if (!m_drawselfloops)
-    {
-      return;
-    }
-    QVector3D diff = control[1] - control[0];
-    diff = QVector3D::crossProduct(diff, QVector3D(0, 0, 1));
-    diff = diff * ((via - from).length() / (diff.length() * 2.0f));
-    control[1] = control[1] + diff;
-    control[2] = control[2] - diff;
+    return;
   }
+
+  // Calculate control points from edge nodes and handle
+  const QVector3D from = m_graph.node(edge.from()).pos();
+  const QVector3D via = m_graph.handle(i).pos();
+  const QVector3D to = m_graph.node(edge.to()).pos();
+  const std::array<QVector3D, 4> control = calculateArc(from, via, to, edge.is_selfloop());
 
   // Use the arc shader to draw the arcs.
   m_arc_shader.bind();
@@ -407,8 +422,19 @@ void GLScene::renderEdge(std::size_t i, const QMatrix4x4& viewProjMatrix)
   // Reset the shader.
   m_global_shader.bind();
 
-  // Rotate to match the orientation of the arc
-  QVector3D vec = to - control[2];
+  // Calculate the position of the tip of the arrow, and the orientation of the arc
+  QVector3D tip;
+  QVector3D vec;
+  {
+    const Math::Circle node{to, 0.5f * nodeSizeScaled()};
+    const Math::CubicBezier arc(control);
+    const Math::Scalar t = Math::make_intersection(node, arc).guessNearBack();
+    tip = node.project(arc.at(t));
+    const Math::Circle head{to, 0.5f * nodeSizeScaled() + arrowheadSizeScaled()};
+    const Math::Scalar s = Math::make_intersection(head, arc).guessNearBack();
+    const QVector3D top = arc.at(s);
+    vec = tip - top;
+  }
 
   // If to == ctrl[2], then something odd is going on. We'll just
   // make the executive decision not to draw the arrowhead then, as it
@@ -418,7 +444,7 @@ void GLScene::renderEdge(std::size_t i, const QMatrix4x4& viewProjMatrix)
     vec.normalize();
 
     float fog = 0.0f;
-    if (isVisible(to, fog))
+    if (isVisible(tip, fog))
     {
       // Apply the fog color.
       m_global_shader.setColor(applyFog(arcColor, fog));
@@ -426,14 +452,11 @@ void GLScene::renderEdge(std::size_t i, const QMatrix4x4& viewProjMatrix)
       QMatrix4x4 worldMatrix;
 
       // Go to arrowhead position
-      worldMatrix.translate(to.x(), to.y(), to.z());
+      worldMatrix.translate(tip.x(), tip.y(), tip.z());
 
       // Rotate the arrowhead to orient it to the end of the arc.
       QVector3D axis = QVector3D::crossProduct(QVector3D(1, 0, 0), vec);
       worldMatrix.rotate(radiansToDegrees(std::acos(vec.x())), axis);
-
-      // Move the arrowhead outside of the node.
-      worldMatrix.translate(-0.5f * nodeSizeScaled(), 0.0f, 0.0f);
 
       // Scale it according to its size.
       worldMatrix.scale(arrowheadSizeScaled());
@@ -452,7 +475,12 @@ void GLScene::renderEdge(std::size_t i, const QMatrix4x4& viewProjMatrix)
 
 void GLScene::renderHandle(std::size_t i, const QMatrix4x4& viewProjMatrix)
 {
-  Graph::Node& handle = m_graph.handle(i);
+  if (!m_drawselfloops && m_graph.edge(i).is_selfloop())
+  {
+    return;
+  }
+
+  const Graph::Node& handle = m_graph.handle(i);
   if (handle.selected() > 0.1f || handle.locked())
   {
     QVector3D line(2 * handle.selected() - 1.0f, 0.0f, 0.0f);
@@ -535,22 +563,16 @@ void GLScene::renderNode(std::size_t i, const QMatrix4x4& viewProjMatrix, bool t
     nodeMatrix.scale(0.5f * nodeSizeScaled());
     m_global_shader.setWorldViewProjMatrix(viewProjMatrix * nodeMatrix);
 
+    // Apply fogging the node color and draw the node.
+    m_global_shader.setColor(QVector4D(applyFog(fill, fog), alpha));
     if (node.is_probabilistic())
     {
-      QVector3D blue(0.35f, 0.7f, 1.0f);
-      if(node.locked())
-      {
-        blue *= 0.7f;
-      }
-      m_global_shader.setColor(QVector4D(applyFog(blue, fog), alpha));
-
-      // Draw only only the inner part of the half sphere that makes up a node in blue
+      // Draw only the top section of the half sphere
+      // This gives the appearance of a thicker border
       glDrawArrays(GL_TRIANGLE_STRIP, OFFSET_NODE_SPHERE, VERTICES_NODE_SPHERE / 2);
     }
     else
     {
-      // Apply fogging the node color and draw the node.
-      m_global_shader.setColor(QVector4D(applyFog(fill, fog), alpha));
       // Draw the half sphere
       glDrawArrays(GL_TRIANGLE_STRIP, OFFSET_NODE_SPHERE, VERTICES_NODE_SPHERE);
     }
@@ -572,27 +594,32 @@ void GLScene::renderNode(std::size_t i, const QMatrix4x4& viewProjMatrix, bool t
 
 void GLScene::renderTransitionLabel(QPainter& painter, std::size_t i)
 {
-  Graph::Edge edge = m_graph.edge(i);
-  if (edge.from() == edge.to() && !m_drawselfloops)
+  if (!m_drawselfloops && m_graph.edge(i).is_selfloop())
   {
     return;
   }
 
-  Graph::LabelNode& label = m_graph.transitionLabel(i);
+  const Graph::LabelNode& label = m_graph.transitionLabel(i);
   QVector3D fill(std::max(label.color().x(), label.selected()), std::min(label.color().y(), 1.0f - label.selected()), std::min(label.color().z(), 1.0f - label.selected()));
-  drawCenteredText3D(painter, m_graph.transitionLabelstring(label.labelindex()), label.pos(), fill);
+  drawCenteredStaticText3D(painter, m_transition_labels[label.labelindex()], label.pos(), fill);
 }
 
 void GLScene::renderStateLabel(QPainter& painter, std::size_t i)
 {
-  Graph::LabelNode& label = m_graph.stateLabel(i);
+  const Graph::LabelNode& label = m_graph.stateLabel(i);
+  if (label.labelindex() >= m_graph.stateLabelCount())
+  {
+    // the label does not actually exist, so we don't draw it
+    return;
+  }
+
   QVector3D color(std::max(label.color().x(), label.selected()), std::min(label.color().y(), 1.0f - label.selected()), std::min(label.color().z(), 1.0f - label.selected()));
-  drawCenteredText3D(painter, m_graph.stateLabelstring(label.labelindex()), label.pos(), color);
+  drawCenteredStaticText3D(painter, m_state_labels[label.labelindex()], label.pos(), color);
 }
 
 void GLScene::renderStateNumber(QPainter& painter, std::size_t i)
 {
-  Graph::NodeNode& node = m_graph.node(i);
+  const Graph::NodeNode& node = m_graph.node(i);
   QVector3D color(0.0f, 0.0f, 0.0f);
   drawCenteredText3D(painter, QString::number(i), node.pos(), color);
 }
@@ -630,8 +657,13 @@ bool GLScene::selectObject(GLScene::Selection& s,
     for (std::size_t i = 0; i < edgeCount; i++)
     {
       std::size_t index = exploration_active ? m_graph.explorationEdge(i) : i;
-      QVector3D screenPos = m_camera.worldToWindow(m_graph.handle(index).pos());
-      float radius = sizeOnScreen(m_graph.handle(index).pos(), handleSizeScaled());
+      if (!m_drawselfloops && m_graph.edge(index).is_selfloop())
+      {
+        continue;
+      }
+      const Graph::Node& handle = m_graph.handle(index);
+      QVector3D screenPos = m_camera.worldToWindow(handle.pos());
+      float radius = sizeOnScreen(handle.pos(), handleSizeScaled());
       if (isCloseSquare(x, y, screenPos, radius, bestZ))
       {
         s.selectionType = type;
@@ -645,10 +677,13 @@ bool GLScene::selectObject(GLScene::Selection& s,
     for (std::size_t i = 0; i < edgeCount; i++)
     {
       std::size_t index = exploration_active ? m_graph.explorationEdge(i) : i;
+      if (!m_drawselfloops && m_graph.edge(index).is_selfloop())
+      {
+        continue;
+      }
       const Graph::LabelNode& label = m_graph.transitionLabel(index);
       QVector3D window = m_camera.worldToWindow(label.pos());
-      const QString& labelstring = m_graph.transitionLabelstring(label.labelindex());
-      if (isOnText(x, y, labelstring, window, metrics))
+      if (isOnText(x, y, m_transition_labels[label.labelindex()], window))
       {
         s.selectionType = type;
         s.index = index;
@@ -663,9 +698,14 @@ bool GLScene::selectObject(GLScene::Selection& s,
     {
       std::size_t index = exploration_active ? m_graph.explorationNode(i) : i;
       const Graph::LabelNode& label = m_graph.stateLabel(index);
+      if (label.labelindex() >= m_graph.stateLabelCount())
+      {
+        // the label does not exist, so we skip it
+        continue;
+      }
+
       QVector3D window = m_camera.worldToWindow(label.pos());
-      const QString& labelstring = m_graph.stateLabelstring(label.labelindex());
-      if (isOnText(x, y, labelstring, window, metrics))
+      if (isOnText(x, y, m_state_labels[label.labelindex()], window))
       {
         s.selectionType = type;
         s.index = index;

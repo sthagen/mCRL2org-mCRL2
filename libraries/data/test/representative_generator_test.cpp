@@ -10,20 +10,13 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE representative_generator_test
-#include <algorithm>
-#include <iostream>
-#include <iterator>
-#include <set>
-#include <string>
 
 #include <boost/test/included/unit_test_framework.hpp>
 
-#include "mcrl2/data/bool.h"
 #include "mcrl2/data/list.h"
-#include "mcrl2/data/nat.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/data/representative_generator.h"
-#include "mcrl2/data/structured_sort.h"
+#include "mcrl2/data/set.h"
 
 using namespace mcrl2;
 using namespace mcrl2::data;
@@ -78,6 +71,11 @@ void test_representative_generator()
                                                data::sort_set::true_function(data::sort_real::real_()),
                                                data::sort_fset::empty(data::sort_real::real_())));
 
+   // Check whether a proper representative term is generated for a function sort.
+   const sort_expression s1=function_sort({ basic_sort("Nat")}, basic_sort("Nat"));
+   BOOST_CHECK(default_expression_generator(s1).sort() == s1);
+   const sort_expression s2=function_sort({ basic_sort("Nat"), basic_sort("Real")}, basic_sort("Nat"));
+   BOOST_CHECK(default_expression_generator(s2).sort() == s2);
 }
 
 BOOST_AUTO_TEST_CASE(test_main)

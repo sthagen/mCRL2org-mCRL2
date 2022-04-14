@@ -12,7 +12,6 @@
 #ifndef MCRL2_DATA_REWRITERS_ONE_POINT_RULE_REWRITER_H
 #define MCRL2_DATA_REWRITERS_ONE_POINT_RULE_REWRITER_H
 
-#include "mcrl2/data/builder.h"
 #include "mcrl2/data/expression_traits.h"
 #include "mcrl2/data/find_equalities.h"
 #include "mcrl2/data/optimized_boolean_operators.h"
@@ -254,8 +253,10 @@ class one_point_rule_rewrite_builder: public data_expression_builder<Derived>
 
 } // namespace detail
 
-struct one_point_rule_rewriter: public std::unary_function<data_expression, data_expression>
+struct one_point_rule_rewriter
 {
+  using argument_type = data_expression;
+
   data_expression operator()(const data_expression& x) const
   {
     return core::make_apply_builder<detail::one_point_rule_rewrite_builder>().apply(x);

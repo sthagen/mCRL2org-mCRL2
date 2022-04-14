@@ -11,24 +11,11 @@
 #define NAME "lpssim"
 #define AUTHOR "Muck van Weerdenburg"
 
-#include <iostream>
-#include <string>
-#include <cctype>
-
-#include <cstdio>
-#include <cerrno>
-#include <cstdlib>
-#include <cstring>
-#include <cassert>
-
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/input_tool.h"
 #include "mcrl2/data/rewriter_tool.h"
-#include "mcrl2/data/rewriter.h"
-#include "mcrl2/lps/simulation.h"
 #include "mcrl2/lps/io.h"
 #include "mcrl2/lps/detail/instantiate_global_variables.h"
+#include "mcrl2/lts/simulation.h"
 
 using namespace mcrl2;
 using namespace mcrl2::utilities;

@@ -12,11 +12,10 @@
 #ifndef MCRL2_PROCESS_BUILDER_H
 #define MCRL2_PROCESS_BUILDER_H
 
-#include "mcrl2/core/builder.h"
 #include "mcrl2/data/builder.h"
 #include "mcrl2/process/process_specification.h"
 #include "mcrl2/process/untyped_multi_action.h"
-#include "mcrl2/process/timed_multi_action.h"
+// #include "mcrl2/lps/multi_action.h"
 
 namespace mcrl2
 {
@@ -75,17 +74,6 @@ struct add_sort_expressions: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
-  }
-
-  void update(process::timed_multi_action& x)
-  {
-    static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
-    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)
@@ -406,17 +394,6 @@ struct add_data_expressions: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
-  }
-
-  void update(process::timed_multi_action& x)
-  {
-    static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
-    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)
@@ -745,17 +722,6 @@ struct add_variables: public Builder<Derived>
     process::untyped_multi_action result = process::untyped_multi_action(static_cast<Derived&>(*this).apply(x.actions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
-  }
-
-  void update(process::timed_multi_action& x)
-  {
-    static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
-    static_cast<Derived&>(*this).leave(x);
   }
 
   process::action apply(const process::action& x)

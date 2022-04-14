@@ -10,12 +10,7 @@
 #ifndef MCRL2_ATERMPP_FUNCTION_SYMBOL_H
 #define MCRL2_ATERMPP_FUNCTION_SYMBOL_H
 
-#include "mcrl2/atermpp/detail/atypes.h"
 #include "mcrl2/atermpp/detail/function_symbol.h"
-#include "mcrl2/utilities/shared_reference.h"
-
-#include <string>
-#include <iostream>
 
 namespace atermpp
 {
@@ -164,24 +159,6 @@ namespace detail
   extern function_symbol g_as_int;
   extern function_symbol g_as_list;
   extern function_symbol g_as_empty_list;
-}
-
-/// \brief Sends the name of a function symbol to an ostream.
-/// \param out The out stream.
-/// \param f The function symbol to be output.
-/// \return The stream.
-inline
-std::ostream& operator<<(std::ostream& out, const function_symbol& f)
-{
-  return out << f.name();
-}
-
-/// \brief Prints the name of a function symbol as a string.
-/// \param f The function symbol.
-/// \return The string representation of r.
-inline const std::string& pp(const function_symbol& f)
-{
-  return f.name();
 }
 
 } // namespace atermpp

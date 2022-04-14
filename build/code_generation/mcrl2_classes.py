@@ -148,17 +148,17 @@ state_formula_specification(const data::data_specification& data, const process:
 # N.B. This one is problematic due to the optional time in deadlock/multi_action.
 LPS_CLASSES = r'''
 deadlock(const data::data_expression& time)                                                                                                                                                                                                                   | CMS  | None              | A deadlock
-multi_action(const process::action_list& actions, const data::data_expression& time)                                                                                                                                                                          | CMS  | None              | A multi-action
+multi_action(const process::action_list& actions, const data::data_expression& time)                                                                                                                                             : public atermpp::aterm_appl | CIUs | TimedMultAct      | A timed multi-action
 deadlock_summand(const data::variable_list& summation_variables, const data::data_expression& condition, const lps::deadlock& deadlock)                                                                                                                       | CMS  | None              | A deadlock summand
 action_summand(const data::variable_list& summation_variables, const data::data_expression& condition, const lps::multi_action& multi_action, const data::assignment_list& assignments)                                                                       | CMS  | None              | An action summand
-process_initializer(const data::assignment_list& assignments)                                                                                                                                                                    : public atermpp::aterm_appl | CIUS | LinearProcessInit | A process initializer
+process_initializer(const data::data_expression_list& expressions)                                                                                                                                                               : public atermpp::aterm_appl | CIUS | LinearProcessInit | A process initializer
 linear_process(const data::variable_list& process_parameters, const deadlock_summand_vector& deadlock_summands, const action_summand_vector& action_summands)                                                                                                 | MSW  | LinearProcess     | A linear process
 specification(const data::data_specification& data, const process::action_label_list& action_labels, const std::set<data::variable>& global_variables,const linear_process& process, const process_initializer& initial_process)                              | MSW  | LinProcSpec       | A linear process specification
 stochastic_distribution(const data::variable_list& variables, const data::data_expression& distribution)                                                                                                                         : public atermpp::aterm_appl | CIU  | Distribution | A stochastic distribution
 stochastic_action_summand(const data::variable_list& summation_variables, const data::data_expression& condition, const lps::multi_action& multi_action, const data::assignment_list& assignments, const stochastic_distribution& distribution) : public lps::action_summand | CMS  | None              | A stochastic action summand
 stochastic_linear_process(const data::variable_list& process_parameters, const deadlock_summand_vector& deadlock_summands, const stochastic_action_summand_vector& action_summands) : public linear_process      | MSW  | LinearProcess     | A stochastic linear process
 stochastic_specification(const data::data_specification& data, const process::action_label_list& action_labels, const std::set<data::variable>& global_variables, const stochastic_linear_process& process, const process_initializer& initial_process) : public lps::specification       | MSW  | LinProcSpec       | A stochastic linear process specification
-stochastic_process_initializer(const data::assignment_list& assignments, const stochastic_distribution& distribution)                                                          : public lps::process_initializer | CIS  | LinearProcessInit | A stochastic process initializer
+stochastic_process_initializer(const data::data_expression_list& expressions, const stochastic_distribution& distribution)                                                                                                  : public lps::process_initializer | CIS  | LinearProcessInit | A stochastic process initializer
 '''
 
 PROCESS_CLASSES = r'''
@@ -170,7 +170,6 @@ rename_expression(core::identifier_string& source, core::identifier_string& targ
 communication_expression(const action_name_multiset& action_name, const core::identifier_string& name)                                                                           : public atermpp::aterm_appl | CI   | CommExpr           | A communication expression
 action_name_multiset(const core::identifier_string_list& names)                                                                                                                  : public atermpp::aterm_appl | CI   | MultActName        | A multiset of action names
 untyped_multi_action(const data::untyped_data_parameter_list& actions)                                                                                                           : public atermpp::aterm_appl | CI   | UntypedMultiAction | An untyped multi action or data application
-timed_multi_action(const process::action_list& actions, const data::data_expression& time)                                                                                       : public atermpp::aterm_appl | CIU  | TimedMultAct       | A timed multi-action
 '''
 
 PROCESS_EXPRESSION_CLASSES = r'''
@@ -258,9 +257,9 @@ def extract_type(text):
 #indents the text with the given prefix
 def indent_text(text, indent):
     lines = []
-    for line in string.split(text, '\n'):
+    for line in text.split('\n'):
         lines.append(indent + line)
-    return string.join(lines, '\n')
+    return '\n'.join(lines)
 
 # Represents a function parameter like the following;
 #
@@ -342,7 +341,7 @@ class FunctionDeclaration:
 
         # compute parameters
         parameters = []
-        words = map(string.strip, text.split(','))
+        words = [word.strip() for word in text.split(',')]
         for word in words:
             if word == '':
                 continue
@@ -471,17 +470,21 @@ class Constructor:
         text = re.sub('<ATERM>'              , self.aterm              , text)
         text = re.sub('<PARAMETERS>'         , self.parameters         , text)
         text = re.sub('<TEMPLATE_PARAMETERS>', self.template_parameters, text)
+        if len(self.parameters)>0 and self.parameters.find(',')<0:     # There is only one parameter. Add explicit. 
+            text = re.sub('<EXPLICIT>','explicit ',text)
+        else:
+            text = re.sub('<EXPLICIT>','',text)
         return text
 
     def inline_definition(self):
         if self.superclass == 'atermpp::aterm_appl':
             text = r'''    /// \\\\brief Constructor.
-    <CLASSNAME>(<ARGUMENTS>)
+    <EXPLICIT><CLASSNAME>(<ARGUMENTS>)
       : atermpp::aterm_appl(core::detail::function_symbol_<ATERM>(), <PARAMETERS>)
     {}'''
         else:
             text = r'''    /// \\\\brief Constructor.
-    <CLASSNAME>(<ARGUMENTS>)
+    <EXPLICIT><CLASSNAME>(<ARGUMENTS>)
       : <SUPERCLASS>(atermpp::aterm_appl(core::detail::function_symbol_<ATERM>(), <PARAMETERS>))
     {}'''
         return self.expand_text(text)
@@ -494,12 +497,12 @@ class Constructor:
     def definition(self, inline = False):
         if self.superclass == 'atermpp::aterm_appl':
             text = r'''    /// \\\\brief Constructor.
-    <INLINE><CLASSNAME>::<CLASSNAME>(<ARGUMENTS>)
+    <EXPLICIT><INLINE><CLASSNAME>::<CLASSNAME>(<ARGUMENTS>)
       : atermpp::aterm_appl(core::detail::function_symbol_<ATERM>(), <PARAMETERS>)
     {}'''
         else:
             text = r'''    /// \\\\brief Constructor.
-    <INLINE><CLASSNAME>::<CLASSNAME>(<ARGUMENTS>)
+    <EXPLICIT><INLINE><CLASSNAME>::<CLASSNAME>(<ARGUMENTS>)
       : <SUPERCLASS>(atermpp::aterm_appl(core::detail::function_symbol_<ATERM>(), <PARAMETERS>))
     {}'''
         if inline:
@@ -617,7 +620,7 @@ class AdditionalConstructor(Constructor):
 
     def definition(self, inline = False):
         text = r'''    /// \\\\brief Constructor.
-    /// \\param term A term
+    /// \\\\param term A term
     <INLINE><CLASSNAME>::<CLASSNAME>(const <ADDITIONAL_CLASSNAME>& x)
       : <SUPERCLASS>(x)
     {}'''
@@ -641,7 +644,7 @@ class ATermConstructor(Constructor):
 
     def inline_definition(self):
         text = r'''    /// \\\\brief Constructor.
-    /// \\param term A term
+    /// \\\\param term A term
     explicit <CLASSNAME>(const atermpp::aterm& term)
       : <SUPERCLASS>(term)
     {
@@ -651,13 +654,13 @@ class ATermConstructor(Constructor):
 
     def declaration(self):
         text = r'''    /// \\\\brief Constructor.
-    /// \\param term A term
+    /// \\\\param term A term
     explicit <CLASSNAME>(const atermpp::aterm& term);'''
         return self.expand_text(text)
 
     def definition(self, inline = False):
         text = r'''    /// \\\\brief Constructor.
-    /// \\param term A term
+    /// \\\\param term A term
     explicit <INLINE><CLASSNAME>::<CLASSNAME>(const atermpp::aterm& term)
       : <SUPERCLASS>(term)
     {
@@ -1018,8 +1021,8 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
 
     def derived_classes(self, all_classes):
         classes = [all_classes[name] for name in self.expression_classes()]
-        classes.sort(cmp = lambda x, y: cmp(x.index, y.index))
-        classes.sort(cmp = lambda x, y: cmp('X' in y.modifiers(), 'X' in x.modifiers()))
+        classes.sort(key = lambda x: x.index)
+        classes.sort(key = lambda x: 'X' in x.modifiers(), reverse=True)
         return classes
 
     def traverser_function(self, all_classes, dependencies):
@@ -1191,7 +1194,7 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                         visit_text = '''typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
 function_pointer fp = &Derived::apply;
 %s result = data::application(
-   static_cast<Derived&>(*this).apply(x.head()),
+   x.head(),
    x.begin(),
    x.end(),
    std::bind(fp, static_cast<Derived*>(this), std::placeholders::_1)
@@ -1259,7 +1262,7 @@ def parse_classes(text, namespace = None):
     for line in lines:
         if line.startswith('%'):
             continue
-        words = map(string.strip, line.split('|'))
+        words = [word.strip() for word in line.split('|')]
         if len(words) < 4:
             continue
         constructor, modifiers, aterm, description = words
@@ -1273,9 +1276,9 @@ def parse_classes(text, namespace = None):
     return result
 
 def print_dependencies(dependencies, message):
-    print message
+    print(message)
     for type in sorted(dependencies):
-        print type, dependencies[type]
+        print(type, dependencies[type])
 
 def is_dependent_type(dependencies, type):
     if type in dependencies:
@@ -1332,7 +1335,7 @@ def find_dependencies(all_classes, type):
 
     #for expr in all_classes[type].expression_classes():
     #    update_dependency(expr, all_classes, dependencies, value = True)
-    #    print expr, dependencies[expr]
+    #    print(expr, dependencies[expr])
 
     while update_dependencies(all_classes, dependencies):
         pass
@@ -1382,7 +1385,7 @@ def parse_class_map(class_map):
             for name in ADDITIONAL_EXPRESSION_CLASS_DEPENDENCIES[classname]:
                 result[classname].expression_classes().append(name)
         if 'X' in c.modifiers():
-            c.expression_classes().sort(cmp = lambda x, y: cmp(result[x].index, result[y].index))
+            c.expression_classes().sort(key = lambda x: result[x].index)
     return result
 
 def parse_classnames(text, namespace):
@@ -1392,7 +1395,7 @@ def parse_classnames(text, namespace):
     for line in lines:
         if line.startswith('%'):
             continue
-        words = map(string.strip, line.split('|'))
+        words = [word.strip() for word in line.split('|')]
         if len(words) < 4:
             continue
         constructor, modifiers, aterm, description = words

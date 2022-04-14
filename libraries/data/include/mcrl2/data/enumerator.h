@@ -13,19 +13,12 @@
 #define MCRL2_DATA_ENUMERATOR_H
 
 #include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/detail/enumerator_identifier_generator.h"
 #include "mcrl2/data/detail/enumerator_iteration_limit.h"
-#include "mcrl2/data/identifier_generator.h"
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/substitutions/enumerator_substitution.h"
-#include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
 #include "mcrl2/utilities/math.h"
 #include <boost/iterator/iterator_facade.hpp>
 #include <deque>
-#include <limits>
-#include <map>
-#include <sstream>
-#include <utility>
 
 namespace mcrl2
 {
@@ -131,7 +124,7 @@ bool compute_finite_function_sorts(const function_sort& sort,
   {
     domain_expressions.push_back(enumerate_expressions(s, dataspec, datar, id_generator));
     total_domain_size = total_domain_size * domain_expressions.back().size();
-    function_parameters.push_back(variable(id_generator(), s));
+    function_parameters.emplace_back(id_generator(), s);
   }
 
   if (total_domain_size * utilities::ceil_log2(codomain_expressions.size()) >= 32)  // If there are at least 2^32 functions, then enumerating them makes little sense.
@@ -378,6 +371,11 @@ class enumerator_list_element_with_substitution: public enumerator_list_element<
       sigma.revert();
       return data_expression_list(v.begin(), v.end(), [&](const data::variable& v_i) { return rewriter(sigma(v_i)); });
     }
+
+    data::enumerator_substitution sigma() const
+    {
+      return data::enumerator_substitution(m_variables, m_expressions);
+    }
 };
 
 template <typename Expression>
@@ -396,6 +394,22 @@ std::ostream& operator<<(std::ostream& out, const enumerator_list_element<Expres
   return out << "], " << p.expression() << " }";
 }
 
+template <typename Expression>
+std::ostream& operator<<(std::ostream& out, const enumerator_list_element_with_substitution<Expression>& p)
+{
+  out << "{ [";
+  const auto& variables = p.variables();
+  for (auto i = variables.begin(); i != variables.end(); ++i)
+  {
+    if (i != variables.begin())
+    {
+      out << ", ";
+    }
+    out << *i << ": " << i->sort();
+  }
+  return out << "], " << p.expression() << ", " << p.sigma() << " }";
+}
+
 /// \brief Contains the enumerator queue.
 template <typename EnumeratorListElement>
 class enumerator_queue
@@ -412,7 +426,7 @@ class enumerator_queue
 
     /// \brief Initializes the enumerator queue with the given value
     explicit enumerator_queue(const EnumeratorListElement& value)
-            : P(1, value)
+            : P({value})
     { }
 
     void push_back(const EnumeratorListElement& x)
@@ -421,6 +435,15 @@ class enumerator_queue
       std::cout << "push_back " << x << std::endl;
 #endif
       P.push_back(x);
+    }
+
+    template <class... Args>
+    void emplace_back(Args&&... args)
+    {
+#ifdef MCRL2_LOG_ENUMERATOR
+      std::cout << "emplace_back " << EnumeratorListElement(args...) << std::endl;
+#endif
+      P.emplace_back(std::forward<Args>(args)...);
     }
 
     bool empty() const
@@ -589,7 +612,7 @@ class enumerator_algorithm
           EnumeratorListElement q(variables, phi1, p, v, e);
           return report_solution(q);
         }
-        P.push_back(EnumeratorListElement(variables, phi1, p, v, e));
+        P.emplace_back(variables, phi1, p, v, e);
         return false;
       };
 
@@ -613,11 +636,11 @@ class enumerator_algorithm
         }
         if (added_variables_empty)
         {
-          P.push_back(EnumeratorListElement(variables, phi1, p, v, e));
+          P.emplace_back(variables, phi1, p, v, e);
         }
         else
         {
-          P.push_back(EnumeratorListElement(variables + added_variables, phi1, p, v, e));
+          P.emplace_back(variables + added_variables, phi1, p, v, e);
         }
         return false;
       };
@@ -681,7 +704,7 @@ class enumerator_algorithm
           const variable fset_variable(id_generator(), sort_fset::fset(element_sort));
           data_expression e = sort_set::constructor(element_sort, lambda_term, fset_variable);
           sigma[v1] = e;
-          if (add_element(v_tail, phi, v1, e))
+          if (add_element_with_variables(v_tail, { fset_variable }, phi, v1, e))
           {
             sigma[v1] = v1;
             return true;

@@ -10,18 +10,12 @@
 #ifndef ATERMPP_DETAIL_ATERM_POOL_STORAGE_H
 #define ATERMPP_DETAIL_ATERM_POOL_STORAGE_H
 
-#include "mcrl2/atermpp/detail/aterm_appl.h"
-#include "mcrl2/atermpp/detail/aterm.h"
 #include "mcrl2/atermpp/detail/aterm_hash.h"
-#include "mcrl2/atermpp/detail/aterm_int.h"
-#include "mcrl2/utilities/block_allocator.h"
 #include "mcrl2/utilities/cache_metric.h"
 #include "mcrl2/utilities/unordered_set.h"
 
-#include <limits>
 #include <stack>
 #include <utility>
-#include <vector>
 
 namespace atermpp
 {
@@ -57,9 +51,6 @@ public:
   friend class aterm_pool;
 
   aterm_pool_storage(aterm_pool& pool);
-
-  /// \brief Add a callback that is triggered whenever a term with the given function symbol is created.
-  void add_creation_hook(function_symbol sym, term_callback callback);
 
   /// \brief Add a callback that is triggered whenever a term with the given function symbol is destroyed.
   void add_deletion_hook(function_symbol sym, term_callback callback);
@@ -140,9 +131,6 @@ public:
 private:
   using callback_pair = std::pair<function_symbol, term_callback>;
 
-  /// \brief Calls the creation hook attached to the function symbol of this term.
-  void call_creation_hook(unprotected_aterm term);
-
   /// \brief Calls the deletion hook attached to the function symbol of this term.
   void call_deletion_hook(unprotected_aterm term);
 
@@ -158,11 +146,11 @@ private:
   constexpr bool is_dynamic_storage() const;
 
   /// \brief Marks a term and recursively all arguments that are not reachable.
-  void mark_term(_aterm& root);
+  void mark_term(const _aterm& root);
 
   /// \brief Verify that the given term was constructed properly.
   template<std::size_t Arity = N>
-  bool verify_term(_aterm& term);
+  bool verify_term(const _aterm& term);
 
   /// The pool that this storage belongs to.
   aterm_pool& m_pool;
@@ -171,7 +159,6 @@ private:
   unordered_set m_term_set;
 
   /// This array stores creation, resp deletion, hooks for function symbols.
-  std::vector<callback_pair> m_creation_hooks;
   std::vector<callback_pair> m_deletion_hooks;
 
   /// A reusable todo stack.

@@ -13,23 +13,9 @@
 *        complex data types by simpler ones.
 */
 
-#include <algorithm>
-#include <iostream>
-#include <cstdio>
-#include <cstring>
-#include <iostream>
-#include <string>
-#include "mcrl2/utilities/logger.h"
-
-#include "mcrl2/data/function_symbol.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
-
 #include "mcrl2/lps/lpsparunfoldlib.h"
-#include "mcrl2/lps/find.h"
 #include "mcrl2/lps/replace.h"
 
-using namespace std;
 using namespace mcrl2;
 using namespace mcrl2::core;
 using namespace mcrl2::data;
@@ -94,7 +80,7 @@ mcrl2::data::basic_sort lpsparunfold::generate_fresh_basic_sort(const std::strin
 {
   //Generate a fresh Basic Sort
   mcrl2::core::identifier_string nstr = m_identifier_generator(str);
-  mCRL2log(verbose) << "Generated fresh sort \"" <<  string(nstr) << "\" for \"" <<  str << "\"" << std::endl;
+  mCRL2log(verbose) << "Generated fresh sort \"" <<  std::string(nstr) << "\" for \"" <<  str << "\"" << std::endl;
   sort_names.insert(nstr);
   return basic_sort(std::string(nstr));
 }
@@ -106,7 +92,7 @@ mcrl2::core::identifier_string lpsparunfold::generate_fresh_constructor_and_mapp
   str.resize(std::remove_if(str.begin(), str.end(), &char_filter) - str.begin());
 
   mcrl2::core::identifier_string nstr = m_identifier_generator(str);
-  mCRL2log(debug) << "Generated a fresh mapping: " <<  string(nstr) << std::endl;
+  mCRL2log(debug) << "Generated a fresh mapping: " <<  std::string(nstr) << std::endl;
   mapping_and_constructor_names.insert(nstr);
   return nstr;
 }
@@ -173,7 +159,7 @@ mcrl2::data::function_symbol lpsparunfold::create_determine_function()
 {
   mcrl2::data::function_symbol fs;
   std::string str = "Det_";
-  str.append(string(fresh_basic_sort.name()).append("_"));
+  str.append(std::string(fresh_basic_sort.name()).append("_"));
   mcrl2::core::identifier_string idstr = generate_fresh_constructor_and_mapping_name(str);
   mcrl2::data::sort_expression_list fsl;
   fs = data::function_symbol(idstr , mcrl2::data::make_function_sort(m_unfold_process_parameter , fresh_basic_sort));
@@ -186,7 +172,7 @@ mcrl2::data::function_symbol_vector lpsparunfold::create_projection_functions(fu
 {
   mcrl2::data::function_symbol_vector sfs;
   std::string str = "pi_";
-  str.append(string(fresh_basic_sort.name()).append("_"));
+  str.append(std::string(fresh_basic_sort.name()).append("_"));
 
   std::set<mcrl2::data::sort_expression> processed;
   for (const function_symbol& f: affected_constructors)
@@ -215,8 +201,8 @@ mcrl2::data::function_symbol_vector lpsparunfold::create_projection_functions(fu
 void lpsparunfold::add_new_equation(const data_expression& lhs, const data_expression& rhs)
 {
   mCRL2log(verbose) << "- Added equation " <<  data::pp(data_equation(lhs, rhs)) << std::endl;
-  set< variable > svars = find_all_variables(lhs);
-  set< variable > tmp_var = find_all_variables(rhs);
+  std::set< variable > svars = find_all_variables(lhs);
+  std::set< variable > tmp_var = find_all_variables(rhs);
   svars.insert(tmp_var.begin(), tmp_var.end());
   m_data_specification.add_equation(data_equation(variable_list(svars.begin(), svars.end()), lhs, rhs));
 }
@@ -492,8 +478,8 @@ mcrl2::lps::stochastic_linear_process lpsparunfold::update_linear_process(const 
         }
         if (!processed)
         {
-          mCRL2log(mcrl2::log::debug) << *j << " is not processed" << endl;
-          mCRL2log(mcrl2::log::debug) << *j << endl;
+          mCRL2log(mcrl2::log::debug) << *j << " is not processed" << std::endl;
+          mCRL2log(mcrl2::log::debug) << *j << std::endl;
           abort();
         }
       }
@@ -541,65 +527,38 @@ mcrl2::lps::stochastic_linear_process lpsparunfold::update_linear_process(const 
   return new_lps;
 }
 
-mcrl2::lps::stochastic_process_initializer lpsparunfold::update_linear_process_initialization(const data::function_symbol& determine_function, std::size_t parameter_at_index, const function_symbol_vector& projection_functions)
+mcrl2::lps::stochastic_process_initializer lpsparunfold::update_linear_process_initialization(
+                   const data::function_symbol& determine_function, 
+                   std::size_t parameter_at_index, 
+                   const function_symbol_vector& projection_functions)
 {
   //
   //update inital process
   //
   mCRL2log(verbose) << "Updating initialization...\n" << std::endl;
 
-  data::assignment_list ass = m_init_process.assignments();
-  //Create new left-hand assignment_list
-  mcrl2::data::variable_vector new_ass_left;
-  for (mcrl2::data::assignment_list::iterator k = ass.begin()
-       ; k != ass.end()
-       ; ++k)
-  {
-    if (proc_par_to_proc_par_inj.find(k-> lhs()) != proc_par_to_proc_par_inj.end())
-    {
-      for (mcrl2::data::variable_vector::iterator l =  proc_par_to_proc_par_inj[ k -> lhs() ].begin()
-           ; l != proc_par_to_proc_par_inj[ k -> lhs() ].end()
-           ; ++l)
-      {
-        new_ass_left.push_back(*l);
-      }
-    }
-    else
-    {
-      new_ass_left.push_back(k-> lhs());
-    }
-  }
-  //Create new right-hand assignment_list
+  const data::data_expression_list ass = m_init_process.expressions();
   //Unfold parameters
   mcrl2::data::data_expression_vector new_ass_right;
-  for (mcrl2::data::assignment_list::iterator k = ass.begin()
-       ; k != ass.end()
-       ; ++k)
+  size_t index=0;
+  for (const data::data_expression& k: ass)
   {
-    if (static_cast<std::size_t>(std::distance(ass.begin(), k)) == parameter_at_index)
+    if (index == parameter_at_index)
     {
-
-      mcrl2::data::data_expression_vector ins = unfold_constructor(k -> rhs(), determine_function, projection_functions);
+      mcrl2::data::data_expression_vector ins = unfold_constructor(k, determine_function, projection_functions);
       //Replace unfold parameters in affected assignments
       new_ass_right.insert(new_ass_right.end(), ins.begin(), ins.end());
     }
     else
     {
-      new_ass_right.push_back(k-> rhs());
+      new_ass_right.push_back(k);
     }
+    index++;
   }
 
-  assert(new_ass_left.size() == new_ass_right.size());
-  mcrl2::data::assignment_vector new_ass;
-  while (!new_ass_left.empty())
-  {
-    new_ass.push_back(mcrl2::data::assignment(new_ass_left.front(), new_ass_right.front()));
-    new_ass_left.erase(new_ass_left.begin());
-    new_ass_right.erase(new_ass_right.begin());
-  }
-
-  const mcrl2::lps::stochastic_process_initializer new_init(mcrl2::data::assignment_list(new_ass.begin(), new_ass.end()), m_init_process.distribution());
-  mCRL2log(debug) << lps::pp(new_init) << std::endl;
+  const mcrl2::lps::stochastic_process_initializer new_init(mcrl2::data::data_expression_list(new_ass_right.begin(), new_ass_right.end()), 
+                                                            m_init_process.distribution());
+  mCRL2log(debug) << "Expressions for the new initial state: " << lps::pp(new_init) << std::endl;
 
   return new_init;
 }
@@ -609,7 +568,7 @@ std::map<mcrl2::data::variable, mcrl2::data::data_expression> lpsparunfold::para
   std::map<mcrl2::data::variable, mcrl2::data::data_expression> result;
   data_expression_vector dev;
 
-  set<mcrl2::data::variable_vector::iterator> used_iters;
+  std::set<mcrl2::data::variable_vector::iterator> used_iters;
 
   mcrl2::data::variable prev;
   for (std::map<mcrl2::data::variable, mcrl2::data::variable_vector >::iterator i = proc_par_to_proc_par_inj.begin()
@@ -701,7 +660,7 @@ mcrl2::data::sort_expression lpsparunfold::sort_at_process_parameter_index(std::
   mCRL2log(verbose) << "Unfolding process parameter at index: " <<  parameter_at_index << "" << std::endl;
   if (lps_proc_pars.size() <= parameter_at_index)
   {
-    mCRL2log(mcrl2::log::error) << "Given index out of bounds. Index value needs to be in the range [0," << lps_proc_pars.size() <<")." << endl;
+    mCRL2log(mcrl2::log::error) << "Given index out of bounds. Index value needs to be in the range [0," << lps_proc_pars.size() <<")." << std::endl;
     abort();
   }
 
@@ -890,7 +849,7 @@ mcrl2::lps::stochastic_specification lpsparunfold::algorithm(std::size_t paramet
       e.cached_projection_functions = projection_functions;
       e.cached_fresh_basic_sort = fresh_basic_sort;
 
-      m_cache->insert( pair<mcrl2::data::sort_expression , lspparunfold::unfold_cache_element>( m_unfold_process_parameter , e ));
+      m_cache->insert( std::pair<mcrl2::data::sort_expression , lspparunfold::unfold_cache_element>( m_unfold_process_parameter , e ));
     }
   }
   else

@@ -17,8 +17,8 @@ from types import *
 def read_text(filename):
     try:
         f = open(filename, 'r')
-    except IOError, e:
-        print 'Unable to open file ' + filename + ' ', e
+    except IOError as e:
+        print('Unable to open file ' + filename + ' ', e)
         sys.exit(0)
 
     text = f.read()
@@ -45,7 +45,7 @@ class Rule:
     def __init__(self, lhs, rhs):
         self.lhs = lhs
         self.rhs = rhs
-        assert isinstance(rhs, ListType)
+        assert isinstance(rhs, list)
 
     def name(self):
         return self.lhs[1:-1]
@@ -60,7 +60,7 @@ class Rule:
     def __repr__(self):
         text = self.name() + '\n'
         for f in self.rhs:
-            text = text + '  %s\n' % f.name()
+            text = text + '  {}\n'.format(f.name())
         return text
 
     def terminals(self, non_terminal_list):
@@ -113,26 +113,26 @@ class Function:
         result = []
         for i in range(len(self.arguments)):
             arg = self.arguments[i]
-            result.append('%s_%d' % (arg.name(), i))
+            result.append('{}_{}'.format(arg.name(), i))
         return result
 
     def types(self):
-        return map(Argument.type, self.arguments)
+        return [Argument.type(arg) for arg in self.arguments]
 
     def default_call(self):
         params = self.parameters()
         t = []
         for i in range(len(params)):
-            t.append('%s' % (params[i]))
-        return string.join(t, ', ')
+            t.append(str(params[i]))
+        return ', '.join(t)
 
     def default_declaration(self):
         params = self.parameters()
         types  = self.types()
         t = []
         for i in range(len(params)):
-            t.append('const %s& %s' % (types[i], params[i]))
-        return string.join(t, ', ')
+            t.append('const {}& {}'.format(types[i], params[i]))
+        return ', '.join(t)
 
 #---------------------------------------------------------------#
 #                          Argument
@@ -163,7 +163,7 @@ class Argument:
         args = []
         for e in self.expressions:
             args.append(e.name())
-        return self.repetitions + ' ' + string.join(args, ' ')
+        return self.repetitions + ' ' + ' '.join(args)
 
 #---------------------------------------------------------------#
 #                          Mcrl2Actions

@@ -12,15 +12,7 @@
 #ifndef MCRL2_MODAL_FORMULA_STATE_FORMULA_H
 #define MCRL2_MODAL_FORMULA_STATE_FORMULA_H
 
-#include <iostream> // for debugging
-
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/print.h"
-#include "mcrl2/modal_formula/action_formula.h"
 #include "mcrl2/modal_formula/regular_formula.h"
-#include <cassert>
-#include <string>
 
 namespace mcrl2
 {
@@ -264,7 +256,7 @@ class not_: public state_formula
     }
 
     /// \brief Constructor.
-    not_(const state_formula& operand)
+    explicit not_(const state_formula& operand)
       : state_formula(atermpp::aterm_appl(core::detail::function_symbol_StateNot(), operand))
     {}
 
@@ -856,7 +848,7 @@ class yaled_timed: public state_formula
     }
 
     /// \brief Constructor.
-    yaled_timed(const data::data_expression& time_stamp)
+    explicit yaled_timed(const data::data_expression& time_stamp)
       : state_formula(atermpp::aterm_appl(core::detail::function_symbol_StateYaledTimed(), time_stamp))
     {}
 
@@ -972,7 +964,7 @@ class delay_timed: public state_formula
     }
 
     /// \brief Constructor.
-    delay_timed(const data::data_expression& time_stamp)
+    explicit delay_timed(const data::data_expression& time_stamp)
       : state_formula(atermpp::aterm_appl(core::detail::function_symbol_StateDelayTimed(), time_stamp))
     {}
 

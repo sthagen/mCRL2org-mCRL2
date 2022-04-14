@@ -7,24 +7,13 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include <unordered_map>
-#include <unordered_set>
-
 #include <QDomDocument>
 #include <QFile>
 #include <QTextStream>
 #include <QtOpenGL>
 
-#include "graph.h"
 #include "exploration.h"
-#include "utility.h"
-#include "mcrl2/lts/action_label_string.h"
-#include "mcrl2/lts/lts_aut.h"
-#include "mcrl2/lts/lts_fsm.h"
 #include "mcrl2/lts/lts_io.h"
-#include "mcrl2/lts/lts_lts.h"
-#include "mcrl2/lts/probabilistic_lts.h"
-#include "mcrl2/lts/state_label_empty.h"
 #include "mcrl2/gui/arcball.h"
 
 namespace Graph
@@ -609,12 +598,12 @@ const QVector3D& Graph::getClipMax() const
   return m_clip_max;
 }
 
-void Graph::lock()
+void Graph::lock() const
 {
   lockForRead(m_lock, GRAPH_LOCK_TRACE);
 }
 
-void Graph::unlock()
+void Graph::unlock() const
 {
   unlockForRead(m_lock, GRAPH_LOCK_TRACE);
 }

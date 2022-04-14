@@ -8,14 +8,14 @@
 //
 
 #include "mainwindow.h"
+#include "mcrl2/utilities/platform.h"
 
-#include <QDockWidget>
+#include <QtGlobal>
 #include <QMenu>
 #include <QMenuBar>
 #include <QToolBar>
 #include <QInputDialog>
 #include <QDesktopWidget>
-#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QStandardItemModel>
 
@@ -41,16 +41,16 @@ MainWindow::MainWindow(const QString& inputFilePath, QWidget* parent)
   findAndReplaceDialog = new FindAndReplaceDialog(specificationEditor, this);
   addPropertyDialog =
       new AddEditPropertyDialog(true, processSystem, fileSystem, this);
-  connect(addPropertyDialog, SIGNAL(accepted()), this,
-          SLOT(actionAddPropertyResult()));
 
-  /* change the UI whenever a new project has opened */
+  /* change the UI whenever a new project is opened */
   connect(fileSystem, SIGNAL(newProjectOpened()), this,
           SLOT(onNewProjectOpened()));
   /* change the UI whenever the IDE enters specification only mode */
   connect(fileSystem, SIGNAL(enterSpecificationOnlyMode()), this,
           SLOT(onEnterSpecificationOnlyMode()));
-
+  /* reset the propertiesdock when the specification changes */
+  connect(specificationEditor->document(), SIGNAL(modificationChanged(bool)),
+          propertiesDock, SLOT(resetAllPropertyWidgets()));
   /* make saving a project only enabled whenever there are changes */
   saveAction->setEnabled(false);
   connect(specificationEditor, SIGNAL(modificationChanged(bool)), saveAction,
@@ -64,10 +64,6 @@ MainWindow::MainWindow(const QString& inputFilePath, QWidget* parent)
             SIGNAL(statusChanged(bool, ProcessType)), this,
             SLOT(changeToolButtons(bool, ProcessType)));
   }
-
-  /* reset the propertiesdock when the specification changes */
-  connect(specificationEditor->document(), SIGNAL(modificationChanged(bool)),
-          propertiesDock, SLOT(resetAllPropertyWidgets()));
 
   /* set the title of the main window */
   setWindowTitle("mCRL2 IDE - Unnamed project");
@@ -136,6 +132,15 @@ void MainWindow::setupMenuBar()
       QKeySequence(Qt::ALT + Qt::Key_I));
   importPropertiesAction->setEnabled(false);
 
+// workaround for QTBUG-57687
+#if QT_VERSION > QT_VERSION_CHECK(5, 10, 0) ||                                 \
+    not defined MCRL2_PLATFORM_WINDOWS
+  fileMenu->addSeparator();
+
+  openGuiAction =
+      fileMenu->addAction("Open mcrl2-gui", this, SLOT(actionOpenMcrl2gui()));
+#endif
+
   fileMenu->addSeparator();
 
   exitAction = fileMenu->addAction("Exit", this, SLOT(close()),
@@ -174,17 +179,8 @@ void MainWindow::setupMenuBar()
       editMenu->addAction("Select All", specificationEditor, SLOT(selectAll()),
                           QKeySequence::SelectAll);
 
-  /* Create the View Menu (more actions are added in setupDocks())*/
+  /* Create the View Menu (actions are added in setupDocks())*/
   viewMenu = menuBar()->addMenu("View");
-
-  zoomInAction =
-      viewMenu->addAction("Zoom in", specificationEditor, SLOT(zoomIn()),
-                          QKeySequence(Qt::CTRL + Qt::Key_Equal));
-
-  zoomOutAction = viewMenu->addAction("Zoom out", specificationEditor,
-                                      SLOT(zoomOut()), QKeySequence::ZoomOut);
-
-  viewMenu->addSeparator();
 
   /* Create the Tools menu */
   QMenu* toolsMenu = menuBar()->addMenu("Tools");
@@ -372,17 +368,30 @@ void MainWindow::actionImportProperties()
   }
 }
 
+void MainWindow::actionOpenMcrl2gui()
+{
+// workaround for QTBUG-57687
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+  QProcess* p = new QProcess();
+  p->setProgram(fileSystem->toolPath("mcrl2-gui"));
+  if (!p->startDetached())
+  {
+    QMessageBox::warning(this, "mCRL2 IDE",
+                         "Failed to start mcrl2-gui: " + p->errorString());
+  }
+#elif not defined MCRL2_PLATFORM_WINDOWS
+  if (!QProcess::startDetached(fileSystem->toolPath("mcrl2-gui")))
+  {
+    executeInformationBox(
+        this, "mCRL2 IDE",
+        "Failed to start mcrl2-gui: could not find its executable");
+  }
+#endif
+}
+
 void MainWindow::actionFindAndReplace()
 {
-  if (findAndReplaceDialog->isVisible())
-  {
-    findAndReplaceDialog->setFocus();
-    findAndReplaceDialog->activateWindow();
-  }
-  else
-  {
-    findAndReplaceDialog->show();
-  }
+  findAndReplaceDialog->resetFocus();
 }
 
 bool MainWindow::assertProjectOpened()
@@ -502,27 +511,8 @@ void MainWindow::actionAddProperty()
 {
   if (assertProjectOpened())
   {
-    addPropertyDialog->clearFields();
-    addPropertyDialog->resetFocus();
-    if (addPropertyDialog->isVisible())
-    {
-      addPropertyDialog->activateWindow();
-      addPropertyDialog->setFocus();
-    }
-    else
-    {
-      addPropertyDialog->show();
-    }
+    addPropertyDialog->activateDialog();
   }
-}
-
-void MainWindow::actionAddPropertyResult()
-{
-  /* if successful (Add button was pressed), create the new property
-   *   we don't need to save to file as this is already done by the dialog */
-  Property property = addPropertyDialog->getProperty();
-  fileSystem->newProperty(property);
-  propertiesDock->addProperty(property);
 }
 
 void MainWindow::actionVerifyAllProperties()
@@ -544,9 +534,10 @@ bool MainWindow::askToSaveChanges(QString context)
 {
   if (fileSystem->isSpecificationModified() && fileSystem->projectOpened())
   {
-    QMessageBox::StandardButton result = executeQuestionBox(
-        this, context,
-        "There are changes in the current project, do you want to save?");
+    QMessageBox::StandardButton result =
+        executeQuestionBox(this, context,
+                           "There are unsaved changes in the current project, "
+                           "do you want to save?");
     switch (result)
     {
     case QMessageBox::Yes:
@@ -666,25 +657,25 @@ bool MainWindow::event(QEvent* event)
   switch (event->type())
   {
   case QEvent::WindowActivate:
-    /* if the specification has been modified outside of the IDE, ask to
-     *   update the editor */
+    /* if the project has been modified outside of the IDE, ask to reload the
+     *   project */
     if (!reloadIsBeingHandled &&
-        (fileSystem->projectOpened() ||
-         fileSystem->inSpecificationOnlyMode()) &&
-        fileSystem->isSpecificationNewlyModifiedFromOutside())
+        (fileSystem->projectOpened() || fileSystem->inSpecificationOnlyMode()))
     {
       reloadIsBeingHandled = true;
-      bool doReload = executeBinaryQuestionBox(
-          this, "mCRL2 IDE",
-          "The specification has been modified from outside "
-          "of the IDE, do you want to reload it?");
-      if (doReload)
+      if (fileSystem->isProjectNewlyModifiedFromOutside())
       {
-        fileSystem->loadSpecification();
-      }
-      else
-      {
-        specificationEditor->document()->setModified();
+        if (executeBinaryQuestionBox(
+                this, "mCRL2 IDE",
+                "The project has been modified from outside of the IDE, do you "
+                "want to reload it?"))
+        {
+          fileSystem->reloadProject();
+        }
+        else
+        {
+          fileSystem->setProjectModified();
+        }
       }
 
       reloadIsBeingHandled = false;

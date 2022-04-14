@@ -9,10 +9,7 @@
 
 #include "mcrl2/atermpp/detail/function_symbol_pool.h"
 
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/unused.h"
-
-#include <algorithm>
 
 using namespace atermpp;
 using namespace atermpp::detail;
@@ -38,7 +35,6 @@ function_symbol_pool::~function_symbol_pool()
 
 function_symbol function_symbol_pool::create(const std::string& name, const std::size_t arity, const bool check_for_registered_functions)
 {
-
   auto it = m_symbol_set.find(name, arity);
   if (it != m_symbol_set.end())
   {
@@ -51,7 +47,7 @@ function_symbol function_symbol_pool::create(const std::string& name, const std:
   {
     if (EnableFunctionSymbolMetrics) { m_function_symbol_metrics.miss(); }
 
-    _function_symbol& symbol = *m_symbol_set.emplace(name, arity).first;
+    const _function_symbol& symbol = *m_symbol_set.emplace(name, arity).first;
     if (check_for_registered_functions)
     {
       // Check whether there is a registered prefix p such that name equal pn where n is a number.
@@ -83,13 +79,12 @@ function_symbol function_symbol_pool::create(const std::string& name, const std:
   }
 }
 
-void function_symbol_pool::destroy(_function_symbol* f)
+void function_symbol_pool::destroy(const _function_symbol& f)
 {
-  assert(f != nullptr);
-  assert(f->reference_count() == 0);
+  assert(f.reference_count() == 0);
 
   // Remove it from the function symbol pool.
-  m_symbol_set.erase(*f);
+  m_symbol_set.erase(f);
 }
 
 void function_symbol_pool::deregister(const std::string& prefix)

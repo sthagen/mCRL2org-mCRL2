@@ -9,33 +9,18 @@
 /// \file mcrl2/pbes/pbesinst_lazy_algorithm.h
 /// \brief A lazy algorithm for instantiating a PBES, ported from bes_deprecated.h.
 
-#include <cassert>
-#include <set>
-#include <deque>
-#include <stack>
-#include <iostream>
-#include <sstream>
-#include <unordered_set>
-#include <unordered_map>
-#include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/substitution_utility.h"
 #include "mcrl2/pbes/detail/bes_equation_limit.h"
 #include "mcrl2/pbes/detail/instantiate_global_variables.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
 #include "mcrl2/pbes/pbessolve_options.h"
 #include "mcrl2/pbes/remove_equations.h"
-#include "mcrl2/pbes/replace.h"
 #include "mcrl2/pbes/replace_constants_by_variables.h"
 #include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
 #include "mcrl2/pbes/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/pbes/rewriters/simplify_quantifiers_rewriter.h"
-#include "mcrl2/pbes/rewriters/simplify_rewriter.h"
-#include "mcrl2/pbes/search_strategy.h"
 #include "mcrl2/pbes/transformation_strategy.h"
 #include "mcrl2/pbes/transformations.h"
-#include "mcrl2/utilities/detail/container_utility.h"
-#include "mcrl2/utilities/text_utility.h"
 
 #ifndef MCRL2_PBES_PBESINST_LAZY_H
 #define MCRL2_PBES_PBESINST_LAZY_H
@@ -210,13 +195,13 @@ class pbesinst_lazy_algorithm
     // \brief The number of iterations
     std::size_t m_iteration_count = 0;
 
-    /// \brief Prints a log message for every 1000-th equation
-    std::string print_equation_count(std::size_t size) const
+    // \brief Returns a status message about the progress
+    virtual std::string status_message(std::size_t equation_count)
     {
-      if (size > 0 && size % 1000 == 0)
+      if (equation_count > 0 && equation_count % 1000 == 0)
       {
         std::ostringstream out;
-        out << "Generated " << size << " BES equations" << std::endl;
+        out << "Generated " << equation_count << " BES equations" << std::endl;
         return out.str();
       }
       return "";
@@ -237,10 +222,10 @@ class pbesinst_lazy_algorithm
       return p;
     }
 
-    pbes_expression rewrite_true_false(const fixpoint_symbol& symbol,
+    static pbes_expression rewrite_true_false(const fixpoint_symbol& symbol,
                                        const propositional_variable_instantiation& X,
                                        const pbes_expression& psi
-                                      ) const
+                                      )
     {
       bool changed = false;
       pbes_expression value;
@@ -272,6 +257,20 @@ class pbesinst_lazy_algorithm
       }
     }
 
+    data::rewriter construct_rewriter(const pbes& pbesspec)
+    {
+      if (m_options.remove_unused_rewrite_rules)
+      {
+        return data::rewriter(pbesspec.data(),
+                              data::used_data_equation_selector(pbesspec.data(), pbes_system::find_function_symbols(pbesspec), pbesspec.global_variables()),
+                              m_options.rewrite_strategy);
+      }
+      else
+      {
+        return data::rewriter(pbesspec.data(), m_options.rewrite_strategy);
+      }
+    }
+
   public:
 
     /// \brief Constructor.
@@ -284,7 +283,7 @@ class pbesinst_lazy_algorithm
       const pbes& p
     )
      : m_options(options),
-       datar(p.data(), data::used_data_equation_selector(p.data(), pbes_system::find_function_symbols(p), p.global_variables()), options.rewrite_strategy),
+       datar(construct_rewriter(p)),
        m_pbes(preprocess(p)),
        m_equation_index(p),
        R(datar, p.data())
@@ -358,7 +357,7 @@ class pbesinst_lazy_algorithm
       while (!todo.elements().empty())
       {
         ++m_iteration_count;
-        mCRL2log(log::status) << print_equation_count(m_iteration_count);
+        mCRL2log(log::status) << status_message(m_iteration_count);
         detail::check_bes_equation_limit(m_iteration_count);
 
         propositional_variable_instantiation X_e = next_todo();
@@ -367,6 +366,7 @@ class pbesinst_lazy_algorithm
         const auto& phi = eqn.formula();
         data::add_assignments(sigma, eqn.variable().parameters(), X_e.parameters());
         pbes_expression psi_e = R(phi, sigma);
+        R.clear_identifier_generator();
         data::remove_assignments(sigma, eqn.variable().parameters());
 
         // optional step

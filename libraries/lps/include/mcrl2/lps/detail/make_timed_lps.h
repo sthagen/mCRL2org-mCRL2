@@ -12,10 +12,7 @@
 #ifndef MCRL2_LPS_DETAIL_MAKE_TIMED_LPS_H
 #define MCRL2_LPS_DETAIL_MAKE_TIMED_LPS_H
 
-#include "mcrl2/data/real.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/lps/linear_process.h"
-#include <string>
 
 namespace mcrl2 {
 
@@ -55,7 +52,7 @@ struct make_timed_lps_summand
     if (!s.multi_action().has_time())
     {
       data::variable t(m_generator("T"), data::sort_real::real_());
-      s.multi_action().time() = t;
+      s.multi_action() = multi_action(s.multi_action().actions(), t);
       data::variable_vector v = data::variable_vector(s.summation_variables().begin(),s.summation_variables().end());
       v.push_back(t);
       s.summation_variables() = data::variable_list(v.begin(),v.end());

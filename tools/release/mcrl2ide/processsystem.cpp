@@ -131,27 +131,13 @@ void ProcessSystem::testExecutableExistence()
 
     if (started)
     {
-      /* if found, get the tool version from the output
-       * the version is the fourth plus the fifth word in the output */
+      /* if found, check if the tool gives expected output */
       process.waitForFinished();
       QString output = process.readAllStandardOutput();
       QStringList splittedOutput = output.split(QRegExp("[ \r\n]"));
-      /* check if the output has the correct output */
-      if (splittedOutput.length() >= 4 && splittedOutput[1] == "mCRL2" &&
-          splittedOutput[2] == "toolset" && splittedOutput[3].startsWith("2"))
-      {
-        QString version = splittedOutput[3] + " " + splittedOutput[4];
-        if (version != mcrl2ideVersion)
-        {
-          consoleDock->broadcast(
-              "WARNING: Tool " + tool +
-              " does not have the same version as mCRL2 IDE: "
-              "mCRL2 IDE has version " +
-              mcrl2ideVersion + " whereas " + tool + " has version " + version +
-              ".\n");
-        }
-      }
-      else
+
+      if (!(splittedOutput.length() > 2 && splittedOutput[1] == "mCRL2" &&
+            splittedOutput[2] == "toolset"))
       {
         consoleDock->broadcast(
             "WARNING: The executable of tool " + tool +
@@ -247,11 +233,12 @@ QProcess* ProcessSystem::createSubprocess(
 
   /* connect the subprocess to the subprocess handler to execute the next one
    *   when finished */
-  connect(subprocess, SIGNAL(finished(int)), this,
+  connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
           SLOT(executeNextSubprocess(int)));
 
   /* the subprocess should delete itself when finished */
-  connect(subprocess, SIGNAL(finished(int)), subprocess, SLOT(deleteLater()));
+  connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), subprocess,
+          SLOT(deleteLater()));
 
   /* add properties we might need */
   subprocess->setProperty("processid", processid);
@@ -273,9 +260,10 @@ QProcess* ProcessSystem::createSubprocess(
   {
   case SubprocessType::ParseMcrl2:
     arguments << "--check-only";
-    connect(subprocess, SIGNAL(finished(int)), this,
+    connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
             SLOT(mcrl2ParsingResult(int)));
 
+    [[fallthrough]];
   case SubprocessType::Mcrl22lps:
     program = "mcrl22lps";
     inputFile = fileSystem->specificationFilePath(specType, property.name);
@@ -322,7 +310,7 @@ QProcess* ProcessSystem::createSubprocess(
                          mcrl2::lts::print_equivalence(equivalence))
               << inputFile << inputFile2;
 
-    connect(subprocess, SIGNAL(finished(int)), this,
+    connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
             SLOT(verificationResult(int)));
     break;
 
@@ -335,14 +323,14 @@ QProcess* ProcessSystem::createSubprocess(
 
   case SubprocessType::ParseMcf:
     arguments << "--check-only";
-    connect(subprocess, SIGNAL(finished(int)), this,
+    connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
             SLOT(mcfParsingResult(int)));
 
+    [[fallthrough]];
   case SubprocessType::Lps2pbes:
     program = "lps2pbes";
     inputFile = fileSystem->lpsFilePath();
-    inputFile2 = fileSystem->propertyFilePath(
-        property, processType == ProcessType::Parsing);
+    inputFile2 = fileSystem->propertyFilePath(property);
     outputFile = fileSystem->pbesFilePath(property.name, evidence);
     arguments << inputFile << outputFile << "--formula=" + inputFile2
               << "--out=pbes"
@@ -358,8 +346,8 @@ QProcess* ProcessSystem::createSubprocess(
     inputFile = fileSystem->pbesFilePath(property.name, evidence);
     arguments << inputFile << "--in=pbes"
               << "--rewriter=jitty"
-              << "--search=breadth-first"
-              << "--strategy=0"
+              << "--search-strategy=breadth-first"
+              << "--solve-strategy=0"
               << "--verbose";
     if (evidence)
     {
@@ -369,7 +357,7 @@ QProcess* ProcessSystem::createSubprocess(
     }
     else
     {
-      connect(subprocess, SIGNAL(finished(int)), this,
+      connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
               SLOT(verificationResult(int)));
     }
     break;
@@ -484,10 +472,8 @@ int ProcessSystem::parseProperty(const Property& property)
     }
     else
     {
-      fileSystem->createReinitialisedSpecification(property, true,
-                                                   SpecType::First);
-      fileSystem->createReinitialisedSpecification(property, true,
-                                                   SpecType::Second);
+      fileSystem->createReinitialisedSpecification(property, SpecType::First);
+      fileSystem->createReinitialisedSpecification(property, SpecType::Second);
       processes[processid] = {
           createSubprocess(SubprocessType::ParseMcrl2, processid, 0, property,
                            SpecType::First),
@@ -524,10 +510,8 @@ int ProcessSystem::verifyProperty(const Property& property)
     }
     else
     {
-      fileSystem->createReinitialisedSpecification(property, false,
-                                                   SpecType::First);
-      fileSystem->createReinitialisedSpecification(property, false,
-                                                   SpecType::Second);
+      fileSystem->createReinitialisedSpecification(property, SpecType::First);
+      fileSystem->createReinitialisedSpecification(property, SpecType::Second);
       processes[processid] = {
           createSubprocess(SubprocessType::ParseMcrl2, processid, 0, property,
                            SpecType::First),
@@ -774,7 +758,7 @@ void ProcessSystem::executeNextSubprocess(int previousExitCode, int processid)
      *   it */
     if (noNeedToRun)
     {
-      emit subprocess->finished(0);
+      emit subprocess->finished(0, QProcess::ExitStatus::NormalExit);
     }
     else
     {

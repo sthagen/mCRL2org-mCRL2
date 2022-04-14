@@ -9,7 +9,6 @@
 
 #include "addeditpropertydialog.h"
 #include "ui_addeditpropertydialog.h"
-#include "utilities.h"
 
 #include <QStandardItemModel>
 
@@ -24,10 +23,11 @@ AddEditPropertyDialog::AddEditPropertyDialog(bool add,
 {
   ui->setupUi(this);
 
-  propertyNameValidator = new QRegExpValidator(QRegExp("[A-Za-z0-9_\\s]*"));
+  propertyNameValidator =
+      new QRegularExpressionValidator(QRegularExpression("[A-Za-z0-9_\\s]*"));
   ui->propertyNameField->setValidator(propertyNameValidator);
 
-  /* change the ui depending on whether this should be an add or edit property
+  /* change the UI depending on whether this should be an add or edit property
    *   window */
   if (add)
   {
@@ -39,18 +39,30 @@ AddEditPropertyDialog::AddEditPropertyDialog(bool add,
   }
 
   setWindowTitle(windowTitle);
-  setWindowFlags(Qt::Window);
+  setWindowFlags(Qt::Dialog);
 
   ui->formulaTextField->setPurpose(false);
   ui->initTextField1->setPurpose(true);
   ui->initTextField2->setPurpose(true);
 
-  connect(ui->parseButton, SIGNAL(clicked()), this, SLOT(parseProperty()));
-  connect(ui->saveButton, SIGNAL(clicked()), this, SLOT(addEditProperty()));
-  connect(ui->cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
+  /* connections for buttons */
+  connect(ui->saveAndParseButton, SIGNAL(clicked()), this,
+          SLOT(actionSaveAndParse()));
+  connect(ui->saveAndCloseButton, SIGNAL(clicked()), this,
+          SLOT(actionSaveAndClose()));
+  connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(reject()));
   connect(processSystem, SIGNAL(processFinished(int)), this,
           SLOT(parseResults(int)));
-  connect(this, SIGNAL(rejected()), this, SLOT(onRejected()));
+
+  /* connections for modification state */
+  connect(ui->formulaTextField, SIGNAL(modificationChanged(bool)),
+          ui->tabWidget->widget(0), SLOT(setWindowModified(bool)));
+  connect(ui->initTextField1, SIGNAL(textChanged()), this,
+          SLOT(setEquivalenceTabToModified()));
+  connect(ui->equivalenceComboBox, SIGNAL(currentIndexChanged(int)), this,
+          SLOT(setEquivalenceTabToModified()));
+  connect(ui->initTextField2, SIGNAL(textChanged()), this,
+          SLOT(setEquivalenceTabToModified()));
 }
 
 AddEditPropertyDialog::~AddEditPropertyDialog()
@@ -59,35 +71,43 @@ AddEditPropertyDialog::~AddEditPropertyDialog()
   propertyNameValidator->deleteLater();
 }
 
-void AddEditPropertyDialog::resetFocus()
+void AddEditPropertyDialog::activateDialog(const Property& property)
 {
-  ui->saveButton->setFocus();
-  ui->propertyNameField->setFocus();
-}
-
-void AddEditPropertyDialog::clearFields()
-{
-  ui->propertyNameField->clear();
-  ui->formulaTextField->clear();
-  ui->initTextField1->clear();
-  ui->initTextField2->clear();
-  ui->equivalenceComboBox->setCurrentIndex(0);
-}
-
-void AddEditPropertyDialog::setProperty(const Property& property)
-{
-  ui->propertyNameField->setText(property.name);
-  if (property.mucalculus)
+  /* fill in a property if applicable */
+  if (!property.name.isEmpty())
   {
-    ui->formulaTextField->setPlainText(property.text);
-    ui->tabWidget->setCurrentIndex(0);
+    ui->propertyNameField->setText(property.name);
+    if (property.mucalculus)
+    {
+      ui->formulaTextField->setPlainText(property.text);
+      ui->tabWidget->setCurrentIndex(0);
+    }
+    else
+    {
+      ui->initTextField1->setPlainText(property.text);
+      ui->equivalenceComboBox->setSelectedEquivalence(property.equivalence);
+      ui->initTextField2->setPlainText(property.text2);
+      ui->tabWidget->setCurrentIndex(1);
+    }
+
+    oldProperty = property;
+  }
+
+  /* reset focus and modification state */
+  ui->saveAndParseButton->setFocus();
+  ui->propertyNameField->setFocus();
+  resetModificationState();
+
+  /* make the dialog active and visible */
+  if (isVisible())
+  {
+    activateWindow();
+    setFocus();
+    raise(); // for MacOS
   }
   else
   {
-    ui->equivalenceComboBox->setSelectedEquivalence(property.equivalence);
-    ui->initTextField1->setPlainText(property.text);
-    ui->initTextField2->setPlainText(property.text2);
-    ui->tabWidget->setCurrentIndex(1);
+    show();
   }
 }
 
@@ -105,11 +125,6 @@ Property AddEditPropertyDialog::getProperty()
                     ui->equivalenceComboBox->getSelectedEquivalence(),
                     ui->initTextField2->toPlainText());
   }
-}
-
-void AddEditPropertyDialog::setOldProperty(const Property& oldProperty)
-{
-  this->oldProperty = oldProperty;
 }
 
 bool AddEditPropertyDialog::checkInput()
@@ -144,37 +159,64 @@ bool AddEditPropertyDialog::checkInput()
   return false;
 }
 
+bool AddEditPropertyDialog::saveProperty()
+{
+  bool ok = checkInput();
+
+  if (ok)
+  {
+    Property property = getProperty();
+    if (oldProperty.name.isEmpty())
+    {
+      fileSystem->newProperty(property);
+    }
+    else
+    {
+      fileSystem->editProperty(oldProperty, property);
+    }
+    oldProperty = property;
+
+    resetModificationState();
+  }
+
+  return ok;
+}
+
+void AddEditPropertyDialog::resetStateAfterParsing()
+{
+  propertyParsingProcessid = -1;
+  ui->saveAndParseButton->setText(" Save and Parse ");
+}
+
 void AddEditPropertyDialog::abortPropertyParsing()
 {
   if (propertyParsingProcessid >= 0)
   {
-    /* we first change propertyParsingProcessid so that parsingResult doesn't
+    /* we reset the state before aborting parsing so that parsingResult doesn't
      *   get triggered */
     int parsingid = propertyParsingProcessid;
-    propertyParsingProcessid = -1;
+    resetStateAfterParsing();
     processSystem->abortProcess(parsingid);
   }
 }
 
-void AddEditPropertyDialog::parseProperty()
+void AddEditPropertyDialog::actionSaveAndParse()
 {
   /* if a parsing process is running, abort it */
   if (propertyParsingProcessid >= 0)
   {
     abortPropertyParsing();
-    ui->parseButton->setText("Parse");
   }
   /* else parse the current property */
   else
   {
-    if (checkInput())
+    if (saveProperty())
     {
       /* save the property, start a parsing process and wait for a reply */
       Property property = getProperty();
-      fileSystem->saveProperty(property, true);
       lastParsingPropertyIsMucalculus = property.mucalculus;
       propertyParsingProcessid = processSystem->parseProperty(property);
-      ui->parseButton->setText("Abort Parsing");
+      ui->saveAndParseButton->setText(" Abort Parsing ");
     }
   }
 }
@@ -185,7 +227,7 @@ void AddEditPropertyDialog::parseResults(int processid)
    *   dialog */
   if (processid == propertyParsingProcessid)
   {
-    /* if valid accept, else show message */
+    /* get the result and notify the user */
     QString message = "";
     QString result = processSystem->getResult(processid);
     QString inputType = lastParsingPropertyIsMucalculus ? "mu-calculus formula"
@@ -194,7 +236,8 @@ void AddEditPropertyDialog::parseResults(int processid)
     if (result == "valid")
     {
       message = "The entered " + inputType +
-                (lastParsingPropertyIsMucalculus ? " is" : " are") + " valid.";
+                (lastParsingPropertyIsMucalculus ? " is" : " are") +
+                " well-formed.";
     }
     else if (result.startsWith("invalid"))
     {
@@ -204,8 +247,9 @@ void AddEditPropertyDialog::parseResults(int processid)
                          ? "first process expression"
                          : "second process expression");
       }
-      message = "The entered " + inputType +
-                " is not valid. See the parsing console for more information";
+      message =
+          "The entered " + inputType +
+          " is not well-formed. See the parsing console for more information";
     }
     else
     {
@@ -214,28 +258,63 @@ void AddEditPropertyDialog::parseResults(int processid)
     }
 
     executeInformationBox(this, windowTitle, message);
-    ui->parseButton->setText("Parse");
-    propertyParsingProcessid = -1;
+    resetStateAfterParsing();
   }
 }
 
-void AddEditPropertyDialog::addEditProperty()
+void AddEditPropertyDialog::actionSaveAndClose()
 {
-  /* if the input is correct, remove the original property file if possible and
-   *   save the current one */
-  if (checkInput())
+  if (saveProperty())
   {
-    if (!oldProperty.name.isEmpty())
-    {
-      fileSystem->deletePropertyFile(oldProperty);
-    }
-    fileSystem->saveProperty(getProperty());
     accept();
   }
 }
 
-void AddEditPropertyDialog::onRejected()
+void AddEditPropertyDialog::setEquivalenceTabToModified()
 {
-  /* abort the parsing process */
+  ui->equivalenceTab->setWindowModified(true);
+}
+
+void AddEditPropertyDialog::resetModificationState()
+{
+  ui->propertyNameField->setModified(false);
+  ui->mucalculusTab->setWindowModified(false);
+  ui->equivalenceTab->setWindowModified(false);
+}
+
+void AddEditPropertyDialog::done(int r)
+{
+  /* check for modifications */
+  if (ui->propertyNameField->isModified() ||
+      ui->tabWidget->currentWidget()->isWindowModified())
+  {
+    QMessageBox::StandardButton result =
+        executeQuestionBox(this, windowTitle,
+                           "There are unsaved changes in the current property, "
+                           "do you want to save?");
+    switch (result)
+    {
+    case QMessageBox::Yes:
+      if (saveProperty())
+      {
+        break;
+      }
+      return;
+    case QMessageBox::No:
+      break;
+    default:
+      return;
+    }
+  }
+
+  /* reset the state */
   abortPropertyParsing();
+  oldProperty = Property();
+  ui->propertyNameField->clear();
+  ui->formulaTextField->clear();
+  ui->initTextField1->clear();
+  ui->initTextField2->clear();
+  ui->equivalenceComboBox->setCurrentIndex(0);
+
+  QDialog::done(r);
 }

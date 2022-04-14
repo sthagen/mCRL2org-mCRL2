@@ -7,8 +7,6 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "mcrl2/utilities/logger.h"
-#include "ltsmanager.h"
-#include "simulation.h"
 #include "state.h"
 #include "transition.h"
 #include <QEventLoop>
@@ -153,6 +151,7 @@ bool LtsManager::openLts(QString filename)
   connect(m_simulation.get(), SIGNAL(changed()), this, SLOT(updateSimulationHistory()));
   connect(m_simulation.get(), SIGNAL(changed()), this, SLOT(unselectNonsimilated()));
   connect(m_simulation.get(), SIGNAL(changed()), this, SIGNAL(simulationChanged()));
+  connect(m_simulation.get(), SIGNAL(selectionChanged()), this, SIGNAL(selectionChanged()));
 
   emit ltsChanged(lts);
   emit clustersChanged();

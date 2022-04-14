@@ -15,9 +15,6 @@
 #ifndef MCRL2_SKIP_LONG_TESTS
 
 #include "mcrl2/utilities/test_utilities.h"
-#include "mcrl2/pbes/detail/pbes_greybox_interface.h"
-#include "mcrl2/pbes/detail/ppg_rewriter.h"
-#include "mcrl2/pbes/io.h"
 #include "mcrl2/pbes/normalize.h"
 #include "mcrl2/pbes/pbes_explorer.h"
 #include "mcrl2/pbes/txt2pbes.h"
@@ -345,6 +342,7 @@ BOOST_AUTO_TEST_CASE(skip_test)
 
 boost::unit_test::test_suite* init_unit_test_suite(int argc, char* argv[])
 {
+  (void) argc;  (void) argv;  //< avoid warning about unused parameters
   mcrl2::log::mcrl2_logger::set_reporting_level(mcrl2::log::debug);
   return nullptr;
 }

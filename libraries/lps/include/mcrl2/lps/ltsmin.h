@@ -14,31 +14,11 @@
 
 #define MCRL2_GUARDS 1
 
-#include "mcrl2/utilities/indexed_set.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/detail/io.h"
-#include "mcrl2/data/enumerator_with_iterator.h"
-#include "mcrl2/data/find.h"
 #include "mcrl2/data/join.h"
-#include "mcrl2/data/parse.h"
-#include "mcrl2/data/print.h"
-#include "mcrl2/data/rewrite_strategy.h"
-#include "mcrl2/data/selection.h"
-#include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
 #include "mcrl2/lps/find.h"
 #include "mcrl2/lps/io.h"
 #include "mcrl2/lps/next_state_generator.h"
 #include "mcrl2/lps/parse.h"
-#include "mcrl2/utilities/logger.h"
-#include <algorithm>
-#include <boost/iterator/iterator_facade.hpp>
-#include <cassert>
-#include <functional>
-#include <set>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
 // For backwards compatibility
 //using namespace mcrl2::log;
@@ -247,7 +227,7 @@ class state_data_type: public pins_data_type
     std::string serialize(int i) const override
     {
       data::data_expression e = index2expression(i);
-      atermpp::aterm t = data::detail::remove_index(static_cast<atermpp::aterm>(e));
+      atermpp::aterm t = data::detail::remove_index(static_cast<atermpp::aterm&>(e));
       return pp(t);
     }
 
@@ -309,7 +289,7 @@ class action_label_data_type: public pins_data_type
     std::size_t parse(const std::string& s) override
     {
       lps::multi_action m = lps::parse_multi_action(s, m_action_labels, m_data);
-      return m_indexed_set.insert(detail::multi_action_to_aterm(m)).first;
+      return m_indexed_set.insert(m).first;
     }
 
     const std::string& name() const override
@@ -884,7 +864,7 @@ class pins
         {
           dest[j] = state_type_map(j)[destination[j]];
         }
-        labels[0] = action_label_type_map()[detail::multi_action_to_aterm(i->action())];
+        labels[0] = action_label_type_map()[i->action()];
         f(dest, labels);
       }
     }
@@ -944,7 +924,7 @@ class pins
         {
           dest[j] = state_type_map(j)[destination[j]];
         }
-        labels[0] = action_label_type_map()[detail::multi_action_to_aterm(i->action())];
+        labels[0] = action_label_type_map()[i->action()];
         f(dest, labels);
       }
     }

@@ -7,8 +7,6 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "mcrl2/atermpp/detail/function_symbol_pool.h"
-
 #include "mcrl2/atermpp/detail/global_aterm_pool.h"
 
 using namespace atermpp;
@@ -28,6 +26,7 @@ global_function_symbol::global_function_symbol(const std::string& name, const st
 
 void function_symbol::destroy()
 {
-  g_term_pool().get_symbol_pool().destroy(m_function_symbol.get());
+  assert(m_function_symbol.get() != nullptr);
+  g_term_pool().get_symbol_pool().destroy(*m_function_symbol.get());
 }
 

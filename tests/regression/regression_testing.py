@@ -7,8 +7,9 @@
 import os
 import re
 import sys
+import traceback
 sys.path += [os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'python'))]
-from testcommand import YmlTest
+from testing import YmlTest
 
 MCRL2_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 MCRL2_INSTALL_DIR = os.path.join(MCRL2_ROOT, 'install', 'bin')
@@ -27,32 +28,32 @@ class LpsconfcheckTest(YmlTest):
     def __init__(self, name, inputfiles, confluence_type, expected_result, settings):
         assert confluence_type in 'cdCTZ'
         super(LpsconfcheckTest, self).__init__(name, ymlfile('lpsconfcheck'), inputfiles, settings)
-        self.set_command_line_options('t2', ['-x' + confluence_type])
+        self.add_command_line_options('t2', ['-x' + confluence_type])
         self.settings.update({'result': "result = t5.value['result'] and t2.value['confluent-tau-summand-count'] == {}  and t2.value['tau-summand-count'] == {}".format(expected_result[0], expected_result[1])})
 
 class LpsconfcheckCtauTest(YmlTest):
     def __init__(self, name, inputfiles, confluence_type, expected_result, settings):
         assert confluence_type in 'cdCTZ'
         super(LpsconfcheckCtauTest, self).__init__(name, ymlfile('lpsconfcheck_ctau'), inputfiles, settings)
-        self.set_command_line_options('t3', ['-x' + confluence_type])
+        self.add_command_line_options('t3', ['-x' + confluence_type])
         self.settings.update({'result': "result = t6.value['result'] and t3.value['confluent-tau-summand-count'] == {}  and t3.value['tau-summand-count'] == {}".format(expected_result[0], expected_result[1])})
 
 class PbesrewrTest(YmlTest):
     def __init__(self, name, inputfiles, rewriter, settings):
         super(PbesrewrTest, self).__init__(name, ymlfile('pbesrewr'), inputfiles, settings)
-        self.set_command_line_options('t2', ['-p' + rewriter])
+        self.add_command_line_options('t2', ['-p' + rewriter])
 
 class CountStatesTest(YmlTest):
     # expected_result is the expected number of states
     def __init__(self, name, inputfiles, expected_result, lps2lts_options, settings):
         super(CountStatesTest, self).__init__(name, ymlfile('countstates'), inputfiles, settings)
         if lps2lts_options:
-            self.set_command_line_options('t2', lps2lts_options)
+            self.add_command_line_options('t2', lps2lts_options)
 
 class PbesstategraphTest(YmlTest):
     def __init__(self, name, inputfiles, command_line_options, settings):
         super(PbesstategraphTest, self).__init__(name, ymlfile('pbesstategraph'), inputfiles, settings)
-        self.set_command_line_options('t2', command_line_options)
+        self.add_command_line_options('t2', command_line_options)
 
 regression_tests = {
     'ticket-283'    : lambda name, settings: YmlTest(name, ymlfile('mcrl22lps'),         [abspath('tickets/283/1.mcrl2')], settings),
@@ -104,22 +105,12 @@ slow_regression_tests = {
     'lpsconfcheck3' : lambda name, settings: LpsconfcheckCtauTest(name, [mcrl2file('examples/industrial/chatbox/chatbox.mcrl2')], 'Z', (40, 72), update_settings(settings, { 'timeout': 300, 'memlimit': 500000000 })),
     }
 
-# Runs the tests that are present in the map 'tests', with the given settings.
-# Using the pattern argument, tests can be selected by name.
-def run_tests(tests, settings, pattern = '.'):
-    testdir = 'output'
-    if not os.path.exists(testdir):
-        os.mkdir(testdir)
-    os.chdir(testdir)
-
-    for name in sorted(tests):
-        if re.search(pattern, name):
-            try:
-                test = tests[name](name, settings)
-                test.execute_in_sandbox()
-            except Exception as e:
-                print('Test {} failed!'.format(test.name))
-                print(e)
+# Return all tests that match with pattern. In case of an exact match, only this exact match is returned.
+def matching_tests(tests, pattern):
+    matches = [name for name in sorted(tests) if re.search(pattern, name)]
+    if pattern in matches:
+        return [pattern]
+    return matches
 
 def test1():
     settings = {'toolpath': MCRL2_INSTALL_DIR, 'verbose': True, 'cleanup_files': True}
@@ -131,16 +122,7 @@ def test1():
     LpsconfcheckCtauTest('lpsconfcheck_2', [mcrl2file('examples/academic/cabp/cabp.mcrl2')], 'T', (0, 18), settings = settings).execute_in_sandbox()
     CountStatesTest('countstates_abp',     [mcrl2file('examples/academic/abp/abp.mcrl2')], 74, [], settings = settings).execute_in_sandbox()
 
-def test2():
-    settings = {'toolpath': MCRL2_INSTALL_DIR, 'verbose': True, 'cleanup_files': True}
-    testdir = 'output'
-    if not os.path.exists(testdir):
-        os.mkdir(testdir)
-    os.chdir(testdir)
-    run_tests(slow_regression_tests, settings)
-
 def print_names(tests):
-    print('--- available tests ---')
     for name in sorted(tests):
         print(name)
 
@@ -153,6 +135,7 @@ def main(tests):
     cmdline_parser.add_argument('-k', '--keep-files', dest='keep_files', action='store_true', help='Keep the files produced by the test')
     cmdline_parser.add_argument('-n', '--names', dest='names', action='store_true', help='Print the names of the available tests')
     cmdline_parser.add_argument('-p', '--pattern', dest='pattern', metavar='P', default='.', action='store', help='Run the tests that match with pattern P')
+    cmdline_parser.add_argument('-o', '--output', dest='output', metavar='o', action='store', help='Run the tests in the given directory')
     args = cmdline_parser.parse_args()
     if args.names:
         print_names(tests)
@@ -161,7 +144,24 @@ def main(tests):
     if not toolpath:
         toolpath = MCRL2_INSTALL_DIR
     settings = {'toolpath': toolpath, 'verbose': args.verbose, 'cleanup_files': not args.keep_files, 'allow-non-zero-return-values': True}
-    run_tests(tests, settings, args.pattern)
+
+    if args.output:
+        if not os.path.exists(args.output):
+            os.mkdir(args.output)
+        os.chdir(args.output)
+
+    test_failed = False
+    for name in matching_tests(tests, args.pattern):
+        try:
+            test = tests[name](name, settings)
+            test.execute_in_sandbox()
+        except Exception as e:
+            print('An exception occurred:', e.__class__, e)
+            traceback.print_exc()
+            test_failed = True
+
+    if (test_failed):
+        sys.exit(-1)
 
 if __name__ == '__main__':
     tests = regression_tests

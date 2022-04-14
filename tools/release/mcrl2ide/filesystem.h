@@ -12,7 +12,6 @@
 
 #include "mcrl2/gui/codeeditor.h"
 #include "utilities.h"
-#include "mcrl2/lts/lts_equivalence.h"
 
 #include <QObject>
 #include <QDir>
@@ -26,7 +25,7 @@
 /**
  * @brief SpecType Defines the possible types of specification files: the main
  *   specification file and the specifications that correspond to the first
- *   respectively second initial process of an equivalance property
+ *   respectively second initial process of an equivalence property
  */
 enum SpecType
 {
@@ -206,10 +205,9 @@ class FileSystem : public QObject
   /**
    * @brief propertyFilePath Defines the file path of a property
    * @param property The property
-   * @param forParsing Whether we want to use the file to parse the property
    * @return The file path of the property
    */
-  QString propertyFilePath(const Property& property, bool forParsing = false);
+  QString propertyFilePath(const Property& property);
 
   /**
    * @brief pbesFilePath Defines the file path of a pbes
@@ -283,6 +281,45 @@ class FileSystem : public QObject
   bool isSpecificationNewlyModifiedFromOutside();
 
   /**
+   * @brief isPropertyModified Checks whether the given property has been
+   *   modified since it has been saved
+   * @param property The property to check the modification for
+   * @return Whether the given property has been modified since it has been
+   *   saved
+   */
+  bool isPropertyModified(const Property& property);
+
+  /**
+   * @brief isPropertyNewlyModifiedFromOutside Checks whether the property file
+   *   of the given property file has been modified from outside the IDE since
+   *   it was saved using the IDE or since it was last modified from outside
+   * @param property The property to check the modification for
+   * @return Whether the project file has been modified from outside
+   */
+  bool isPropertyNewlyModifiedFromOutside(const Property& property);
+
+  /**
+   * @brief setProjectModified Sets the project to modified
+   */
+  void setProjectModified();
+
+  /**
+   * @brief isProjectFileNewlyModifiedFromOutside Checks whether the project
+   *   file has been modified from outside the IDE since it was saved using the
+   *   IDE or since it was last modified from outside
+   * @return Whether the project file has been modified from outside
+   */
+  bool isProjectFileNewlyModifiedFromOutside();
+
+  /**
+   * @brief isProjectNewlyModifiedFromOutside Checks whether the project has
+   *   been modified from outside the IDE since it was saved using the IDE or
+   *   since it was last modified from outside
+   * @return Whether the project has been modified from outside
+   */
+  bool isProjectNewlyModifiedFromOutside();
+
+  /**
    * @brief propertyNameExists Checks whether the given property name already
    *   exists
    * @param propertyName The property name to check for
@@ -345,6 +382,11 @@ class FileSystem : public QObject
   void openProject();
 
   /**
+   * @brief reloadProject Reloads the current project
+   */
+  void reloadProject();
+
+  /**
    * @brief newProperty Adds a new property
    * @param property The new property to add
    */
@@ -393,9 +435,8 @@ class FileSystem : public QObject
   /**
    * @brief saveProperty Saves a property to file
    * @param property The property to save
-   * @param forParsing Whether the saved property file will be used for parsing
    */
-  void saveProperty(const Property& property, bool forParsing = false);
+  void saveProperty(const Property& property);
 
   /**
    * @brief createReinitialisedSpecification Creates a new mCRL2 specification
@@ -403,11 +444,10 @@ class FileSystem : public QObject
    *   by a given one; assumes a specification is open
    * @param property The equivalence property for which the new specification
    *   needs to be created
-   * @param forParsing Whether we want to use the file to parse the property
    * @param specType The specificationType
    */
   void createReinitialisedSpecification(const Property& property,
-                                        bool forParsing, SpecType specType);
+                                        SpecType specType);
 
   /**
    * @brief openProjectFolderInExplorer Allows the user to open the project
@@ -422,13 +462,6 @@ class FileSystem : public QObject
 
   public slots:
   /**
-   * @brief setSpecificationModified Sets the specification to modified or
-   *   unmodified
-   * @param modified Whether the specification was modified
-   */
-  void setSpecificationModified(bool modified);
-
-  /**
    * @brief setSaveIntermediateFilesOptions Sets the options on whether
    *   intermediate files need to be saved
    * @param checked Whether an options was checked or unchecked
@@ -437,15 +470,29 @@ class FileSystem : public QObject
 
   signals:
   /**
-   * @brief enterSpecificationOnlyMode Is emitted wheneverthe IDE is opened
+   * @brief enterSpecificationOnlyMode Is emitted whenever the IDE is opened
    *   with a specification as argument
    */
   void enterSpecificationOnlyMode();
 
   /**
-   * @brief newProjectOpened Is emitted whenever a new project has been openend
+   * @brief newProjectOpened Is emitted whenever a new project has been opened
    */
   void newProjectOpened();
+
+  /**
+   * @brief propertyAdded Is emitted whenever a new property has been added
+   * @param newProperty The new property
+   */
+  void propertyAdded(const Property& newProperty);
+
+  /**
+   * @brief propertyEdited Is emitted whenever a property has been edited
+   * @param oldPropertyName The name of the old property that was edited
+   * @param newProperty The new property after being edited
+   */
+  void propertyEdited(const QString& oldPropertyName,
+                      const Property& newProperty);
 
   private:
   QString projectFileExtension = ".mcrl2proj";
@@ -466,9 +513,11 @@ class FileSystem : public QObject
   bool projectOpen;
   QDomDocument projectOptions;
   std::list<Property> properties;
-  bool specificationModified;
+  std::map<QString, bool> propertyModified;
   bool specificationOnlyMode;
   QDateTime lastKnownSpecificationModificationTime;
+  QDateTime lastKnownProjectFileModificationTime;
+  std::map<QString, QDateTime> lastKnownPropertyModificationTime;
 
   /**
    * @brief makeSureProjectFolderExists Checks whether the properties folder
@@ -483,10 +532,23 @@ class FileSystem : public QObject
   void makeSureArtefactsFolderExists();
 
   /**
-   * @brief updateSpecificationModificationTime Updates the specification
-   *   modification time to what it is according to the OS
+   * @brief projectHash Returns a hash that depends on the path of the project
+   *   folder
+   * @return A hash that depends on the path of the project folder
    */
-  void updateSpecificationModificationTime();
+  QString projectHash();
+
+  /**
+   * @brief intermediateFilePrefix Defines a prefix used for names of
+   *   intermediate files
+   * @param propertyName The name of a property if applicable
+   * @param specType The type of the specification this file is generated
+   *   from/for
+   * @param evidence Whether this file is used for evidence
+   * @return A prefix used for names of intermediate files
+   */
+  QString intermediateFilePrefix(const QString& propertyName, SpecType specType,
+                                 bool evidence);
 
   /**
    * @brief createFileDialog Creates a file dialog that can be used to ask the
@@ -500,7 +562,7 @@ class FileSystem : public QObject
   /**
    * @brief createNewProjectOptions Creates a DOM document containing the
    *   project options, assumes that the project state is already set
-   * @return The DOM document containg the project options
+   * @return The DOM document containing the project options
    */
   QDomDocument createNewProjectOptions();
 
@@ -511,26 +573,11 @@ class FileSystem : public QObject
   void updateProjectFile();
 
   /**
-   * @brief convertProjectFileToNewFormat Converts a project file to the new
-   *   project file format
-   * Old format: "SPEC <path to spec>", new format: DOM structure
-   * This method should be removed in the future
-   * @param newProjectFolderPath The path to the project project folder
-   * @param newProjectFilePath The path to the project file
-   * @param oldFormat The contents of the project file in the old format
-   * @return The new format
-   */
-  QDomDocument
-  convertProjectFileToNewFormat(const QString& newProjectFolderPath,
-                                const QString& newProjectFilePath,
-                                const QString& oldFormat);
-
-  /**
    * @brief readSpecification Reads the contents of a specification
-   * @param specText The text read from the specification file (out parmeter)
+   * @param specText The text read from the specification file (out parameter)
    * @param specPath The file path of the specification; picks the currently
    *   opened specification if empty
-   * @return Whether reading the specification was successfull
+   * @return Whether reading the specification was successful
    */
   bool readSpecification(QString& specText, QString specPath = "");
 

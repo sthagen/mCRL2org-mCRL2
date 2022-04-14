@@ -18,7 +18,6 @@
 #ifndef MCRL2_LTS_PROBABILISTIC_STATE_H
 #define MCRL2_LTS_PROBABILISTIC_STATE_H
 
-#include <vector>
 #include <sstream>
 #include "mcrl2/lps/state_probability_pair.h"
 
@@ -74,12 +73,19 @@ class probabilistic_state
       shrink_to_fit();
     }
 
-    /** \brief Copy constructor
-     **/
+    /** \brief Copy constructor **/
     probabilistic_state(const probabilistic_state& s)
       : m_probabilistic_state(s.m_probabilistic_state)
     {
       shrink_to_fit();
+    }
+
+    /** \brief Copy assignment constructor **/
+    probabilistic_state& operator=(const probabilistic_state& s)
+    {
+      m_probabilistic_state = s.m_probabilistic_state;
+      shrink_to_fit();
+      return *this;
     }
 
     /** \brief Creates a probabilistic state on the basis of state_probability_pairs.
@@ -107,7 +113,7 @@ class probabilistic_state
     void swap(probabilistic_state& s)
     {
       m_probabilistic_state.swap(s.m_probabilistic_state);
-    };
+    }
 
     /** \brief Set this probabilistic state to a single state with probability one.
      * \details It is assumed that the given state probability pair does not have
@@ -118,7 +124,7 @@ class probabilistic_state
       assert(size()==0);
       m_probabilistic_state.emplace_back(s, PROBABILITY::one());
       shrink_to_fit();
-    };
+    }
 
     /** \brief Add a state with a probability to the probabilistic state
      * \param[in] s The state to be added.

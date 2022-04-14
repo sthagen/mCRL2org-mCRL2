@@ -10,29 +10,18 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE rewriter_test
-#include "mcrl2/data/detail/data_functional.h"
 #include "mcrl2/data/detail/one_point_rule_preprocessor.h"
 #include "mcrl2/data/detail/parse_substitution.h"
 #include "mcrl2/data/detail/test_rewriters.h"
-#include "mcrl2/data/find.h"
-#include "mcrl2/data/function_sort.h"
-#include "mcrl2/data/nat.h"
-#include "mcrl2/data/parse.h"
 #include "mcrl2/data/print.h"
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/rewriters/simplify_rewriter.h"
-#include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
-#include "mcrl2/utilities/text_utility.h"
+
 #include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <memory>
-#include <set>
-#include <string>
 
 using namespace mcrl2;
 using namespace mcrl2::core;
 using namespace mcrl2::data;
-using namespace mcrl2::data::detail;
 
 data::rewriter make_data_rewriter(const data_specification& data_spec)
 {
@@ -194,6 +183,9 @@ void one_point_rule_preprocessor_test()
 
 void simplify_rewriter_test()
 {
+  using data::detail::N;
+  using data::detail::I;
+
   data::simplify_rewriter R;
   test_rewriters(N(R), N(I), "!(true && false)", "true");
   test_rewriters(N(R), N(I), "exists n:Nat, b:Bool. b", "exists b:Bool. b");

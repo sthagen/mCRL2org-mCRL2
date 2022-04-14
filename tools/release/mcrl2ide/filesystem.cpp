@@ -11,7 +11,6 @@
 
 #include <QFile>
 #include <QFileInfo>
-#include <QDateTime>
 #include <QTextStream>
 #include <QDirIterator>
 #include <QInputDialog>
@@ -20,6 +19,7 @@
 #include <QDomNode>
 #include <QDomElement>
 #include <QDomNodeList>
+#include <QCryptographicHash>
 
 Property::Property()
     : name(""), text(""), mucalculus(true),
@@ -50,7 +50,7 @@ bool Property::operator!=(const Property& property) const
 FileSystem::FileSystem(mcrl2::gui::qt::CodeEditor* specificationEditor,
                        QSettings* settings, QWidget* parent)
     : parent(parent), specificationEditor(specificationEditor),
-      settings(settings), projectOpen(false), specificationModified(false),
+      settings(settings), projectOpen(false), properties({}),
       specificationOnlyMode(false)
 {
   for (std::pair<IntermediateFileType, QString> item :
@@ -63,9 +63,6 @@ FileSystem::FileSystem(mcrl2::gui::qt::CodeEditor* specificationEditor,
   {
     qDebug("Warning: could not create temporary folder");
   }
-
-  connect(specificationEditor, SIGNAL(modificationChanged(bool)), this,
-          SLOT(setSpecificationModified(bool)));
 }
 
 void FileSystem::makeSurePropertiesFolderExists()
@@ -113,9 +110,25 @@ QString FileSystem::intermediateFilesFolderPath(IntermediateFileType fileType)
   }
 }
 
+QString FileSystem::projectHash()
+{
+  return QString("%1").arg(
+      QString(QCryptographicHash::hash(projectFolderPath.toUtf8(),
+                                       QCryptographicHash::Md4)
+                  .toHex()));
+}
+
 QString FileSystem::defaultSpecificationFilePath()
 {
   return projectFolderPath + QDir::separator() + projectName + "_spec.mcrl2";
+}
+
+QString FileSystem::intermediateFilePrefix(const QString& propertyName,
+                                           SpecType specType, bool evidence)
+{
+  return projectHash() + "_" + projectName +
+         (propertyName.isEmpty() ? "" : "_" + propertyName) +
+         SPECTYPEEXTENSION.at(specType) + (evidence ? "_evidence" : "");
 }
 
 QString FileSystem::specificationFilePath(SpecType specType,
@@ -134,8 +147,9 @@ QString FileSystem::specificationFilePath(SpecType specType,
   }
   else
   {
-    return temporaryFolder.path() + QDir::separator() + projectName + "_" +
-           propertyName + SPECTYPEEXTENSION.at(specType) + "_spec.mcrl2";
+    return temporaryFolder.path() + QDir::separator() +
+           intermediateFilePrefix(propertyName, specType, false) +
+           "_spec.mcrl2";
   }
 }
 
@@ -143,10 +157,8 @@ QString FileSystem::lpsFilePath(SpecType specType, const QString& propertyName,
                                 bool evidence)
 {
   return intermediateFilesFolderPath(IntermediateFileType::Lps) +
-         QDir::separator() + projectName +
-         (propertyName.isEmpty() ? "" : "_" + propertyName) +
-         SPECTYPEEXTENSION.at(specType) + (evidence ? "_evidence" : "") +
-         "_lps.lps";
+         QDir::separator() +
+         intermediateFilePrefix(propertyName, specType, evidence) + "_lps.lps";
 }
 
 QString FileSystem::ltsFilePath(mcrl2::lts::lts_equivalence equivalence,
@@ -154,24 +166,23 @@ QString FileSystem::ltsFilePath(mcrl2::lts::lts_equivalence equivalence,
                                 bool evidence)
 {
   return intermediateFilesFolderPath(IntermediateFileType::Lts) +
-         QDir::separator() + projectName +
-         (propertyName.isEmpty() ? "" : "_" + propertyName) +
-         SPECTYPEEXTENSION.at(specType) + (evidence ? "_evidence" : "") +
-         "_lts_" + getEquivalenceName(equivalence, true) + ".lts";
+         QDir::separator() +
+         intermediateFilePrefix(propertyName, specType, evidence) + "_lts_" +
+         getEquivalenceName(equivalence, true) + ".lts";
 }
 
-QString FileSystem::propertyFilePath(const Property& property, bool forParsing)
+QString FileSystem::propertyFilePath(const Property& property)
 {
-  return (forParsing ? temporaryFolder.path() : propertiesFolderPath()) +
-         QDir::separator() + property.name +
+  return propertiesFolderPath() + QDir::separator() + property.name +
          (property.mucalculus ? ".mcf" : ".equ");
 }
 
 QString FileSystem::pbesFilePath(const QString& propertyName, bool evidence)
 {
   return intermediateFilesFolderPath(IntermediateFileType::Pbes) +
-         QDir::separator() + projectName + "_" + propertyName +
-         (evidence ? "_evidence" : "") + "_pbes.pbes";
+         QDir::separator() +
+         intermediateFilePrefix(propertyName, SpecType::Main, evidence) +
+         "_pbes.pbes";
 }
 
 QString FileSystem::toolPath(const QString& tool)
@@ -207,7 +218,7 @@ QString FileSystem::getSpecificationFileName()
   }
   else
   {
-    return QFileInfo(specFilePath).baseName();
+    return QFileInfo(specFilePath).completeBaseName();
   }
 }
 
@@ -228,18 +239,7 @@ bool FileSystem::inSpecificationOnlyMode()
 
 bool FileSystem::isSpecificationModified()
 {
-  return specificationModified;
-}
-
-void FileSystem::setSpecificationModified(bool modified)
-{
-  specificationModified = modified;
-}
-
-void FileSystem::updateSpecificationModificationTime()
-{
-  lastKnownSpecificationModificationTime =
-      QFileInfo(specificationFilePath()).lastModified();
+  return specificationEditor->document()->isModified();
 }
 
 bool FileSystem::isSpecificationNewlyModifiedFromOutside()
@@ -250,6 +250,68 @@ bool FileSystem::isSpecificationNewlyModifiedFromOutside()
       lastKnownSpecificationModificationTime != newestModificationTime;
   lastKnownSpecificationModificationTime = newestModificationTime;
   return newlyModified;
+}
+
+bool FileSystem::isPropertyModified(const Property& property)
+{
+  return propertyModified.at(property.name);
+}
+
+bool FileSystem::isPropertyNewlyModifiedFromOutside(const Property& property)
+{
+  QFileInfo propertyFileInfo(propertyFilePath(property));
+  if (propertyFileInfo.exists())
+  {
+    QDateTime newestModificationTime =
+        QFileInfo(propertyFilePath(property)).lastModified();
+    bool newlyModified = lastKnownPropertyModificationTime.at(property.name) !=
+                         newestModificationTime;
+    lastKnownPropertyModificationTime[property.name] = newestModificationTime;
+    return newlyModified;
+  }
+  else
+  {
+    return true;
+  }
+}
+
+void FileSystem::setProjectModified()
+{
+  specificationEditor->document()->setModified(true);
+  for (Property& property : properties)
+  {
+    propertyModified[property.name] = true;
+  }
+}
+
+bool FileSystem::isProjectFileNewlyModifiedFromOutside()
+{
+  QDateTime newestModificationTime =
+      QFileInfo(projectFilePath()).lastModified();
+  bool newlyModified =
+      lastKnownProjectFileModificationTime != newestModificationTime;
+  lastKnownProjectFileModificationTime = newestModificationTime;
+  return newlyModified;
+}
+
+bool FileSystem::isProjectNewlyModifiedFromOutside()
+{
+  if (isSpecificationNewlyModifiedFromOutside() ||
+      isProjectFileNewlyModifiedFromOutside())
+  {
+    return true;
+  }
+  else
+  {
+    for (Property& property : properties)
+    {
+      if (isPropertyNewlyModifiedFromOutside(property))
+      {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 bool FileSystem::propertyNameExists(const QString& propertyName)
@@ -290,7 +352,7 @@ void FileSystem::setSpecificationEditorCursor(int row, int column)
 {
   QTextCursor cursor = specificationEditor->textCursor();
   cursor.movePosition(QTextCursor::Start);
-  cursor.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, row - 1);
+  cursor.movePosition(QTextCursor::NextBlock, QTextCursor::MoveAnchor, row - 1);
   cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, column);
   specificationEditor->setTextCursor(cursor);
 }
@@ -365,58 +427,7 @@ void FileSystem::updateProjectFile()
   QTextStream saveStream(&projectFile);
   saveStream << projectOptions.toString();
   projectFile.close();
-}
-
-QDomDocument
-FileSystem::convertProjectFileToNewFormat(const QString& newProjectFolderPath,
-                                          const QString& newProjectFilePath,
-                                          const QString& oldFormat)
-{
-  /* notify the user of the conversion */
-  executeInformationBox(parent, "Open Project",
-                        "The project file of this project has an older format. "
-                        "It will be converted to the newest format.");
-
-  QDomDocument newFormat = createNewProjectOptions();
-
-  /* read the specification path from the old format */
-  int specLineIndex = oldFormat.lastIndexOf("SPEC");
-  QString specFilePathEntry =
-      oldFormat.right(oldFormat.length() - specLineIndex - 5).simplified();
-  QDomText specPathNode =
-      newFormat.createTextNode(QFileInfo(specFilePathEntry).fileName());
-  newFormat.elementsByTagName("spec").at(0).appendChild(specPathNode);
-
-  /* get all properties */
-  QDir propertiesFolder(newProjectFolderPath + QDir::separator() +
-                        propertiesFolderName);
-  if (propertiesFolder.exists())
-  {
-    QDirIterator dirIterator(propertiesFolder);
-    QDomNode propertiesNode = newFormat.elementsByTagName("properties").at(0);
-
-    while (dirIterator.hasNext())
-    {
-      QString filePath = dirIterator.next();
-      if (QFileInfo(filePath).isFile() && filePath.endsWith(".mcf"))
-      {
-        QDomElement propertyElement = newFormat.createElement("property");
-        propertiesNode.appendChild(propertyElement);
-        QDomText propertyPathNode =
-            newFormat.createTextNode(QFileInfo(filePath).baseName());
-        propertyElement.appendChild(propertyPathNode);
-      }
-    }
-  }
-
-  /* save the new format to file */
-  QFile projectFile(newProjectFilePath);
-  projectFile.open(QIODevice::WriteOnly);
-  QTextStream saveStream(&projectFile);
-  saveStream << newFormat.toString();
-  projectFile.close();
-
-  return newFormat;
+  lastKnownProjectFileModificationTime = QFileInfo(projectFile).lastModified();
 }
 
 bool FileSystem::newProject(bool forNewProject)
@@ -474,14 +485,7 @@ bool FileSystem::newProject(bool forNewProject)
 
       projectOpen = true;
       emit newProjectOpened();
-      success = true;
-
-      /* if we are not saving as, create an empty specification file by saving
-       *   the project */
-      if (forNewProject)
-      {
-        save(true);
-      }
+      success = save(true);
     }
     else
     {
@@ -533,7 +537,8 @@ bool FileSystem::loadSpecification(QString specPath)
     }
 
     specificationEditor->document()->setModified(false);
-    updateSpecificationModificationTime();
+    lastKnownSpecificationModificationTime =
+        QFileInfo(specificationFilePath()).lastModified();
     return true;
   }
   else
@@ -618,19 +623,8 @@ void FileSystem::openProjectFromFolder(const QString& newProjectFolderPath)
   int parseErrorRow = 0;
   int parseErrorColumn = 0;
   QDomDocument newProjectOptions;
-  /* if the project file begins with SPEC, it is old type of project file and
-   *   should be converted to the new format
-   * this should be removed in the future */
-  if (newProjectFileContents.startsWith("SPEC"))
-  {
-    newProjectOptions = convertProjectFileToNewFormat(
-        newProjectFolderPath, newProjectFilePath, newProjectFileContents);
-  }
-  else
-  {
-    successfullyParsed = newProjectOptions.setContent(
-        newProjectFileContents, &parseError, &parseErrorRow, &parseErrorColumn);
-  }
+  successfullyParsed = newProjectOptions.setContent(
+      newProjectFileContents, &parseError, &parseErrorRow, &parseErrorColumn);
 
   if (!successfullyParsed)
   {
@@ -675,8 +669,9 @@ void FileSystem::openProjectFromFolder(const QString& newProjectFolderPath)
 
   /* opening is successful, so set project variables */
   projectFolderPath = QFileInfo(newProjectFilePath).path();
-  projectName = QFileInfo(newProjectFilePath).baseName();
+  projectName = QFileInfo(newProjectFilePath).completeBaseName();
   projectOptions = newProjectOptions;
+  lastKnownProjectFileModificationTime = QFileInfo(projectFile).lastModified();
 
   /* read all properties */
   properties.clear();
@@ -706,6 +701,9 @@ void FileSystem::openProjectFromFolder(const QString& newProjectFolderPath)
     if (!readProperty.name.isEmpty())
     {
       properties.push_back(readProperty);
+      propertyModified[readProperty.name] = false;
+      lastKnownPropertyModificationTime[readProperty.name] =
+          QFileInfo(propFilePath).lastModified();
     }
   }
 
@@ -723,6 +721,11 @@ void FileSystem::openProject()
     openProjectFromFolder(newProjectFolderPath);
   }
   openProjectDialog->deleteLater();
+}
+
+void FileSystem::reloadProject()
+{
+  openProjectFromFolder(projectFolderPath);
 }
 
 QString FileSystem::findPropertyFilePath(const QString& propertyName)
@@ -816,6 +819,8 @@ void FileSystem::newProperty(const Property& property)
   propertyElement.appendChild(propertyNameText);
 
   updateProjectFile();
+
+  emit propertyAdded(property);
 }
 
 std::list<Property> FileSystem::importProperties()
@@ -857,7 +862,10 @@ std::list<Property> FileSystem::importProperties()
 void FileSystem::editProperty(const Property& oldProperty,
                               const Property& newProperty)
 {
-  /* alter the properties list and save it */
+  /* remove the file of the old property */
+  deletePropertyFile(oldProperty);
+
+  /* alter the properties list and save the new property */
   std::replace(properties.begin(), properties.end(), oldProperty, newProperty);
   saveProperty(newProperty);
 
@@ -879,6 +887,8 @@ void FileSystem::editProperty(const Property& oldProperty,
 
     updateProjectFile();
   }
+
+  emit propertyEdited(oldProperty.name, newProperty);
 }
 
 void FileSystem::removePropertyFromProjectFile(const QString& propertyName)
@@ -922,14 +932,14 @@ bool FileSystem::save(bool forceSave)
       QTextStream saveStream(&specificationFile);
       saveStream << specificationEditor->toPlainText();
       specificationFile.close();
-      updateSpecificationModificationTime();
+      lastKnownSpecificationModificationTime =
+          QFileInfo(specificationFile).lastModified();
     }
 
-    /* save all properties if necessary */
-    if (forceSave && !specificationOnlyMode)
+    /* save all properties */
+    for (Property& property : properties)
     {
-      makeSurePropertiesFolderExists();
-      for (Property property : properties)
+      if (propertyModified.at(property.name) || forceSave)
       {
         saveProperty(property);
       }
@@ -976,22 +986,15 @@ bool FileSystem::saveAs()
    *   current as and save if successful */
   else
   {
-    if (newProject(!projectOpen))
-    {
-      return save(true);
-    }
-    else
-    {
-      return false;
-    }
+    return newProject(!projectOpen);
   }
 }
 
-void FileSystem::saveProperty(const Property& property, bool forParsing)
+void FileSystem::saveProperty(const Property& property)
 {
   makeSurePropertiesFolderExists();
 
-  QFile propertyFile(propertyFilePath(property, forParsing));
+  QFile propertyFile(propertyFilePath(property));
   propertyFile.open(QIODevice::WriteOnly);
   QTextStream saveStream(&propertyFile);
 
@@ -1007,10 +1010,12 @@ void FileSystem::saveProperty(const Property& property, bool forParsing)
   }
 
   propertyFile.close();
+  propertyModified[property.name] = false;
+  lastKnownPropertyModificationTime[property.name] =
+      QFileInfo(propertyFile).lastModified();
 }
 
 void FileSystem::createReinitialisedSpecification(const Property& property,
-                                                  bool forParsing,
                                                   SpecType specType)
 {
   /* only create a reinitialised specification if there does not already exist
@@ -1019,7 +1024,7 @@ void FileSystem::createReinitialisedSpecification(const Property& property,
   if (!upToDateOutputFileExists(
           specificationFilePath(),
           specificationFilePath(specType, property.name)) ||
-      !upToDateOutputFileExists(propertyFilePath(property, forParsing),
+      !upToDateOutputFileExists(propertyFilePath(property),
                                 specificationFilePath(specType, property.name)))
   {
     QString spec;
@@ -1028,19 +1033,23 @@ void FileSystem::createReinitialisedSpecification(const Property& property,
     QString procExp =
         (specType == SpecType::First ? property.text : property.text2);
 
-    int initIndex = spec.indexOf(QRegExp("(^|[; \\t\\n\\r])init[ \\t\\n\\r]"));
-    /* if there is no init block in the main spec, add an init block, else
-     *   replace the contents of the init block */
-    if (initIndex == -1)
+    /* find the init keyword */
+    QRegularExpressionMatch initKeywordMatch =
+        QRegularExpression("(^|\\n)([^%]*[; \\t])?init[ \\t\\n%]").match(spec);
+    /* if there is no init block in the main spec, add an init block */
+    if (!initKeywordMatch.hasMatch())
     {
       alternateSpec.append("\ninit " + procExp + ";");
     }
     else
     {
-      int initSize = spec.indexOf(";", initIndex + 5) - initIndex +
-                     (spec.at(initIndex) == 'i' ? 1 : 0) - 6;
-      alternateSpec.replace(initIndex + (spec.at(initIndex) == 'i' ? 0 : 1) + 5,
-                            initSize, procExp);
+      int initIndex = initKeywordMatch.capturedEnd();
+      /* else find the size of the contents of the init block */
+      QRegularExpressionMatch initBlockMatch =
+          QRegularExpression("([^;%]|%[^\\n]*\\n)*;").match(spec, initIndex);
+      int initSize = initBlockMatch.capturedEnd() - initIndex - 1;
+      /* and replace them with the given process expression */
+      alternateSpec.replace(initIndex, initSize, " " + procExp);
     }
 
     QFile alternateSpecFile(specificationFilePath(specType, property.name));

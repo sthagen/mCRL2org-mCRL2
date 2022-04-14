@@ -12,14 +12,11 @@
 #ifndef MCRL2_PROCESS_PROCESS_SPECIFICATION_H
 #define MCRL2_PROCESS_PROCESS_SPECIFICATION_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
 #include "mcrl2/core/load_aterm.h"
 #include "mcrl2/core/print.h"
-#include "mcrl2/data/data_specification.h"
+#include "mcrl2/data/data_io.h"
 #include "mcrl2/data/detail/io.h"
-#include "mcrl2/process/action_label.h"
 #include "mcrl2/process/process_equation.h"
-#include "mcrl2/process/process_expression.h"
 
 namespace mcrl2
 {
@@ -91,19 +88,10 @@ class process_specification
 
     /// \brief Constructor.
     /// \param t A term containing an aterm representation of a process specification.
-    /// \param data_specification_is_type_checked A boolean that indicates whether the
-    ///         data specification has been type checked. If so, the internal data specification
-    ///         data structures will be set up. Otherwise, the function
-    ///         declare_data_specification_to_be_type_checked must be invoked after type checking,
-    ///         before the data specification can be used.
-    process_specification(atermpp::aterm_appl t, const bool data_specification_is_type_checked=true)
+    process_specification(atermpp::aterm_appl t)
     {
       assert(core::detail::check_term_ProcSpec(t));
       construct_from_aterm(t);
-      if (data_specification_is_type_checked)
-      {
-        m_data.declare_data_specification_to_be_type_checked();
-      }
       complete_data_specification(*this);
     }
 
@@ -197,43 +185,6 @@ class process_specification
     process_expression& init()
     {
       return m_initial_process;
-    }
-
-    /// \brief Reads a process specification from a stream.
-    /// \param stream An input stream.
-    /// \param binary An boolean that if true means the stream contains a term in binary encoding.
-    //                Otherwise the encoding is textual.
-    /// \param source The source from which the stream originates. Used for error messages.
-    void load(std::istream& stream, bool binary = true, const std::string& source = "")
-    {
-      atermpp::aterm t = core::load_aterm(stream, binary, "process specification", source);
-      std::unordered_map<atermpp::aterm_appl, atermpp::aterm> cache;
-      t = data::detail::add_index(t, cache);
-      if (!t.type_is_appl() || !is_process_specification(atermpp::down_cast<const atermpp::aterm_appl>(t)))
-      {
-        throw mcrl2::runtime_error("Input stream does not contain a process specification");
-      }
-      construct_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
-    }
-
-    /// \brief Writes the process specification to a stream.
-    /// \param stream The output stream.
-    /// \param binary
-    /// If binary is true the process specification is saved in compressed binary format.
-    /// Otherwise an ascii representation is saved. In general the binary format is
-    /// much more compact than the ascii representation.
-    void save(std::ostream& stream, bool binary=true) const
-    {
-      atermpp::aterm t = process_specification_to_aterm(*this);
-      t = data::detail::remove_index(t);
-      if (binary)
-      {
-        atermpp::write_term_to_binary_stream(t, stream);
-      }
-      else
-      {
-        atermpp::write_term_to_text_stream(t, stream);
-      }
     }
 };
 

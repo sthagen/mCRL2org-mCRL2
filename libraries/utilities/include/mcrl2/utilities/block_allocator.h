@@ -14,7 +14,6 @@
 
 #include <memory>
 #include <stddef.h>
-#include <utility>
 
 namespace mcrl2
 {
@@ -33,9 +32,9 @@ private:
   using super = memory_pool<T, ElementsPerBlock, ThreadSafe>;
 
 public:
-  using size_type = std::size_t;
-  using pointer = T*;
   using value_type = T;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
 
   template <class U>
   struct rebind
@@ -47,7 +46,7 @@ public:
 
   /// \details The unused parameter is to make the interface equivalent
   ///          to the allocator.
-  pointer allocate(size_type n, std::allocator<void>::const_pointer hint = nullptr)
+  T* allocate(size_type n, const void* hint = nullptr)
   {
     if (n != 1 || hint)
     {
@@ -59,7 +58,7 @@ public:
 
   /// \details The unused parameter is to make the interface equivalent
   ///          to the allocator.
-  void deallocate(pointer p, size_type)
+  void deallocate(T* p, size_type)
   {
     super::deallocate(p);
   }

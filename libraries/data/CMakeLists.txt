@@ -10,10 +10,10 @@ add_mcrl2_library(data
     mcrl2/data/detail/rewrite/jittycpreamble.h
   SOURCES
     data.cpp
+    data_io.cpp
     data_specification.cpp
     typecheck.cpp
     detail/prover/smt_lib_solver.cpp
-    detail/rewrite/with_prover.cpp
     detail/rewrite/jitty.cpp
     detail/rewrite/rewrite.cpp
     detail/rewrite/strategy.cpp

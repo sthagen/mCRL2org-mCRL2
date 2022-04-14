@@ -11,14 +11,8 @@
 #define NAME "ltsconvert"
 #define AUTHOR "Muck van Weerdenburg, Jan Friso Groote"
 
-#include <string>
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/input_output_tool.h"
-#include "mcrl2/lps/io.h"
-#include "mcrl2/lts/lts_equivalence.h"
 #include "mcrl2/lts/lts_io.h"
-#include "mcrl2/lts/detail/lts_convert.h"
 #include "mcrl2/lts/lts_algorithm.h"
 
 using namespace mcrl2::lts;
@@ -97,8 +91,6 @@ class t_tool_options
 
 };
 
-using namespace std;
-
 class ltsconvert_tool : public input_output_tool
 {
   private:
@@ -131,7 +123,8 @@ class ltsconvert_tool : public input_output_tool
 
       LTS_TYPE l;
       l.load(tool_options.infilename);
-      l.hide_actions(tool_options.tau_actions);
+      l.record_hidden_actions(tool_options.tau_actions);
+      l.apply_hidden_actions();
 
       if (tool_options.check_reach)
       {
@@ -173,7 +166,6 @@ class ltsconvert_tool : public input_output_tool
         load_lps(spec, tool_options.lpsfile);
       }
 
-
       switch (tool_options.outtype)
       {
         case lts_lts:
@@ -185,6 +177,7 @@ class ltsconvert_tool : public input_output_tool
         }
         case lts_none:
           mCRL2log(warning) << "Cannot determine type of output. Assuming .aut.\n";
+          [[fallthrough]];
         case lts_aut:
         {
           lts_aut_t l_out;

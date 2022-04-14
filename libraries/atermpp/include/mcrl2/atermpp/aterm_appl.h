@@ -12,17 +12,10 @@
 #ifndef MCRL2_ATERMPP_ATERM_APPL_H
 #define MCRL2_ATERMPP_ATERM_APPL_H
 
-#include "mcrl2/atermpp/aterm.h"
 #include "mcrl2/atermpp/detail/aterm_appl_iterator.h"
 #include "mcrl2/atermpp/detail/aterm_list.h"
 #include "mcrl2/atermpp/detail/global_aterm_pool.h"
-
-#include <limits>
-#include <type_traits>
-
-#include "mcrl2/atermpp/detail/aterm_appl_iterator.h"
-#include "mcrl2/atermpp/aterm.h"
-
+#include "mcrl2/utilities/type_traits.h"
 
 namespace atermpp
 {
@@ -40,16 +33,6 @@ protected:
     static_assert(std::is_base_of<aterm, Term>::value,"Term must be derived from an aterm");
     static_assert(sizeof(Term)==sizeof(std::size_t),"Term derived from an aterm must not have extra fields");
   }
-
-  /// \brief Explicit constructor from an aterm.
-  /// \param t The aterm from which the term is constructed.
-  /// \details This function is explicitly protected, to avoid its use in general code. 
-  explicit term_appl(const aterm& t) 
-   : aterm(t)
-  {
-    static_assert(std::is_base_of<aterm, Term>::value,"Term must be derived from an aterm");
-    static_assert(sizeof(Term)==sizeof(std::size_t),"Term derived from an aterm must not have extra fields");
-  } 
 
 public:
   /// The type of object, T stored in the term_appl.
@@ -80,6 +63,16 @@ public:
   term_appl():aterm()
   {}
 
+  /// \brief Explicit constructor from an aterm.
+  /// \param t The aterm from which the term is constructed.
+  explicit term_appl(const aterm& t) 
+   : aterm(t)
+  {
+    assert(type_is_appl());
+    static_assert(std::is_base_of<aterm, Term>::value,"Term must be derived from an aterm");
+    static_assert(sizeof(Term)==sizeof(std::size_t),"Term derived from an aterm must not have extra fields");
+  } 
+
   /// This class has user-declared copy constructor so declare default copy and move operators.
   term_appl(const term_appl& other) noexcept = default;
   term_appl& operator=(const term_appl& other) noexcept = default;
@@ -94,7 +87,7 @@ public:
   /// \param begin The start of a range of elements.
   /// \param end The end of a range of elements.
   template <class ForwardIterator,
-            typename std::enable_if<is_iterator<ForwardIterator>::value>::type* = nullptr,
+            typename std::enable_if<mcrl2::utilities::is_iterator<ForwardIterator>::value>::type* = nullptr,
             typename std::enable_if<!std::is_same<typename ForwardIterator::iterator_category, std::input_iterator_tag>::value>::type* = nullptr,
             typename std::enable_if<!std::is_same<typename ForwardIterator::iterator_category, std::output_iterator_tag>::value>::type* = nullptr>
   term_appl(const function_symbol& sym,
@@ -117,7 +110,7 @@ public:
   /// \param begin The start of a range of elements.
   /// \param end The end of a range of elements.
   template <class InputIterator,
-            typename std::enable_if<is_iterator<InputIterator>::value>::type* = nullptr,
+            typename std::enable_if<mcrl2::utilities::is_iterator<InputIterator>::value>::type* = nullptr,
             typename std::enable_if<std::is_same<typename InputIterator::iterator_category, std::input_iterator_tag>::value>::type* = nullptr>
   term_appl(const function_symbol& sym,
             InputIterator begin,
@@ -140,7 +133,7 @@ public:
   ///        applied to each each element in the iterator range before it becomes an argument of this term.
   template <class InputIterator,
             class TermConverter,
-            typename std::enable_if<is_iterator<InputIterator>::value>::type* = nullptr>
+            typename std::enable_if<mcrl2::utilities::is_iterator<InputIterator>::value>::type* = nullptr>
   term_appl(const function_symbol& sym,
             InputIterator begin,
             InputIterator end,
@@ -199,14 +192,14 @@ public:
   /// \return An iterator pointing to the first argument.
   const_iterator begin() const
   {
-    return const_iterator(reinterpret_cast<Term*>(&(reinterpret_cast<detail::_term_appl*>(m_term)->arg(0))));
+    return const_iterator(reinterpret_cast<const Term*>(&(reinterpret_cast<const detail::_term_appl*>(m_term)->arg(0))));
   }
 
   /// \brief Returns a const_iterator pointing past the last argument.
   /// \return A const_iterator pointing past the last argument.
   const_iterator end() const
   {
-    return const_iterator(reinterpret_cast<Term*>(&reinterpret_cast<detail::_term_appl*>(m_term)->arg(size())));
+    return const_iterator(reinterpret_cast<const Term*>(&reinterpret_cast<const detail::_term_appl*>(m_term)->arg(size())));
   }
 
   /// \brief Returns the largest possible number of arguments.
@@ -222,7 +215,7 @@ public:
   const Term& operator[](const size_type i) const
   {
     assert(i < size()); // Check the bounds.
-    return reinterpret_cast<detail::_term_appl*>(m_term)->arg(i);
+    return reinterpret_cast<const detail::_term_appl*>(m_term)->arg(i);
   }
 };
 

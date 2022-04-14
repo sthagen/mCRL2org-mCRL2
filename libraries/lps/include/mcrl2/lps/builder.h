@@ -12,12 +12,8 @@
 #ifndef MCRL2_LPS_BUILDER_H
 #define MCRL2_LPS_BUILDER_H
 
-#include "mcrl2/core/builder.h"
-#include "mcrl2/data/builder.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/lps/stochastic_specification.h"
 #include "mcrl2/process/builder.h"
-#include "mcrl2/process/untyped_multi_action.h"
 
 namespace mcrl2
 {
@@ -41,20 +37,19 @@ struct add_sort_expressions: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     if (x.has_time())
     {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
+      x.time() = static_cast<Derived&>(*this).apply(x.time());    
     }
     static_cast<Derived&>(*this).leave(x);
   }
 
-  void update(lps::multi_action& x)
+  lps::multi_action apply(const lps::multi_action& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
+    lps::multi_action result = x.has_time() ?
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), static_cast<Derived&>(*this).apply(x.time())) :
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), x.time());
     static_cast<Derived&>(*this).leave(x);
+    return result;
   }
 
   void update(lps::deadlock_summand& x)
@@ -71,7 +66,7 @@ struct add_sort_expressions: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     x.summation_variables() = static_cast<Derived&>(*this).apply(x.summation_variables());
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -79,7 +74,7 @@ struct add_sort_expressions: public Builder<Derived>
   lps::process_initializer apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.assignments()));
+    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.expressions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }
@@ -116,7 +111,7 @@ struct add_sort_expressions: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     x.summation_variables() = static_cast<Derived&>(*this).apply(x.summation_variables());
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     x.distribution() = static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
@@ -144,7 +139,7 @@ struct add_sort_expressions: public Builder<Derived>
   lps::stochastic_process_initializer apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.assignments()), static_cast<Derived&>(*this).apply(x.distribution()));
+    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.expressions()), static_cast<Derived&>(*this).apply(x.distribution()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }
@@ -174,20 +169,19 @@ struct add_data_expressions: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     if (x.has_time())
     {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
+      x.time() = static_cast<Derived&>(*this).apply(x.time());    
     }
     static_cast<Derived&>(*this).leave(x);
   }
 
-  void update(lps::multi_action& x)
+  lps::multi_action apply(const lps::multi_action& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
+    lps::multi_action result = x.has_time() ?
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), static_cast<Derived&>(*this).apply(x.time())) :
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), x.time());
     static_cast<Derived&>(*this).leave(x);
+    return result;
   }
 
   void update(lps::deadlock_summand& x)
@@ -202,7 +196,7 @@ struct add_data_expressions: public Builder<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -210,7 +204,7 @@ struct add_data_expressions: public Builder<Derived>
   lps::process_initializer apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.assignments()));
+    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.expressions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }
@@ -243,7 +237,7 @@ struct add_data_expressions: public Builder<Derived>
   {
     static_cast<Derived&>(*this).enter(x);
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     x.distribution() = static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
@@ -268,7 +262,7 @@ struct add_data_expressions: public Builder<Derived>
   lps::stochastic_process_initializer apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.assignments()), static_cast<Derived&>(*this).apply(x.distribution()));
+    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.expressions()), static_cast<Derived&>(*this).apply(x.distribution()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }
@@ -297,20 +291,19 @@ struct add_variables: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     if (x.has_time())
     {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
+      x.time() = static_cast<Derived&>(*this).apply(x.time());    
     }
     static_cast<Derived&>(*this).leave(x);
   }
 
-  void update(lps::multi_action& x)
+  lps::multi_action apply(const lps::multi_action& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    x.actions() = static_cast<Derived&>(*this).apply(x.actions());
-    if (x.has_time())
-    {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
-    }
+    lps::multi_action result = x.has_time() ?
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), static_cast<Derived&>(*this).apply(x.time())) :
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), x.time());
     static_cast<Derived&>(*this).leave(x);
+    return result;
   }
 
   void update(lps::deadlock_summand& x)
@@ -327,7 +320,7 @@ struct add_variables: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     x.summation_variables() = static_cast<Derived&>(*this).apply(x.summation_variables());
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -335,7 +328,7 @@ struct add_variables: public Builder<Derived>
   lps::process_initializer apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.assignments()));
+    lps::process_initializer result = lps::process_initializer(static_cast<Derived&>(*this).apply(x.expressions()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }
@@ -371,7 +364,7 @@ struct add_variables: public Builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     x.summation_variables() = static_cast<Derived&>(*this).apply(x.summation_variables());
     x.condition() = static_cast<Derived&>(*this).apply(x.condition());
-    static_cast<Derived&>(*this).update(x.multi_action());
+    x.multi_action() = static_cast<Derived&>(*this).apply(x.multi_action());
     x.assignments() = static_cast<Derived&>(*this).apply(x.assignments());
     x.distribution() = static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
@@ -398,7 +391,7 @@ struct add_variables: public Builder<Derived>
   lps::stochastic_process_initializer apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.assignments()), static_cast<Derived&>(*this).apply(x.distribution()));
+    lps::stochastic_process_initializer result = lps::stochastic_process_initializer(static_cast<Derived&>(*this).apply(x.expressions()), static_cast<Derived&>(*this).apply(x.distribution()));
     static_cast<Derived&>(*this).leave(x);
     return result;
   }

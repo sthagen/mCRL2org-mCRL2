@@ -10,19 +10,10 @@
 #ifndef MCRL2_LTS_DETAIL_EXPLORATION_NEW_H
 #define MCRL2_LTS_DETAIL_EXPLORATION_NEW_H
 
-#include <string>
-#include <limits>
-#include <memory>
-
-#include "mcrl2/utilities/indexed_set.h"
-
-#include "mcrl2/trace/trace.h"
-#include "mcrl2/lps/next_state_generator.h"
-#include "mcrl2/lts/lts_lts.h"
+#include "mcrl2/lts/trace.h"
 #include "mcrl2/lts/detail/bithashtable.h"
 #include "mcrl2/lts/detail/queue.h"
 #include "mcrl2/lts/detail/lts_generation_options.h"
-#include "mcrl2/lps/exploration_strategy.h"
 
 
 namespace mcrl2
@@ -62,26 +53,13 @@ namespace detail
     class multi_action_indexed_set 
     {
       protected:
-        utilities::indexed_set<atermpp::aterm> storage;
+        utilities::indexed_set<action_label_lts> storage;
       
       public:
         inline
         std::pair<std::size_t, bool> put(const lps::multi_action& ma) 
         {
-          if (ma.time()==data::undefined_real())
-          {
-            // If the time is undefined, which means the multi-action can take place
-            // at any time, we find a number based on the actions. 
-            return storage.insert(ma.actions());
-          }
-          else 
-          { 
-            // When the time is non trivial we put the time as the first element of the 
-            // list of actions. This is not very elegant but it works. 
-            atermpp::aterm_list l=atermpp::down_cast<atermpp::aterm_list>(static_cast<const atermpp::aterm&>(ma.actions()));
-            l.push_front(ma.time()); 
-            return storage.insert(l);
-          }
+          return storage.insert(action_label_lts(ma));
         }
     };
 
@@ -165,7 +143,7 @@ class lps2lts_algorithm
     void value_prioritize(std::vector<next_state_generator::transition_t>& transitions);
     bool save_trace(const lps::state& state1, const std::string& filename);
     bool save_trace(const lps::state& state1, const next_state_generator::transition_t& transition, const std::string& filename);
-    void construct_trace(const lps::state& state1, mcrl2::trace::Trace& trace);
+    void construct_trace(const lps::state& state1, mcrl2::lts::trace& trace);
 
     bool is_nondeterministic(std::vector<lps2lts_algorithm::next_state_generator::transition_t>& transitions,
                              next_state_generator::transition_t& nondeterminist_transition);

@@ -12,18 +12,11 @@
 #ifndef MCRL2_DATA_DETAIL_PROVER_BDD_PATH_ELIMINATOR_H
 #define MCRL2_DATA_DETAIL_PROVER_BDD_PATH_ELIMINATOR_H
 
-#include <algorithm>
-#include <cstring>
-#include <iostream> // For streaming operators
-#include <iterator>
-
-#include "mcrl2/core/detail/function_symbols.h"
 #include "mcrl2/data/detail/prover/bdd_info.h"
 #include "mcrl2/data/detail/prover/bdd_simplifier.h"
 #include "mcrl2/data/detail/prover/manipulator.h"
 #include "mcrl2/data/detail/prover/smt_lib_solver.h"
 #include "mcrl2/data/detail/prover/solver_type.h"
-#include "mcrl2/utilities/logger.h"
 
 namespace mcrl2
 {
@@ -71,7 +64,7 @@ class BDD_Path_Eliminator: public BDD_Simplifier
     /// \param a_minimal A boolean value indicating whether or not minimal sets of possibly inconsistent guards are constructed.
     data_expression_list create_condition(
                data_expression_list a_path,
-               const data_expression &a_guard,
+               const data_expression& a_guard,
                bool a_minimal)
     {
       if (!a_minimal)
@@ -118,8 +111,8 @@ class BDD_Path_Eliminator: public BDD_Simplifier
     /// \param a_bdd A binary decision diagram.
     /// \param a_path A list of guards and negated guards, representing a path in a BDD.
     data_expression aux_simplify(
-                        const data_expression &a_bdd,
-                        const data_expression_list &a_path)
+                        const data_expression& a_bdd,
+                        const data_expression_list& a_path)
     {
       if (f_deadline != 0 && (f_deadline - time(nullptr)) < 0)
       {
@@ -171,8 +164,8 @@ class BDD_Path_Eliminator: public BDD_Simplifier
     /// \param a_expression_1 An arbitrary expression.
     /// \param a_expression_2 An arbitrary expression.
     bool variables_overlap(
-                    const data_expression &a_expression_1,
-                    const data_expression &a_expression_2)
+                    const data_expression& a_expression_1,
+                    const data_expression& a_expression_2)
     {
       std::set < variable > set1=find_all_variables(a_expression_1);
       std::set < variable > set2=find_all_variables(a_expression_2);

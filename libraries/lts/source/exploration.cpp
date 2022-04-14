@@ -7,18 +7,13 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <iomanip>
-#include <ctime>
 
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/data/real.h"
 #include "mcrl2/lps/resolve_name_clashes.h"
 #include "mcrl2/lps/detail/instantiate_global_variables.h"
-#include "mcrl2/lps/probabilistic_data_expression.h"
 #include "mcrl2/lps/one_point_rule_rewrite.h"
 #include "mcrl2/lps/detail/move_constants_to_substitution.h"
 #include "mcrl2/lts/detail/exploration.h"
 #include "mcrl2/lts/detail/counter_example.h"
-#include "mcrl2/lts/lts_io.h"
 
 using namespace mcrl2;
 using namespace mcrl2::log;
@@ -252,18 +247,21 @@ void lps2lts_algorithm::initialise_lts_generation(const lts_generation_options& 
   {
     for (std::size_t i = 0; i < specification.process().action_summands().size(); i++)
     {
-      specification.process().action_summands()[i].multi_action().actions() = process::action_list();
+      multi_action& a=specification.process().action_summands()[i].multi_action(); 
+      a = multi_action(process::action_list(),a.time());
     }
 
     if (m_use_confluence_reduction)
     {
       for (std::size_t i = 0; i < nonprioritised_summands.size(); i++)
       {
-        nonprioritised_summands[i].multi_action().actions() = process::action_list();
+        multi_action& a=nonprioritised_summands[i].multi_action();
+        a = multi_action(process::action_list(),a.time());
       }
       for (std::size_t i = 0; i < prioritised_summands.size(); i++)
       {
-        prioritised_summands[i].multi_action().actions() = process::action_list();
+        multi_action& a=prioritised_summands[i].multi_action();
+        a = multi_action(process::action_list(),a.time());
       }
     }
   }
@@ -612,7 +610,7 @@ void lps2lts_algorithm::value_prioritize(std::vector<next_state_generator::trans
   transitions.resize(new_position);
 }
 
-void lps2lts_algorithm::construct_trace(const lps::state& state1, mcrl2::trace::Trace& trace)
+void lps2lts_algorithm::construct_trace(const lps::state& state1, mcrl2::lts::trace& trace)
 {
   lps::state state=state1;
   std::deque<lps::state> states;
@@ -623,10 +621,11 @@ void lps2lts_algorithm::construct_trace(const lps::state& state1, mcrl2::trace::
     state = source->second;
   }
 
-  trace.setState(state);
+  trace.set_state(state);
   next_state_generator::enumerator_queue_t enumeration_queue;
   for (std::deque<lps::state>::iterator i = states.begin(); i != states.end(); i++)
   {
+    bool found=false;
     for (next_state_generator::iterator j = m_generator->begin(state, &enumeration_queue); j != m_generator->end(); j++)
     {
       lps::state destination = j->target_state();
@@ -636,13 +635,19 @@ void lps2lts_algorithm::construct_trace(const lps::state& state1, mcrl2::trace::
       }
       if (destination == *i)
       {
-        trace.addAction(j->action());
+        trace.add_action(j->action());
+        found=true;
         break;
       }
     }
+    if (not found)
+    {
+      throw mcrl2::runtime_error(std::string("Fail to save a trace. Most likely due to the use of binders (forall, exists, lambda, Set, Map) in a state vector.\n") +
+                                 "Problematic state (" + pp(*i) + ")");
+    }
     enumeration_queue.clear();
     state = *i;
-    trace.setState(state);
+    trace.set_state(state);
   }
 
 }
@@ -650,7 +655,7 @@ void lps2lts_algorithm::construct_trace(const lps::state& state1, mcrl2::trace::
 // Contruct a trace to state1 and store in in filename.
 bool lps2lts_algorithm::save_trace(const lps::state& state1, const std::string& filename)
 {
-  mcrl2::trace::Trace trace;
+  mcrl2::lts::trace trace;
   lps2lts_algorithm::construct_trace(state1, trace);
   m_traces_saved++;
 
@@ -670,10 +675,10 @@ bool lps2lts_algorithm::save_trace(const lps::state& state1,
                                    const next_state_generator::transition_t& transition,
                                    const std::string& filename)
 {
-  mcrl2::trace::Trace trace;
+  mcrl2::lts::trace trace;
   lps2lts_algorithm::construct_trace(state1, trace);
-  trace.addAction(transition.action());
-  trace.setState(transition.target_state());
+  trace.add_action(transition.action());
+  trace.set_state(transition.target_state());
   m_traces_saved++;
 
   try
@@ -768,7 +773,7 @@ void lps2lts_algorithm::check_divergence(
   else
   {
     // No divergence has been found. Register all states as being non divergent.
-    for(const lps::state s: visited)
+    for(const lps::state& s: visited)
     {
       assert(non_divergent_states.count(s)==0);
       non_divergent_states.insert(s);
@@ -1064,6 +1069,7 @@ void lps2lts_algorithm::get_transitions(const lps::state& state,
                                         next_state_generator::enumerator_queue_t& enumeration_queue
                                        )
 {
+  bool structured_output = false;
   assert(transitions.empty());
   if (m_options.detect_divergence)
   {
@@ -1071,10 +1077,10 @@ void lps2lts_algorithm::get_transitions(const lps::state& state,
     { if (m_options.trace)
       {
         // Onderstaande string generatie kan duur uitpakken.
-        std::string filename_divergence_loop = m_options.trace_prefix + "_divergence_loop" + std::to_string(m_traces_saved) + ".trc";
+        std::string filename_divergence_loop = m_options.trace_prefix + "_divergence_loop" + std::to_string(m_traces_saved);
         check_divergence<detail::counter_example_constructor>(
                 detail::state_index_pair<detail::counter_example_constructor>(state,detail::counter_example_constructor::root_index()),
-                detail::counter_example_constructor(filename_divergence_loop));
+                detail::counter_example_constructor(filename_divergence_loop, "", structured_output));
       }
       else
       {

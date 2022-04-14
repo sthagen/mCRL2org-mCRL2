@@ -78,7 +78,7 @@ OptionValue::OptionValue(ToolOption option, QCheckBox *cbEnabled, QCheckBox *arg
   QWidget::connect(argValue, SIGNAL(stateChanged(int)), this, SLOT(onValueChange()));
 }
 
-QString OptionValue::value()
+QString OptionValue::value(bool addQuotesAroundValuesWithSpaces)
 {
   QString output("");
 
@@ -100,7 +100,7 @@ QString OptionValue::value()
           argValue = dynamic_cast<QLineEdit*>(m_value)->text();
           break;
         case EnumArgument:
-          argValue = dynamic_cast<QButtonGroup*>(m_value)->checkedButton()->text();
+          argValue = dynamic_cast<QButtonGroup*>(m_value)->checkedButton()->property("valueName").toString();
           break;
         case FileArgument:
           argValue = dynamic_cast<FilePicker*>(m_value)->text();
@@ -120,7 +120,7 @@ QString OptionValue::value()
       if (!argValue.isEmpty())
       {
         output.append("=");
-        if (argValue.contains(" "))
+        if (addQuotesAroundValuesWithSpaces && argValue.contains(" "))
         {
           argValue = QString("\"%1\"").arg(argValue);
         }

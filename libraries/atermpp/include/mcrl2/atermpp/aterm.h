@@ -10,12 +10,11 @@
 #ifndef MCRL2_ATERMPP_ATERM_H
 #define MCRL2_ATERMPP_ATERM_H
 
-#include "mcrl2/atermpp/type_traits.h"
-#include "mcrl2/atermpp/detail/aterm.h"
-
-#include <string>
+#include <algorithm>
+#include <assert.h>
 #include <sstream>
-#include <iostream>
+#include "mcrl2/atermpp/detail/aterm.h"
+#include "mcrl2/atermpp/type_traits.h"
 
 /// \brief The main namespace for the aterm++ library.
 namespace atermpp
@@ -23,18 +22,16 @@ namespace atermpp
 
 typedef void(*term_callback)(const aterm&);
 
-extern void add_creation_hook(const function_symbol&, term_callback);
 extern void add_deletion_hook(const function_symbol&, term_callback);
 
 /// \brief An unprotected term does not change the reference count of the
 ///        shared term when it is copied or moved.
 class unprotected_aterm
 {
-
   friend detail::_aterm* detail::address(const unprotected_aterm& t);
 
 protected:
-  detail::_aterm* m_term;
+  const detail::_aterm* m_term;
 
 public:
 
@@ -45,7 +42,7 @@ public:
 
   /// \brief Constructor.
   /// \param term The term from which the new term is constructed.
-  unprotected_aterm(detail::_aterm* term) noexcept
+  unprotected_aterm(const detail::_aterm* term) noexcept
    : m_term(term)
   {}
 
@@ -184,7 +181,7 @@ public:
   /// \param t A pointer to an internal aterm data structure.
   /// \todo Should be protected, but this cannot yet be done due to a problem
   ///       in the compiling rewriter.
-  explicit aterm(detail::_aterm *t) noexcept
+  explicit aterm(const detail::_aterm *t) noexcept
   {
     t->increment_reference_count();
     m_term = t;
@@ -283,20 +280,22 @@ const Derived& down_cast(const Base& t,
 {
   static_assert(sizeof(Derived) == sizeof(aterm),
                 "aterm cast cannot be applied types derived from aterms where extra fields are added");
+  assert(Derived(static_cast<const aterm&>(t)) != aterm());
   return reinterpret_cast<const Derived&>(t);
 }
 
 template < typename DerivedCont, typename Base, template <typename Elem> class Cont >
 const DerivedCont& container_cast(const Cont<Base>& t,
-                              typename std::enable_if<
-                                is_container<DerivedCont>::value &&
-                                std::is_same<Cont<typename DerivedCont::value_type>, DerivedCont>::value &&
-                                !std::is_base_of<DerivedCont, Cont<Base> >::value &&
+                              typename std::enable_if_t<
+                                is_container<DerivedCont, aterm>::value &&
+                                std::is_same_v<Cont<typename DerivedCont::value_type>, DerivedCont> &&
+                                !std::is_base_of_v<DerivedCont, Cont<Base> > &&
                                 is_convertible<Base, typename DerivedCont::value_type>::value
-                              >::type* = nullptr)
+                              >* = nullptr)
 {
   static_assert(sizeof(typename DerivedCont::value_type) == sizeof(aterm),
                 "aterm cast cannot be applied types derived from aterms where extra fields are added");
+  assert(std::all_of(t.begin(),t.end(),[](const Base& u){ return typename DerivedCont::value_type(static_cast<const aterm&>(u)) != aterm();} ));
   return reinterpret_cast<const DerivedCont&>(t);
 }
 
@@ -311,46 +310,22 @@ const Derived& vertical_cast(const Base& t,
 {
   static_assert(sizeof(Derived) == sizeof(aterm),
                 "aterm cast cannot be applied types derived from aterms where extra fields are added");
+  assert(Derived(static_cast<const aterm&>(t)) != aterm());
   return reinterpret_cast<const Derived&>(t);
 }
 
 template < typename DerivedCont, typename Base, template <typename Elem> class Cont >
 const DerivedCont& vertical_cast(const Cont<Base>& t,
-                              typename std::enable_if<
-                                is_container<DerivedCont>::value &&
-                                std::is_same<Cont<typename DerivedCont::value_type>, DerivedCont>::value &&
+                              typename std::enable_if_t<
+                                is_container<DerivedCont, aterm>::value &&
+                                std::is_same_v<Cont<typename DerivedCont::value_type>, DerivedCont> &&
                                 is_convertible<Base, typename DerivedCont::value_type>::value
-                              >::type* = NULL)
+                              >* = nullptr)
 {
   static_assert(sizeof(typename DerivedCont::value_type) == sizeof(aterm),
                 "aterm cast cannot be applied types derived from aterms where extra fields are added");
+  assert(std::all_of(t.begin(),t.end(),[](const Base& u){ return typename DerivedCont::value_type(static_cast<const aterm&>(u)) != aterm();} ));
   return reinterpret_cast<const DerivedCont&>(t);
-}
-
-/// \brief Cast from an aterm derived term to another aterm.
-/// \deprecated.
-template <class Derived, class Base>
-const Derived& deprecated_cast(const Base& t,
-                               typename std::enable_if<
-                                  std::is_base_of<aterm, Base>::value &&
-                                  std::is_base_of<aterm, Derived>::value
-                               >::type* = nullptr)
-{
-  static_assert(sizeof(Derived) == sizeof(aterm),
-                "aterm cast cannot be applied types derived from aterms where extra fields are added");
-  return reinterpret_cast<const Derived&>(t);
-}
-
-/// \brief Send the term in textual form to the ostream.
-std::ostream& operator<<(std::ostream& out, const aterm& t);
-
-/// \param t The input aterm.
-/// \return A string representation of the given term derived from an aterm.
-inline std::string pp(const aterm& t)
-{
-  std::ostringstream oss;
-  oss << t;
-  return oss.str();
 }
 
 namespace detail
@@ -358,8 +333,24 @@ namespace detail
   /// \returns A pointer to the underlying aterm.
   inline _aterm* address(const unprotected_aterm& t)
   {
-    return t.m_term;
+    return const_cast<_aterm*>(t.m_term);
   }
+}
+
+/// \brief Send the term in textual form to the ostream.
+/// \param out The stream to which the term is sent. 
+/// \param t   The term that is printed to the stream.
+/// \return The stream to which the term is written.
+std::ostream& operator<<(std::ostream& out, const atermpp::aterm& t);
+
+/// \brief Transform an aterm to an ascii string.
+/// \param t The input aterm.
+/// \return A string representation of the given term derived from an aterm.
+inline std::string pp(const atermpp::aterm& t)
+{
+  std::ostringstream oss;
+  oss << t;
+  return oss.str();
 }
 
 } // namespace atermpp
@@ -381,7 +372,6 @@ inline void swap(atermpp::unprotected_aterm& t1, atermpp::unprotected_aterm& t2)
 {
   t1.swap(t2);
 }
-
 } // namespace std
 
 #endif // MCRL2_ATERMPP_ATERM_H

@@ -11,20 +11,11 @@
 
 #define BOOST_TEST_MODULE data_specification_test
 #include <boost/test/included/unit_test_framework.hpp>
-#include <functional>
-#include <iostream>
-#include "mcrl2/data/bag.h"
-#include "mcrl2/data/basic_sort.h"
-#include "mcrl2/data/data_expression.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/find.h"
-#include "mcrl2/data/list.h"
+
+#include "mcrl2/data/data_io.h"
 #include "mcrl2/data/merge_data_specifications.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/data/print.h"
-#include "mcrl2/data/set.h"
-#include "mcrl2/data/sort_expression.h"
-#include "mcrl2/data/structured_sort.h"
 
 using namespace mcrl2;
 using namespace mcrl2::data;
@@ -250,7 +241,7 @@ void test_functions()
   std::for_each(fghl.begin(), fghl.end(), std::bind(&data_specification::add_mapping, &spec1, std::placeholders::_1));
 
 std::cerr << "#mappings " << spec.mappings().size() << "\n";
-  BOOST_CHECK(spec.mappings().size() == 51);
+  BOOST_CHECK(spec.mappings().size() == 54);
 
   function_symbol_vector mappings(spec.mappings());
   BOOST_CHECK(std::find(mappings.begin(), mappings.end(), f) != mappings.end());
@@ -470,7 +461,6 @@ void test_system_defined()
   // A data specification that is constructed using data_specification_to_aterm is assumed not
   // not be type checked. This must be indicated explicitly.
   data_specification specification1=data_specification(data::detail::data_specification_to_aterm(copy));
-  specification1.declare_data_specification_to_be_type_checked();
   BOOST_CHECK(compare_for_equality(specification1,specification));
 
   specification = parse_data_specification(

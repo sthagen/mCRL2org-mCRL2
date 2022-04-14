@@ -32,7 +32,7 @@ const utilities::file_format& bes_format_pgsolver() { return bes_file_formats()[
 inline
 utilities::file_format guess_format(const std::string& filename)
 {
-  for (const utilities::file_format fmt: bes_file_formats())
+  for (const utilities::file_format& fmt: bes_file_formats())
   {
     if (fmt.matches(filename))
     {
@@ -110,6 +110,12 @@ void save_pbes(const pbes_system::pbes& pbes,
 void save_pbes(const pbes_system::pbes& pbes,
                const std::string& filename,
                utilities::file_format format = utilities::file_format());
+
+/// \brief Writes the bes to a stream.
+atermpp::aterm_ostream& operator<<(atermpp::aterm_ostream& stream, const boolean_equation_system& bes);
+
+/// \brief Reads the bes from a stream.
+atermpp::aterm_istream& operator>>(atermpp::aterm_istream& stream, boolean_equation_system& bes);
 
 } // namespace bes
 

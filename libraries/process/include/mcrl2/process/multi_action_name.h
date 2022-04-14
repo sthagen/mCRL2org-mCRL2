@@ -12,10 +12,8 @@
 #ifndef MCRL2_PROCESS_MULTI_ACTION_NAME_H
 #define MCRL2_PROCESS_MULTI_ACTION_NAME_H
 
+#include "mcrl2/atermpp/aterm_io_text.h"
 #include "mcrl2/core/identifier_string.h"
-#include <algorithm>
-#include <set>
-#include <sstream>
 
 namespace mcrl2 {
 
@@ -26,8 +24,7 @@ struct multi_action_name: public std::multiset<core::identifier_string>
 {
   typedef std::multiset<core::identifier_string> super;
 
-  multi_action_name()
-  {}
+  multi_action_name() = default;
 
   template <typename InputIterator>
   multi_action_name(InputIterator first, InputIterator last)

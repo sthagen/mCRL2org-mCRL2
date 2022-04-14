@@ -6,6 +6,8 @@ add_mcrl2_tool(ltsgraph
     camera.cpp
     dimensionsdialog.cpp
     dimensionsdialog.ui
+    exportsvg.cpp
+    exporttikz.cpp
     glscene.cpp
     glwidget.cpp
     glwidget.ui

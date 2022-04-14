@@ -9,17 +9,9 @@
 /// \file algorithm.cpp
 /// \brief Add your file description here.
 
-#include <iostream>
-#include <iterator>
-#include <cassert>
-#include <vector>
-
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
 #include "mcrl2/atermpp/algorithm.h"
 #include "mcrl2/atermpp/aterm_io.h"
 
-using namespace std;
 using namespace atermpp;
 
 // function object to test if it is an aterm_appl with function symbol "f"
@@ -48,7 +40,7 @@ void test_find()
   aterm_appl t = find_if(a, is_f());
   assert(t == read_term_from_string("f(y)"));
 
-  vector<atermpp::aterm> v;
+  std::vector<atermpp::aterm> v;
   find_all_if(a, is_f(), back_inserter(v));
   assert(v.front() == read_term_from_string("f(y)"));
   assert(v.back() == read_term_from_string("f(z)"));

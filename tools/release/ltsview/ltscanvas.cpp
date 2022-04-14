@@ -10,8 +10,6 @@
 #include "ltscanvas.h"
 #include <tr/tr.h>
 
-#include <cmath>
-
 #include "mcrl2/gui/arcball.h"
 #include "mcrl2/gui/glu.h"
 
@@ -20,7 +18,7 @@
 #include "icons/rotate_cursor.xpm"
 
 LtsCanvas::LtsCanvas(QWidget* parent, Settings* settings, LtsManager* ltsManager, MarkManager* markManager):
-  QGLWidget(parent),
+  QOpenGLWidget(parent),
   m_settings(settings),
   m_ltsManager(ltsManager),
   m_visualizer(new Visualizer(this, settings, ltsManager, markManager)),
@@ -398,7 +396,7 @@ void LtsCanvas::mouseMoveEvent(QMouseEvent* event)
 
 void LtsCanvas::wheelEvent(QWheelEvent* event)
 {
-  m_position += QVector3D(0.0f, 0.0f, 0.001f * (m_baseDepth - m_position.z()) * event->delta());
+  m_position += QVector3D(0.0f, 0.0f, 0.001f * (m_baseDepth - m_position.z()) * event->angleDelta().y());
   event->accept();
   repaint();
 }
@@ -413,6 +411,7 @@ LtsCanvas::Selection LtsCanvas::selectObject(QPoint position)
   // * The identifier of the type of object clicked
   // * Up to two numbers indicating the object selected
 
+  makeCurrent();
   int maxItems = m_ltsManager->lts()->getNumClusters() + m_ltsManager->lts()->getNumStates();
   int bufferSize = maxItems * 6;
   GLuint* selectionBuffer = new GLuint[bufferSize];
@@ -424,6 +423,7 @@ LtsCanvas::Selection LtsCanvas::selectObject(QPoint position)
   glMatrixMode(GL_PROJECTION);
   glPushMatrix();
   glLoadIdentity();
+  glViewport(0, 0, m_width, m_height);
 
   GLint viewport[4];
   glGetIntegerv(GL_VIEWPORT, viewport);
@@ -523,6 +523,7 @@ LtsCanvas::Selection LtsCanvas::parseSelection(GLuint* selectionBuffer, GLint it
 
 QImage LtsCanvas::renderImage(int width, int height)
 {
+  makeCurrent();
   glReadBuffer(GL_BACK);
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
 

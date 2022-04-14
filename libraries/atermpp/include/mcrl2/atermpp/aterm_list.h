@@ -10,16 +10,9 @@
 #ifndef MCRL2_ATERMPP_ATERM_LIST_H
 #define MCRL2_ATERMPP_ATERM_LIST_H
 
-#include "mcrl2/atermpp/aterm.h"
 #include "mcrl2/atermpp/detail/aterm_list.h"
-
 #include "mcrl2/atermpp/detail/aterm_list_iterator.h"
-#include "mcrl2/atermpp/detail/global_aterm_pool.h"
-
-#include <cassert>
-#include <initializer_list>
-#include <limits>
-#include <type_traits>
+#include "mcrl2/atermpp/type_traits.h"
 
 namespace atermpp
 {
@@ -64,6 +57,15 @@ public:
   term_list() noexcept
     : aterm(detail::g_term_pool().empty_list())
   {}
+
+  /// \brief Constructor from an aterm.
+  /// \param t A list.
+  explicit term_list(const aterm& t) noexcept
+    : aterm(t)
+  {
+    // assert(!defined() || type_is_list());
+    assert(type_is_list());  // A list should not be a default aterm. 
+  }
 
   /// \brief Copy constructor.
   /// \param t A list.
@@ -169,7 +171,8 @@ public:
   template <class Iter, class  ATermConverter>
   explicit term_list(Iter first, Iter last, const ATermConverter& convert_to_aterm,
                      typename std::enable_if< !std::is_base_of<
-                       std::random_access_iterator_tag,
+                       std::bidirectional_iterator_tag,
+                       // std::random_access_iterator_tag,
                        typename std::iterator_traits<Iter>::iterator_category
                      >::value>::type* = nullptr):
        aterm(detail::make_list_forward<Term,Iter,ATermConverter>
@@ -219,7 +222,7 @@ public:
   const term_list<Term>& tail() const
   {
     assert(!empty());
-    return (static_cast<detail::_aterm_list<Term>&>(*m_term)).tail();
+    return (static_cast<const detail::_aterm_list<Term>&>(*m_term)).tail();
   }
 
   /// \brief Removes the first element of the list.
@@ -232,7 +235,7 @@ public:
   /// \return The term at the head of the list.
   const Term& front() const
   {
-    return static_cast<detail::_aterm_list<Term>&>(*m_term).head();
+    return static_cast<const detail::_aterm_list<Term>&>(*m_term).head();
   }
 
   /// \brief Inserts a new element at the beginning of the current list.
@@ -302,10 +305,10 @@ class _aterm_list : public _aterm_appl<2>
 {
 public:
   /// \returns A reference to the head of the list.
-  Term& head() { return static_cast<Term&>(arg(0)); }
+  const Term& head() const { return static_cast<const Term&>(arg(0)); }
 
   /// \returns A reference to the tail of the list.
-  term_list<Term>& tail() { return static_cast<term_list<Term>&>(arg(1)); }
+  const term_list<Term>& tail() const { return static_cast<const term_list<Term>&>(arg(1)); }
 };
 
 } // namespace detail
@@ -323,6 +326,17 @@ typedef term_list<aterm> aterm_list;
 template <typename Term>
 inline
 term_list<Term> reverse(const term_list<Term>& l);
+
+/// \brief Returns the list with the elements sorted according to the <-operator on the addresses of terms. 
+/// \param l A list.
+/// \param ordering An total orderings relation on Term, by default the ordering relation on Terms. 
+/// \details This operator has complexity nlog n where n is the size of the list.
+/// \return The sorted list.
+template <typename Term>
+inline
+term_list<Term> sort_list(const term_list<Term>& l, 
+                          const std::function<bool(const Term&, const Term&)>& ordering 
+                                      = [](const Term& t1, const Term& t2){ return t1<t2;});
 
 
 /// \brief Returns the concatenation of two lists with convertible element types.
@@ -350,6 +364,20 @@ operator+(const term_list<Term1>& l, const term_list<Term2>& m);
 template <typename Term>
 inline
 term_list<Term> push_back(const term_list<Term>& l, const Term& el);
+
+/// \brief Converts the given term list to a vector.
+template <typename T>
+std::vector<T> as_vector(const atermpp::term_list<T>& x)
+{
+  return std::vector<T>(x.begin(), x.end());
+}
+
+/// \brief Converts the given term list to a set.
+template <typename T>
+std::set<T> as_set(const atermpp::term_list<T>& x)
+{
+  return std::set<T>(x.begin(), x.end());
+}
 
 } // namespace atermpp
 

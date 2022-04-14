@@ -20,10 +20,11 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <cstdio>
+#include <iostream>
 #include <algorithm>
 #include <cassert>
+#include <set>
 #include "mcrl2/lts/transition.h"
 #include "mcrl2/lts/lts_type.h"
 
@@ -88,10 +89,10 @@ class lts: public LTS_BASE
     std::vector<transition> m_transitions;
     std::vector<STATE_LABEL_T> m_state_labels;
     std::vector<ACTION_LABEL_T> m_action_labels; // At position 0 we always find the label that corresponds to tau.
-    // The following map indicates for every label index, which label is obtained after hiding
-    // actions. This is the identity map by default, and it is filled using a call to the
-    // function hide_actions. 
-    std::map<labels_size_type,labels_size_type> m_hidden_label_map; 
+    // The following set contains the labels that are recorded as being hidden. 
+    // This allows tools to apply reductions assuming that these actions are hidden, but still provide
+    // feedback, for instance using counter examples, using the original action name. 
+    std::set<labels_size_type> m_hidden_label_set; 
 
   public:
 
@@ -112,9 +113,22 @@ class lts: public LTS_BASE
       m_transitions(l.m_transitions),
       m_state_labels(l.m_state_labels),
       m_action_labels(l.m_action_labels),
-      m_hidden_label_map(l.m_hidden_label_map)
+      m_hidden_label_set(l.m_hidden_label_set)
     {
-      assert(m_action_labels.size()>0 && m_action_labels[0]==ACTION_LABEL_T::tau_action());
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
+    }
+
+    lts& operator=(const lts& l)
+    {
+      static_cast<LTS_BASE&>(*this)=l;
+      m_nstates = l.m_nstates;
+      m_init_state = l.m_init_state;
+      m_transitions = l.m_transitions;
+      m_state_labels = l.m_state_labels;
+      m_action_labels = l.m_action_labels;
+      m_hidden_label_set = l.m_hidden_label_set;
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
+      return *this;
     }
 
     /** \brief Swap this lts with the supplied supplied LTS.
@@ -135,9 +149,9 @@ class lts: public LTS_BASE
       m_transitions.swap(l.m_transitions);
       m_state_labels.swap(l.m_state_labels);
       m_action_labels.swap(l.m_action_labels);
-      assert(m_action_labels.size()>0 && m_action_labels[0]==ACTION_LABEL_T::tau_action());
-      assert(l.m_action_labels.size()>0 && l.m_action_labels[0]==ACTION_LABEL_T::tau_action());
-      m_hidden_label_map.swap(l.m_hidden_label_map);
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
+      assert(l.m_action_labels.size()>0 && l.m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
+      m_hidden_label_set.swap(l.m_hidden_label_set);
     }
 
     /** \brief Gets the number of states of this LTS.
@@ -188,7 +202,7 @@ class lts: public LTS_BASE
         }
         else
         {
-          m_state_labels = std::vector<STATE_LABEL_T>();
+          m_state_labels = std::vector<STATE_LABEL_T>(n);
         }
       }
       else
@@ -210,14 +224,14 @@ class lts: public LTS_BASE
     void set_num_action_labels(const labels_size_type n)
     {
       m_action_labels.resize(n);
-      assert(m_action_labels.size()>0 && m_action_labels[0]==ACTION_LABEL_T::tau_action());
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
     } 
 
     /** \brief Gets the number of action labels of this LTS.
      * \return The number of action labels of this LTS. */
     labels_size_type num_action_labels() const
     {
-      assert(m_action_labels.size()>0 && m_action_labels[0]==ACTION_LABEL_T::tau_action());
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
       return m_action_labels.size();
     }
 
@@ -262,20 +276,20 @@ class lts: public LTS_BASE
     {
       if (label==ACTION_LABEL_T::tau_action())
       {
-        return 0;
+        return const_tau_label_index;
       }
+      assert(std::find(m_action_labels.begin(),m_action_labels.end(),label)==m_action_labels.end()); // Action labels must be unique. 
       const labels_size_type label_index=m_action_labels.size();
       m_action_labels.push_back(label);
       return label_index;
     }
 
     /** \brief Provide the index of the label that represents tau.
-     *  \return 0, i.e. the index of the label tau.
+     *  \return const_tau_label_index, which is 0, i.e. the index of the label tau.
      */
     const labels_size_type tau_label_index() const
     {
-      assert(is_tau(0));
-      return 0;
+      return const_tau_label_index;
     }
 
     /** \brief Sets the label of a state.
@@ -302,45 +316,46 @@ class lts: public LTS_BASE
     void set_action_label(const labels_size_type action, const ACTION_LABEL_T& label)
     {
       assert(action<m_action_labels.size());
-      assert((action==0) == (label==ACTION_LABEL_T::tau_action())); // a tau action is always stored at index 0.
+      assert((action==const_tau_label_index) == (label==ACTION_LABEL_T::tau_action())); // a tau action is always stored at index 0.
+      assert(m_action_labels[action] == label ||
+             std::find(m_action_labels.begin(),m_action_labels.end(),label)==m_action_labels.end()); // Action labels must be unique. 
       m_action_labels[action] = label;
     }
 
-    /** \brief Returns the hidden label map that tells for each label what its corresponding
+    /** \brief Returns the hidden label set that tells for each label what its corresponding
                hidden label is.
-        \return The hidden action map */
-    const std::map<labels_size_type,labels_size_type>& hidden_label_map() const
+        \return The hidden action set */
+    const std::set<labels_size_type>& hidden_label_set() const
     {
-      return m_hidden_label_map;
+      return m_hidden_label_set;
     }
 
-    /** \brief Returns the hidden label map that tells for each label what its corresponding
+    /** \brief Returns the hidden label set that tells for each label what its corresponding
                hidden label is.
-        \return The hidden action map */
-    std::map<labels_size_type,labels_size_type>& hidden_label_map() 
+        \return The hidden action set */
+    std::set<labels_size_type>& hidden_label_set()
     {
-      return m_hidden_label_map;
+      return m_hidden_label_set;
     }
 
     /** \brief Sets the hidden label map that tells for each label what its corresponding
                hidden label is. 
       * \param[in] m The new hidden label map. */
-    void set_hidden_label_map(const std::map<labels_size_type,labels_size_type>& m)
+    void set_hidden_label_set(const std::set<labels_size_type>& m)
     {
-      m_hidden_label_map=m;
+      m_hidden_label_set=m;
     }
 
-    /** \brief Gives for an action label its corresponding hidden action label.
+    /** \brief If the action label is registered hidden, it returns tau, otherwise the original label. 
         \param[in] action The index of an action label.
         \return The index of the corresponding action label in which actions are hidden. */
     labels_size_type apply_hidden_label_map(const labels_size_type action) const
     {
-      const typename std::map<labels_size_type,labels_size_type>::const_iterator i=m_hidden_label_map.find(action);
-      if (i==m_hidden_label_map.end())
+      if (m_hidden_label_set.count(action)>0)
       {
-        return action;
+        return tau_label_index();
       }
-      return i->second;
+      return action;
     }
 
     /** \brief Gets the label of a state.
@@ -395,7 +410,7 @@ class lts: public LTS_BASE
     {
       m_action_labels.clear();
       m_action_labels.push_back(ACTION_LABEL_T::tau_action());
-      m_hidden_label_map.clear();
+      m_hidden_label_set.clear();
     }
 
     /** \brief Clear the labels of an lts.
@@ -451,19 +466,17 @@ class lts: public LTS_BASE
      * \retval false otherwise.  */
     bool is_tau(labels_size_type action) const
     {
-      assert(m_action_labels.size()>0 && m_action_labels[0]==ACTION_LABEL_T::tau_action());
-      return (action==0);
+      assert(m_action_labels.size()>0 && m_action_labels[const_tau_label_index]==ACTION_LABEL_T::tau_action());
+      return (action==const_tau_label_index);
     }
 
-    /** \brief Sets all actions with a string that occurs in tau_actions to tau.
+    /** \brief Records all actions with a string that occurs in tau_actions internally.
      *  \details After hiding actions, it checks whether action labels are
      *           equal and merges actions with the same labels in the lts.
      *  \param[in] tau_actions Vector with strings indicating which actions must be
      *       transformed to tau's */
-    void hide_actions(const std::vector<std::string>& tau_actions)
+    void record_hidden_actions(const std::vector<std::string>& tau_actions)
     {
-      using namespace std;
-
       if (tau_actions.size()==0)
       {
         return;
@@ -473,30 +486,36 @@ class lts: public LTS_BASE
       {
         ACTION_LABEL_T a=action_label(i);
         a.hide_actions(tau_actions);
-        if (a!=action_label(i))  // If hiding has no effect, nothing needs to be done. 
+        if (a==ACTION_LABEL_T())  
         {
-          // Otherwise search whether the new label already exists.
-          // Note that this can be inefficient if there are very many different actions.
-          // This is generally not the case.
-          bool found=false;
-          for (labels_size_type j=0; j<num_action_labels(); ++j)
-          {
-            if (a==action_label(j))
-            {
-              m_hidden_label_map[i]=j;
-              found=true;
-              break;
-            }
-          }
-          if (!found)
-          {
-            assert(a!=ACTION_LABEL_T::tau_action());
-            m_hidden_label_map[i]=add_action(a);
-          }
+          m_hidden_label_set.insert(i);
+        }
+        else if (a!=action_label(i))
+        {
+          set_action_label(i,a);  
         }
       }
     }
 
+    /** \brief Apply the recorded actions that are renamed to internal actions to the lts. 
+     *  \details After hiding actions, it checks whether action labels are
+     *           equal and merges actions with the same labels in the lts.
+     *  \param[in] tau_actions Vector with strings indicating which actions must be
+     *       transformed to tau's */
+    void apply_hidden_actions(void)
+    {
+      if (m_hidden_label_set.size()>0)    // Check whether there is something to rename.
+      {
+        for(transition& t: m_transitions)
+        {
+          if (m_hidden_label_set.count(t.label()))
+          { 
+            t=transition(t.from(),tau_label_index(),t.to());
+          }
+        }
+        m_hidden_label_set.clear();       // Empty the hidden label set. 
+      }
+    }
     /** \brief Checks whether this LTS has state values associated with its states.
      * \retval true if the LTS has state information;
      * \retval false otherwise.
@@ -514,30 +533,6 @@ class lts: public LTS_BASE
     {
       return m_action_labels.size() > 1;
     }
-
-    /** \brief Sorts the transitions using a sort style.
-     * \param[in] ts The sort style to use.
-     * \note Deprecated */
-    inline void sort_transitions(transition_sort_style ts = src_lbl_tgt)
-    {
-      switch (ts)
-      {
-        case lbl_tgt_src:
-        { 
-          const detail::compare_transitions_lts compare(hidden_label_map());
-          sort(m_transitions.begin(),m_transitions.end(),compare);
-          break;
-        }
-        case src_lbl_tgt:
-        default:
-        {
-          const detail::compare_transitions_slt compare(hidden_label_map());
-          sort(m_transitions.begin(),m_transitions.end(),compare);
-          break;
-        }
-      }
-    }
-
 };
 
 }

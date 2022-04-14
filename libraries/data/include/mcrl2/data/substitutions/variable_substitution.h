@@ -14,21 +14,17 @@
 
 #include "mcrl2/data/is_simple_substitution.h"
 #include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
 namespace data {
 
 /// \brief Substitution that maps a single variable to a data expression
-struct variable_substitution: public std::unary_function<variable, data_expression>
+struct variable_substitution
 {
-  typedef variable variable_type;
-  typedef data_expression expression_type;
+  using variable_type = variable;
+  using expression_type = data_expression;
+  using argument_type = variable;
 
   const variable& lhs;
   const data_expression& rhs;

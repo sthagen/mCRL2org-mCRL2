@@ -12,12 +12,10 @@
 #ifndef MCRL2_LPS_DETAIL_LPS_IO_H
 #define MCRL2_LPS_DETAIL_LPS_IO_H
 
+#include "mcrl2/atermpp/aterm_io_binary.h"
+#include "mcrl2/lps/io.h"
+
 #include <fstream>
-#include <iostream>
-#include <string>
-#include "mcrl2/lps/specification.h"
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/utilities/text_utility.h"
 
 namespace mcrl2 {
 
@@ -32,7 +30,7 @@ lps::specification load_lps(const std::string& filename)
   lps::specification result;
   if (filename.empty())
   {
-    result.load(std::cin);
+    atermpp::binary_aterm_istream(std::cin) >> result;
   }
   else
   {
@@ -41,7 +39,7 @@ lps::specification load_lps(const std::string& filename)
     {
       throw mcrl2::runtime_error("Could not read from filename " + filename);
     }
-    result.load(from);
+    atermpp::binary_aterm_istream(from) >> result;
   }
   return result;
 }
@@ -52,7 +50,7 @@ void save_lps(const lps::specification& lpsspec, const std::string& filename)
 {
   if (filename.empty())
   {
-    lpsspec.save(std::cout);
+    atermpp::binary_aterm_ostream(std::cout) << lpsspec;
   }
   else
   {
@@ -61,7 +59,7 @@ void save_lps(const lps::specification& lpsspec, const std::string& filename)
     {
       throw mcrl2::runtime_error("Could not write to filename " + filename);
     }
-    lpsspec.save(to);
+    atermpp::binary_aterm_ostream(to) << lpsspec;
   }
 }
 

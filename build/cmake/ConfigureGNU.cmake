@@ -7,10 +7,11 @@
 # http://www.boost.org/LICENSE_1_0.txt)
 include(AddFlag)
 
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
   set(MCRL2_CLANGPP ON)
 endif()
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+
+if(CMAKE_C_COMPILER_ID MATCHES ".*Clang")
   set(MCRL2_CLANG ON)
 endif()
 
@@ -30,13 +31,18 @@ endif(MCRL2_ENABLE_PROFILING)
 ## Set C compile flags
 ##---------------------------------------------------
 
-try_add_c_flag(-std=c99)
+#try_add_c_flag(-std=c99)
 try_add_c_flag(-Wall)
 try_add_c_flag(-Wno-inline)
 try_add_c_flag(-fno-strict-overflow)
 try_add_c_flag(-pipe)
-try_add_c_flag(-pedantic                 DEBUG)
-try_add_c_flag(-W                        DEBUG)
+#try_add_c_flag(-pedantic)
+try_add_c_flag(-W                      DEBUG)
+
+# Ignore specific warnings produced in Sylvan.
+try_add_c_flag(-Wno-c99-extensions)
+try_add_c_flag(-Wno-gnu-zero-variadic-macro-arguments)
+try_add_c_flag(-Wno-zero-length-array)
 
 # The following flags are not implemented in clang and therefore cause warnings.
 if(NOT MCRL2_CLANG)
@@ -44,8 +50,7 @@ if(NOT MCRL2_CLANG)
   try_add_c_flag(-ftest-coverage           DEBUG)
 endif()
 
-# The following is only implemented in clang, but not on Apple.
-if(MCRL2_CLANG AND NOT APPLE)
+if(MCRL2_ENABLE_ADDRESSSANITIZER)
   # We need to add the proper flag to the linker before we try:
   set(CMAKE_REQUIRED_LIBRARIES "-fsanitize=address")
   try_add_c_flag(-fsanitize=address       DEBUG)
@@ -61,18 +66,8 @@ endif()
 ## Set C++ compile flags
 ##---------------------------------------------------
 
-try_add_cxx_flag(-std=c++11)
-if(NOT CXX_ACCEPTS_STD_CPP11)
-  try_add_cxx_flag(-std=c++0x)
-endif()
-
-if(APPLE)
-  try_add_cxx_flag(-stdlib=libc++)
-endif()
-
-if(NOT (CXX_ACCEPTS_STD_CPP11 OR CXX_ACCEPTS_STD_CPP0X))
-  message(FATAL_ERROR "Your compiler does not support -std=c++11 or -std=c++0x. You should upgrade to a newer compiler version to build mCRL2")
-endif()
+# This first flag is only necessary for our compiling rewriter script (that ignores 'other' build flags).
+try_add_cxx_flag(-std=c++17)
 
 try_add_cxx_flag(-Wall)
 try_add_cxx_flag(-Wno-inline)
@@ -91,22 +86,22 @@ try_add_cxx_flag(-Woverloaded-virtual    DEBUG)
 try_add_cxx_flag(-Wwrite-strings         DEBUG)
 try_add_cxx_flag(-Wmissing-declarations  DEBUG)
 
+# Ignore specific warnings produced in Sylvan.
+try_add_cxx_flag(-Wno-c99-extensions)
+try_add_cxx_flag(-Wno-gnu-zero-variadic-macro-arguments)
+try_add_cxx_flag(-Wno-zero-length-array)
+
 # The following flags are not implemented in clang and therefore cause warnings.
 if(NOT MCRL2_CLANGPP)
   try_add_cxx_flag(-fprofile-arcs            DEBUG)
   try_add_cxx_flag(-ftest-coverage           DEBUG)
 endif()
 
-# The following is only implemented in clang
-if(MCRL2_CLANGPP AND NOT APPLE)
+if(MCRL2_ENABLE_ADDRESSSANITIZER)
   # We need to add the proper flag to the linker before we try:
   set(CMAKE_REQUIRED_LIBRARIES "-fsanitize=address")
   try_add_cxx_flag(-fsanitize=address       DEBUG)
   try_add_cxx_flag(-fno-omit-frame-pointer  DEBUG)
-
-  # Add a blacklist for the address and leak sanitizer to suppress reports for desired behaviour.
-  get_filename_component(LEAKSANITIZER_SUPPRESS ${CMAKE_SOURCE_DIR}/build/leaksanitizer.suppress ABSOLUTE)
-  try_add_cxx_flag("-fsanitize-blacklist=${LEAKSANITIZER_SUPPRESS}" DEBUG)
   unset(CMAKE_REQUIRED_LIBRARIES)
 endif()
 
@@ -148,7 +143,7 @@ if(CXX_ACCEPTS_FTEST_COVERAGE)
   set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} -ftest-coverage")
 endif()
 
-if(CXX_ACCEPTS_FSANITIZE_ADDRESS)
+if(MCRL2_ENABLE_ADDRESSSANITIZER)
   set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address")
   set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} -fsanitize=address")
 endif()

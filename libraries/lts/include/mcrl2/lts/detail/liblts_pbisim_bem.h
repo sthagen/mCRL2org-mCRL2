@@ -10,15 +10,7 @@
 
 #ifndef _LIBLTS_PBISIM_BEM_H
 #define _LIBLTS_PBISIM_BEM_H
-#include <cmath>
-#include <vector>
-#include <map>
-#include <list>
-#include <deque>
-#include <unordered_map>
 #include "mcrl2/utilities/execution_timer.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/lts/lts_aut.h"
 #include "mcrl2/lts/detail/liblts_plts_merge.h"
 
 namespace mcrl2
@@ -438,7 +430,7 @@ class prob_bisim_partitioner_bem
     }
 
     /* Add all the state probabilities pairs in the mapping to its actual data type*/
-    for (const std::pair<state_type, probability_fraction_type>& i : prob_state_map)
+    for (const std::pair<const state_type, probability_fraction_type>& i: prob_state_map)
     {
       new_prob_state.add(i.first, i.second);
     }

@@ -15,10 +15,6 @@
 #include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/partial_order_reduction.h"
 #include "mcrl2/pbes/io.h"
-#include "mcrl2/pbes/join.h"
-#include "mcrl2/utilities/logger.h"
-
-#include <utility>
 
 namespace mcrl2 {
 
@@ -84,12 +80,17 @@ struct pbespor_pbes_composer
 
   void add_expression(const propositional_variable_instantiation& X, const propositional_variable_instantiation& Y)
   {
-    auto i = equations.find(X);
-    if (i == equations.end())
+    auto i_X = equations.find(X);
+    if (i_X == equations.end())
     {
-      i = equations.insert(std::make_pair(X, equation_info(make_variable(X)))).first;
+      i_X = equations.insert(std::make_pair(X, equation_info(make_variable(X)))).first;
     }
-    i->second.add(make_variable(Y));
+    auto i_Y = equations.find(Y);
+    if (i_Y == equations.end())
+    {
+      i_Y = equations.insert(std::make_pair(Y, equation_info(make_variable(Y)))).first;
+    }
+    i_X->second.add(i_Y->second.X);
   }
 
   pbes compose_result(const data::data_specification& dataspec, const propositional_variable_instantiation& initial_state) const
@@ -109,38 +110,37 @@ struct pbespor_pbes_composer
       result.equations().push_back(eqn.make_equation());
     }
 
-    if (!result.is_well_typed())
-    {
-      mCRL2log(log::error) << "The result is not well typed!" << std::endl;
-      mCRL2log(log::error) << pp(result) << std::endl;
-    }
+    assert(result.is_well_typed());
     return result;
   }
 
-  pbes run(const pbes& p, data::rewrite_strategy rewrite_strategy, bool use_condition_L)
+  pbes run(const pbes& p,
+           pbespor_options options
+         )
   {
-    partial_order_reduction_algorithm algorithm(p, rewrite_strategy);
-    algorithm.print();
+    partial_order_reduction_algorithm algorithm(p, options);
 
-    algorithm.explore(
-      algorithm.initial_state(),
+    auto emit_node = [&](const propositional_variable_instantiation& X, bool is_conjunctive, std::size_t rank)
+    {
+      mCRL2log(log::debug) << "emit node " << X << std::endl;
+      add_equation(X, is_conjunctive, rank, algorithm.symbol(X.name()));
+    };
 
-      // emit_node
-      [&](const propositional_variable_instantiation& X, bool is_conjunctive, std::size_t rank)
-      {
-        mCRL2log(log::verbose) << "emit node " << X << std::endl;
-        add_equation(X, is_conjunctive, rank, algorithm.symbol(X.name()));
-      },
+    auto emit_edge = [&](const propositional_variable_instantiation& X, const propositional_variable_instantiation& Y)
+    {
+      mCRL2log(log::debug) << "emit edge " << X << " -> " << Y << std::endl;
+      add_expression(X, Y);
+    };
 
-      // emit_edge
-      [&](const propositional_variable_instantiation& X, const propositional_variable_instantiation& Y)
-      {
-        mCRL2log(log::verbose) << "emit edge " << X << " -> " << Y << std::endl;
-        add_expression(X, Y);
-      },
-
-      use_condition_L
-    );
+    if(options.reduction)
+    {
+      algorithm.print();
+      algorithm.explore(algorithm.initial_state(), emit_node, emit_edge);
+    }
+    else
+    {
+      algorithm.explore_full(algorithm.initial_state(), emit_node, emit_edge);
+    }
 
     return compose_result(p.data(), algorithm.initial_state());
   }
@@ -150,15 +150,14 @@ void pbespor(const std::string& input_filename,
              const std::string& output_filename,
              const utilities::file_format& input_format,
              const utilities::file_format& output_format,
-             data::rewrite_strategy rewrite_strategy,
-             bool use_condition_L
+             pbespor_options options
             )
 {
   pbes p;
   load_pbes(p, input_filename, input_format);
   algorithms::normalize(p);
   pbespor_pbes_composer composer;
-  pbes result = composer.run(p, rewrite_strategy, use_condition_L);
+  pbes result = composer.run(p, options);
   save_pbes(result, output_filename, output_format);
 }
 

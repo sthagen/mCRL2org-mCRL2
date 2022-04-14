@@ -13,7 +13,6 @@
 #define MCRL2_DATA_REWRITERS_SIMPLIFY_REWRITER_H
 
 #include "mcrl2/data/builder.h"
-#include "mcrl2/data/detail/data_sequence_algorithm.h"
 #include "mcrl2/data/expression_traits.h"
 #include "mcrl2/data/optimized_boolean_operators.h"
 
@@ -118,8 +117,10 @@ class simplify_rewrite_builder: public data_expression_builder<Derived>
 
 } // namespace detail
 
-struct simplify_rewriter: public std::unary_function<data_expression, data_expression>
+struct simplify_rewriter
 {
+  using argument_type = data_expression;
+
   data_expression operator()(const data_expression& x) const
   {
     return core::make_apply_builder<detail::simplify_rewrite_builder>().apply(x);

@@ -123,9 +123,12 @@ endfunction()
 
 # lps2lts
 function(gen_lps2lts_release_tests LPSFILE LTSFILES ACTIONS)
-  set(ARGUMENTS "-b10" "-ctau" "-D" "--error-trace" "--init-tsize=10" "-l10" "--no-info"
-                "-rjitty" "-rjittyp" ${_JITTYC} "-sd" "-sb" "-sp" "-sq\;-l100" "-sr\;-l100"
-                "--verbose\;--suppress" "--todo-max=10" "-u" "-yno")
+  #set(ARGUMENTS "-b10" "-ctau" "-D" "--error-trace" "--init-tsize=10" "-l10" "--no-info"
+  #              "-rjitty" "-rjittyp" ${_JITTYC} "-sd" "-sb" "-sp" "-sq\;-l100" "-sr\;-l100"
+  #              "--verbose\;--suppress" "--todo-max=10" "-u" "-yno")
+  set(ARGUMENTS "-ctau" "-D" "--error-trace"
+                "-rjitty" "-rjittyp" ${_JITTYC} "-sd" "-sb" "-sh\;--todo-max=100"
+                "--verbose\;--suppress" "-u")
   if(ACTIONS)
     list(GET ACTIONS 0 ACTION)
     list(APPEND ARGUMENTS "-a${ACTIONS}" "-c${ACTION}")
@@ -312,8 +315,8 @@ endfunction()
 
 # pbes2bool
 function(gen_pbes2bool_release_tests PBESFILE)
-  set(ARGUMENTS "-c" "-rjitty" "-rjittyp" ${_JITTYC} "-s0" "-s1" "-s2" "-s3" "-u"
-                "-zbreadth-first" "-zdepth-first" "--erase=none" "--erase=some" "--erase=all" "-glf" "-gspm")
+  set(ARGUMENTS "-c" "-rjitty" "-rjittyp" ${_JITTYC} "-s0" "-s1" "-s2" "-s3" "-s4" "-u"
+                "-zbreadth-first" "-zdepth-first")
   foreach(arglist ${ARGUMENTS})
     add_tool_test(pbes2bool ${arglist} ${tagIN} ${PBESFILE})
   endforeach()

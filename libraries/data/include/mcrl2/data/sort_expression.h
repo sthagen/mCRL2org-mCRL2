@@ -12,13 +12,8 @@
 #ifndef MCRL2_DATA_SORT_EXPRESSION_H
 #define MCRL2_DATA_SORT_EXPRESSION_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
 #include "mcrl2/core/detail/default_values.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/detail/function_symbols.h"
 #include "mcrl2/core/detail/soundness_checks.h"
-#include <set>
 
 namespace mcrl2
 {
@@ -151,6 +146,20 @@ std::set<data::sort_expression> find_sort_expressions(const data::sort_expressio
 } // namespace data
 
 } // namespace mcrl2
+
+namespace std
+{
+
+template <>
+struct hash<mcrl2::data::sort_expression>
+{
+  std::size_t operator()(const mcrl2::data::sort_expression& x) const
+  {
+    return hash<atermpp::aterm>()(x);
+  }
+};
+
+} // namespace std
 
 #endif // MCRL2_DATA_SORT_EXPRESSION_H
 

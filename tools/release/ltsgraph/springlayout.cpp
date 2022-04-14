@@ -9,13 +9,9 @@
 
 #include "springlayout.h"
 #include "utility.h"
-#include "ui_springlayout.h"
 
 #include <QThread>
-#include <algorithm>
-#include <cmath>
 #include <cstdlib>
-#include <ctime>
 
 namespace Graph
 {
@@ -23,15 +19,6 @@ namespace Graph
 //
 // Utility functions
 //
-
-inline float frand(float min, float max)
-{
-  //return ((float)qrand() / RAND_MAX) * (max - min) + min;
-  // Fast pseudo rand, source: http://www.musicdsp.org/showone.php?id=273
-  static int32_t seed = 1;
-  seed *= 16807;
-  return ((((float)seed) * 4.6566129e-010f) + 1.0) * (max - min) / 2.0 + min;
-}
 
 inline float cube(float x)
 {
@@ -120,7 +107,7 @@ QVector3D repulsionForce(const QVector3D& a, const QVector3D& b, float repulsion
   QVector3D diff = a - b;
   float r = repulsion;
   r /= cube((std::max)(diff.length() / 2.0f, natlength / 10));
-  diff = diff * r + QVector3D(frand(-0.01f, 0.01f), frand(-0.01f, 0.01f), frand(-0.01f, 0.01f));
+  diff = diff * r + QVector3D(fast_frand(-0.01f, 0.01f), fast_frand(-0.01f, 0.01f), fast_frand(-0.01f, 0.01f));
   return diff;
 }
 
@@ -171,7 +158,7 @@ void SpringLayout::apply()
       m_hforces[n] = QVector3D(0, 0, 0);
       m_lforces[n] = QVector3D(0, 0, 0);
 
-      if (e.from() == e.to())
+      if (e.is_selfloop())
       {
         m_hforces[n] += repulsionForce(m_graph.handle(n).pos(), m_graph.node(e.from()).pos(), m_repulsion, m_natLength);
       }
@@ -247,7 +234,7 @@ void SpringLayout::randomizeZ(float z)
   {
     if (!m_graph.node(n).anchored())
     {
-      m_graph.node(n).pos_mutable().setZ(m_graph.node(n).pos().z() + frand(-z, z));
+      m_graph.node(n).pos_mutable().setZ(m_graph.node(n).pos().z() + fast_frand(-z, z));
     }
   }
   m_graph.unlock(GRAPH_LOCK_TRACE);
@@ -261,7 +248,7 @@ class WorkerThread : public QThread
 {
   private:
     bool m_stopped;
-    QTime m_time;
+    QElapsedTimer m_time;
     SpringLayout& m_layout;
     int m_period;
   public:

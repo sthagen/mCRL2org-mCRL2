@@ -18,12 +18,7 @@
 #ifndef MCRL2_LTS_LTS_UTILITIES_H
 #define MCRL2_LTS_LTS_UTILITIES_H
 
-#include <map>
-#include <set>
-#include "mcrl2/core/identifier_string.h"
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/lts/lts_lts.h"
-#include "mcrl2/lts/lts.h"
 
 namespace mcrl2
 {
@@ -31,19 +26,48 @@ namespace mcrl2
 namespace lts
 {
 
-namespace detail
-{
+/** \brief Sorts the transitions using a sort style.
+ * \param[in/out] transitions A vector of transitions to be sorted. 
+ * \param[in] hidden_label_set A set that tells which actions are to be interpreted as being hidden.
+ *            Sorting takes place after mapping hidden actions to zero.
+ * \param[in] ts The sort style to use.
+ */
 
-inline std::size_t apply_map(const std::size_t n, std::map<transition::size_type,transition::size_type>& mapping)
+inline void sort_transitions(std::vector<transition>& transitions, 
+                      const std::set<transition::size_type>& hidden_label_set,
+                      transition_sort_style ts = src_lbl_tgt)
 {
-  const std::map<transition::size_type,transition::size_type>::const_iterator i=mapping.find(n);
-  if (i==mapping.end())  // not found
+  switch (ts)
   {
-    return n;
+    case lbl_tgt_src:
+    {
+      const detail::compare_transitions_lts compare(hidden_label_set);
+      sort(transitions.begin(),transitions.end(),compare);
+      break;
+    }
+    case src_lbl_tgt:
+    default:
+    {
+      const detail::compare_transitions_slt compare(hidden_label_set);
+      sort(transitions.begin(),transitions.end(),compare);
+      break;
+    }
   }
-  return i->second;
 }
 
+/** \brief Sorts the transitions using a sort style.
+ * \param[in/out] transitions A vector of transitions to be sorted. 
+ * \param[in] ts The sort style to use.
+ */
+
+inline void sort_transitions(std::vector<transition>& transitions, transition_sort_style ts = src_lbl_tgt)
+{
+  sort_transitions(transitions, std::set<transition::size_type>(), ts);
+}
+
+
+namespace detail
+{
 
 // An indexed sorted vector below contains the outgoing or incoming transitions per state,
 // grouped per state. The input consists of a vector of transitions. The incoming/outcoming
@@ -161,8 +185,11 @@ inline std::size_t to(const outgoing_pair_t& p)
 }
 
 /// \brief Type for exploring transitions per state and action.
+// It can be considered to replace this function with an unordered_multimap.
+// This may increase memory requirements, but would allow for constant versus logarithmic access times
+// of elements. 
 typedef std::multimap<std::pair<transition::size_type, transition::size_type>, transition::size_type>
-outgoing_transitions_per_state_action_t;
+                     outgoing_transitions_per_state_action_t;
 
 /// \brief From state of an iterator exploring transitions per outgoing state and action.
 inline std::size_t from(const outgoing_transitions_per_state_action_t::const_iterator& i)
@@ -197,13 +224,13 @@ inline outgoing_transitions_per_state_action_t transitions_per_outgoing_state_ac
 /// \brief Provide the transitions as a multimap accessible per from state and label.
 inline outgoing_transitions_per_state_action_t transitions_per_outgoing_state_action_pair(
                  const std::vector<transition>& trans, 
-                 const std::map<transition::size_type,transition::size_type>& hide_label_map)
+                 const std::set<transition::size_type>& hide_label_set)
 {
   outgoing_transitions_per_state_action_t result;
   for (const transition& t: trans)
   {
     result.insert(std::pair<std::pair<transition::size_type, transition::size_type>, transition::size_type>(
-                    std::pair<transition::size_type, transition::size_type>(t.from(), detail::apply_map(t.label(),hide_label_map)), t.to()));
+                    std::pair<transition::size_type, transition::size_type>(t.from(), detail::apply_hidden_labels(t.label(),hide_label_set)), t.to()));
   }
   return result;
 } 
@@ -223,13 +250,13 @@ inline outgoing_transitions_per_state_action_t transitions_per_outgoing_state_ac
 /// \brief Provide the transitions as a multimap accessible per from state and label, ordered backwardly.
 inline outgoing_transitions_per_state_action_t transitions_per_outgoing_state_action_pair_reversed(
                 const std::vector<transition>& trans,
-                const std::map<transition::size_type,transition::size_type>& hide_label_map)
+                const std::set<transition::size_type>& hide_label_set)
 {
   outgoing_transitions_per_state_action_t result;
   for (const transition& t: trans)
   {
     result.insert(std::pair<std::pair<transition::size_type, transition::size_type>, transition::size_type>(
-                    std::pair<transition::size_type, transition::size_type>(t.to(), detail::apply_map(t.label(),hide_label_map)), t.from()));
+                    std::pair<transition::size_type, transition::size_type>(t.to(), detail::apply_hidden_labels(t.label(),hide_label_set)), t.from()));
   }
   return result;
 } 

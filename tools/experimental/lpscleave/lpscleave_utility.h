@@ -10,11 +10,7 @@
 #ifndef MCRL2_LPSCLEAVE_UTILITY_H
 #define MCRL2_LPSCLEAVE_UTILITY_H
 
-#include "mcrl2/data/assignment.h"
 #include "mcrl2/lps/stochastic_specification.h"
-
-#include <list>
-#include <string>
 
 namespace mcrl2
 {
@@ -48,6 +44,17 @@ std::list<std::string> split_actions(const std::string& s)
   return result;
 }
 
+/// \returns True if and only if the elements of the left containers are also elements of the right container.
+template<typename Container, typename Container2>
+bool is_subset(const Container& left, const Container2& right)
+{
+  return std::all_of(left.begin(), left.end(),
+    [&right](const auto& element)
+    {
+      return std::find(right.begin(), right.end(), element) != right.end();
+    });
+}
+
 /// \brief Given a list of assignments and parameters returns a list of assignments that only contain the assignments
 ///        for the given parameters and not for the potential other variables.
 /// \returns A list of assignments only over the given parameters.
@@ -65,6 +72,28 @@ data::assignment_list project(const data::assignment_list& assignments, const da
   }
 
   return result;
+}
+
+/// \brief Take a list of parameters and assignments and make an assignment_list in order of the given parameters.
+inline
+data::data_expression_list project_values(const data::assignment_list& assignments, const data::variable_list& parameters)
+{
+  data::data_expression_list values;
+
+  // Search the original assignment for the parameter and add the right-hand side to the values.
+  for (const data::variable& parameter : parameters)
+  {
+    auto it = std::find_if(assignments.begin(), assignments.end(),
+      [&parameter](const data::assignment& assignment)
+      {
+        return (assignment.lhs() == parameter);
+      });
+
+    assert(it != assignments.end());
+    values.push_front(it->rhs());
+  }
+
+  return atermpp::reverse(values);
 }
 
 /// \brief Projects a list of parameters based on a list of names.
@@ -92,45 +121,35 @@ data::variable_list project_parameters(const data::variable_list& parameters, co
 /// \brief Prints the parameters as comma separated values.
 template<typename Container, typename F>
 inline
-void print_values(const std::string& identifier, const Container& elements, F name)
+void print_values(log::log_level_t type, const Container& elements, F name)
 {
-  mCRL2log(log::info) << identifier << ": ";
-
   bool first = true;
   for (const auto& element : elements)
   {
     if (!first)
     {
-      mCRL2log(log::info) << ", ";
+      mCRL2log(type) << ", ";
     }
-    mCRL2log(log::info) << name(element);
+    mCRL2log(type) << name(element);
     first = false;
   }
-
-  mCRL2log(log::info) << "\n";
 }
 
 template<typename Container>
 inline
-void print_names(const std::string& identifier, const Container& variables)
+void print_names(log::log_level_t type, const Container& variables)
 {
-  print_values(identifier, variables, [](const data::variable& var) { return var.name(); });
+  print_values(type, variables, [](const data::variable& var) { return var.name(); });
 }
 
 template<template<typename ...Element> class Container, typename El>
 inline
-void print_elements(const std::string& identifier, const Container<El>& elements)
+void print_elements(log::log_level_t type, const Container<El>& elements)
 {
-  print_values(identifier, elements, [](const El& element) { return element; });
+  print_values(type, elements, [](const El& element) { return element; });
 }
 
-inline
-bool is_independent(const data::variable_list& parameters, const std::set<data::variable>& dependencies, const data::assignment_list& other_assignments)
-{
-  // We are independent whenever all dependencies are included in our own parameters and the other process does no assignments.
-  return std::includes(parameters.begin(), parameters.end(), dependencies.begin(), dependencies.end()) && other_assignments.empty();
-}
-
+/// \returns A list of parameters of the given process that are not elements of the given parameters, i.e., the complement.
 template<typename LinearProcess>
 inline
 data::variable_list get_other_parameters(const LinearProcess& process, const data::variable_list& parameters)
@@ -149,7 +168,7 @@ data::variable_list get_other_parameters(const LinearProcess& process, const dat
   return other_parameters;
 }
 
-/// \returns A sorted (and unique) list of indices that indicate the summands of process without the element of indices.
+/// \returns A sorted (and unique) list of indices that indicate the summands of process which are an elements of the given indices.
 template<typename LinearProcess>
 inline
 std::list<std::size_t> get_other_indices(const LinearProcess& process, const std::list<std::size_t>& indices)

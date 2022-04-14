@@ -9,13 +9,6 @@
 /// \file realelm.cpp
 /// \brief
 
-#include <algorithm>
-#include <cstdlib>
-
-#include "mcrl2/data/find.h"
-#include "mcrl2/data/set_identifier_generator.h"
-#include "mcrl2/data/standard_utility.h"
-#include "mcrl2/data/replace.h"
 #include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/data/fourier_motzkin.h"
 
@@ -386,7 +379,7 @@ static void normalize_specification(
                                         real_sum_variables,
                                         get_nonreal_variables(t.summation_variables()),
                                         inequalities,
-                                        replacements);
+                                        data::mutable_map_substitution<>(replacements));
             summand_info.push_back(s);
           }
         }
@@ -466,7 +459,7 @@ static void normalize_specification(
                                       variable_list(), // All sum variables over reals have been eliminated.
                                       get_nonreal_variables(t.summation_variables()),
                                       inequalities,
-                                      std::map<variable, data_expression>());
+                                      data::mutable_map_substitution<>(std::map<variable, data_expression>()));
           summand_info.push_back(s);
         }
       }
@@ -992,8 +985,11 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
   lps.process_parameters() = process_parameters;
   lps.action_summands() = action_summands;
   lps.deadlock_summands() = deadlock_summands;
-  assignment_list initialization(determine_process_initialization(s.initial_process().assignments(), context, r));
-  stochastic_process_initializer init(initialization,s.initial_process().distribution());
+
+  // TODO: get rid of the following workarounds
+  assignment_list assignments = make_assignment_list(process_parameters, s.initial_process().expressions());
+  assignment_list initialization(determine_process_initialization(assignments, context, r));
+  stochastic_process_initializer init(right_hand_sides(initialization),s.initial_process().distribution());
 
   return stochastic_specification(s.data(),
                                   s.action_labels()+new_act_declarations,

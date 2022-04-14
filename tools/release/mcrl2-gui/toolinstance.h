@@ -10,13 +10,10 @@
 #ifndef TOOLINSTANCE_H
 #define TOOLINSTANCE_H
 
-#include <QWidget>
 #include "ui_toolinstance.h"
 
-#include "mcrl2/gui/persistentfiledialog.h"
 #include "mcrl2/gui/utilities.h"
 
-#include "toolinformation.h"
 #include "optionvalue.h"
 #include "multiprocess.h"
 
@@ -30,7 +27,7 @@ class ToolInstance : public QWidget
 
     ToolInformation information() { return m_info; }
     QString executable();
-    QStringList arguments();
+    QStringList arguments(bool addQuotesAroundValuesWithSpaces);
 
   public slots:
     void onStateChange(QProcess::ProcessState state);

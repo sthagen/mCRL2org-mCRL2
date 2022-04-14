@@ -12,19 +12,11 @@
 #ifndef MCRL2_PBES_INDEX_TRAITS_H
 #define MCRL2_PBES_INDEX_TRAITS_H
 
-#include "mcrl2/core/index_traits.h"
 #include "mcrl2/pbes/pbes_expression.h"
 
 namespace mcrl2 {
 
 namespace pbes_system {
-
-inline
-void on_create_propositional_variable_instantiation(const atermpp::aterm& t)
-{
-  const pbes_system::propositional_variable_instantiation& v = atermpp::down_cast<const pbes_system::propositional_variable_instantiation>(t);
-  core::index_traits<pbes_system::propositional_variable_instantiation, propositional_variable_key_type, 2>::insert(std::make_pair(v.name(), v.parameters()));
-}
 
 inline
 void on_delete_propositional_variable_instantiation(const atermpp::aterm& t)
@@ -36,7 +28,6 @@ void on_delete_propositional_variable_instantiation(const atermpp::aterm& t)
 inline
 void register_propositional_variable_instantiation_hooks()
 {
-  add_creation_hook(core::detail::function_symbol_PropVarInst(), on_create_propositional_variable_instantiation);
   add_deletion_hook(core::detail::function_symbol_PropVarInst(), on_delete_propositional_variable_instantiation);
 }
 

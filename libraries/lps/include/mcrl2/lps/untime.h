@@ -13,7 +13,6 @@
 #define MCRL2_LPS_UNTIME_H
 
 #include "mcrl2/data/fourier_motzkin.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/lps/detail/lps_algorithm.h"
 
 namespace mcrl2
@@ -26,18 +25,18 @@ namespace detail
 {
 
 template <class INITIALIZER>
-INITIALIZER make_process_initializer(const data::assignment_list& ass, const INITIALIZER& init);
+INITIALIZER make_process_initializer(const data::data_expression_list& expressions, const INITIALIZER& init);
 
 template <>
-process_initializer make_process_initializer(const data::assignment_list& ass, const process_initializer& )
+process_initializer make_process_initializer(const data::data_expression_list& expressions, const process_initializer& /* init */)
 {
- return process_initializer(ass);
+  return lps::process_initializer(expressions);
 }
 
 template <>
-stochastic_process_initializer make_process_initializer(const data::assignment_list& ass, const stochastic_process_initializer& init)
+stochastic_process_initializer make_process_initializer(const data::data_expression_list& expressions, const stochastic_process_initializer& init)
 {
-  return stochastic_process_initializer(ass,init.distribution());
+  return stochastic_process_initializer(expressions, init.distribution());
 }
 
 } // namespace detail
@@ -84,8 +83,8 @@ class untime_algorithm: public detail::lps_algorithm<Specification>
       std::vector <bool>::iterator j=time_variable_candidates.begin() ;
       mCRL2log(log::verbose) << "For untiming to function optimally, it is assumed that the input lps is rewritten to normal form" << std::endl;
 
-      for (data::data_expression_list::const_iterator k = m_spec.initial_process().state(m_spec.process().process_parameters()).begin();
-           k != m_spec.initial_process().state(m_spec.process().process_parameters()).end(); ++j, ++k)
+      const data::data_expression_list& process_parameters = m_spec.initial_process().expressions();
+      for (data::data_expression_list::const_iterator k = process_parameters.begin(); k != process_parameters.end(); ++j, ++k)
       {
         if (*k != real_zero)
         {
@@ -243,9 +242,9 @@ class untime_algorithm: public detail::lps_algorithm<Specification>
         m_time_invariant = m_add_invariants ? calculate_time_invariant() : (data::data_expression) data::sort_bool::true_();
 
         m_spec.process().process_parameters()=push_back(m_spec.process().process_parameters(),m_last_action_time);
-        data::assignment_list init = m_spec.initial_process().assignments();
-        init = push_back(init,data::assignment(m_last_action_time, data::sort_real::real_(0)));
-        m_spec.initial_process() = detail::make_process_initializer(init,m_spec.initial_process());
+        data::data_expression_list init = m_spec.initial_process().expressions();
+        init = push_back(init, data::sort_real::real_(0));
+        m_spec.initial_process() = detail::make_process_initializer(init, m_spec.initial_process());
 
         for(action_summand_type& s: m_spec.process().action_summands())
         {

@@ -1,9 +1,5 @@
-if (NOT ${MCRL2_ENABLE_TESTS})
-  return()
-endif()
-
 include(GenerateToolTests)
-find_package(PythonModules 2.4 COMPONENTS argparse)
+find_package(PythonModules COMPONENTS yaml psutil REQUIRED)
 
 generate_tool_tests(${CMAKE_SOURCE_DIR}/examples/academic/abp/abp.mcrl2 "")
 
@@ -34,46 +30,41 @@ if(MCRL2_EXTRA_TOOL_TESTS)
   generate_tool_tests(${MCRL2_DIR}/rational.mcrl2 "pbes2bool;pbesrewr;lts2lps;besinfo;bespp;lpsbinary;pbes2bes;besconvert;bessolve;pbesinst;lts2pbes;pbespgsolve;txt2bes;lpsrealelm;lps2lts;ltsinfo;ltsconvert;ltscompare")
 endif()
 
-#
-# Python test drivers are assumed to have the following behaviour:
-#
-#   testdrv.py --names
-#
-# prints all test names (on separate lines) defined by the test driver.
-# The test names are assumed to be numbered consecutively, starting from 0.
-#
-#   testdrv.py --run NUM
-#
-# runs the test numbered NUM (if it exists) and returns exit code 0 if the
-# test succeeds, or 1 if it fails.
-#
-include(./dependencies.cmake)
+# The workspace is used for temporary files (it is the directory where the test script is executed from).
+set(WORKSPACE ${CMAKE_CURRENT_BINARY_DIR}/workspace)
+file(MAKE_DIRECTORY ${WORKSPACE})
 
-set(python_dirs "random" "regression")
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace)
-foreach(dir ${python_dirs})
-  set(num 0)
-  set(testrunner ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/test.py)
+#
+# Python test drivers are assumed to have the following behaviour random_testing.py --names
+# prints all test names (on separate lines) that the test script can run.
+# For each <name> a target is created named random_<name> that runs 100 consecutive
+# tests with --repetitions 100 choosing the tests with the --pattern <name> option.
+#
+foreach(type "random" "regression")
+  set(testrunner ${CMAKE_CURRENT_SOURCE_DIR}/${type}/${type}_testing.py)
   execute_process(COMMAND ${PYTHON_EXECUTABLE} ${testrunner} --names
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace
-                  OUTPUT_VARIABLE tests
-                  OUTPUT_STRIP_TRAILING_WHITESPACE
-                  RESULT_VARIABLE testnames_error)
+    WORKING_DIRECTORY ${WORKSPACE}
+    OUTPUT_VARIABLE available_tests
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE testnames_error)
   if(testnames_error)
     message(SEND_ERROR "${testrunner} did not succesfully list its test targets. Please contact an mCRL2 developer to fix this.")
   endif()
-  string(REPLACE "\n" ";" tests "${tests}")
-  string(REPLACE "\r" "" tests "${tests}")
-  foreach(testname ${tests})
-    if(MCRL2_PYTHON_TESTS)
-      add_test(NAME ${testname}
-               WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace
-               COMMAND ${PYTHON_EXECUTABLE} ${testrunner} --run ${num} --toolpath ${MCRL2_STAGE_PATH}/${MCRL2_RUNTIME_PATH} --verbose)
-    else()
-      add_test(NAME ${testname}
-               COMMAND ${CMAKE_COMMAND} -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH} -Dmode=FATAL_ERROR -P ${CMAKE_CURRENT_SOURCE_DIR}/dependencies.cmake)
+
+  string(REPLACE "\n" ";" available_tests "${available_tests}")
+  string(REPLACE "\r" "" available_tests "${available_tests}")
+
+  foreach(testname ${available_tests})
+    set(REPETITIONS "")
+    if("${type}" STREQUAL "random")
+      set(REPETITIONS "-r 100")
     endif()
-    set_tests_properties(${testname} PROPERTIES LABELS ${dir})
-    math(EXPR num "${num} + 1")
+
+    set(targetname "${type}_${testname}")
+
+    add_test(NAME ${targetname}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace
+             COMMAND ${PYTHON_EXECUTABLE} ${testrunner} ${REPETITIONS} --toolpath ${MCRL2_STAGE_PATH}/${MCRL2_RUNTIME_PATH} --pattern ${testname})
+    set_tests_properties(${targetname} PROPERTIES LABELS ${type})
   endforeach()
 endforeach()

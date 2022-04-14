@@ -12,7 +12,6 @@
 #ifndef MCRL2_PROCESS_UNTYPED_MULTI_ACTION_H
 #define MCRL2_PROCESS_UNTYPED_MULTI_ACTION_H
 
-#include "mcrl2/data/data_expression.h"
 #include "mcrl2/data/untyped_data_parameter.h"
 
 namespace mcrl2 {
@@ -38,7 +37,7 @@ class untyped_multi_action: public atermpp::aterm_appl
     }
 
     /// \brief Constructor.
-    untyped_multi_action(const data::untyped_data_parameter_list& actions)
+    explicit untyped_multi_action(const data::untyped_data_parameter_list& actions)
       : atermpp::aterm_appl(core::detail::function_symbol_UntypedMultiAction(), actions)
     {}
 

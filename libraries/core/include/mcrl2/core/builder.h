@@ -12,11 +12,6 @@
 #ifndef MCRL2_CORE_BUILDER_H
 #define MCRL2_CORE_BUILDER_H
 
-#include <stdexcept>
-#include <type_traits>
-
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/atermpp/type_traits.h"
 #include "mcrl2/atermpp/aterm_list.h"
 
 namespace mcrl2
@@ -142,6 +137,7 @@ make_apply_builder_arg1(const Arg1& arg1)
   return apply_builder_arg1<Builder, Arg1>(arg1);
 }
 
+
 // apply a builder without additional template arguments
 template <template <class> class Builder, class Function>
 struct update_apply_builder: public Builder<update_apply_builder<Builder, Function> >
@@ -153,12 +149,10 @@ struct update_apply_builder: public Builder<update_apply_builder<Builder, Functi
   using super::apply;
   using super::update;
 
-  typedef typename Function::result_type result_type;
-  typedef typename Function::argument_type argument_type;
-
+  using argument_type = typename Function::argument_type; ///< The argument_type is required to restrict the overloads of apply(x) to that type.
   const Function& f_;
-
-  result_type apply(const argument_type& x)
+  
+  auto apply(const argument_type& x) -> decltype(f_(x))
   {
     return f_(x);
   }
@@ -185,13 +179,11 @@ class update_apply_builder_arg1: public Builder<update_apply_builder_arg1<Builde
   using super::leave;
 	using super::apply;
   using super::update;
-
-  typedef typename Function::result_type result_type;
-  typedef typename Function::argument_type argument_type;
-
+  
+  using argument_type = typename Function::argument_type; ///< The argument_type is required to restrict the overloads of apply(x) to that type.
   const Function& f_;
-
-  result_type apply(const argument_type& x)
+  
+  auto apply(const argument_type& x) -> decltype(f_(x))
   {
     return f_(x);
   }

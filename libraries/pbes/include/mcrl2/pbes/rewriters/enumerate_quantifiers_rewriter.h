@@ -12,19 +12,10 @@
 #ifndef MCRL2_PBES_REWRITERS_ENUMERATE_QUANTIFIERS_REWRITER_H
 #define MCRL2_PBES_REWRITERS_ENUMERATE_QUANTIFIERS_REWRITER_H
 
-#include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/detail/split_finite_variables.h"
-#include "mcrl2/data/optimized_boolean_operators.h"
 #include "mcrl2/pbes/enumerator.h"
 #include "mcrl2/pbes/rewriters/simplify_rewriter.h"
-#include "mcrl2/utilities/detail/join.h"
-#include <deque>
 #include <numeric>
-#include <set>
-#include <sstream>
-#include <utility>
-#include <vector>
 
 namespace mcrl2 {
 
@@ -66,9 +57,7 @@ struct enumerate_quantifiers_builder: public simplify_data_rewriter_builder<Deri
                                 data::enumerator_identifier_generator& id_generator,
                                 bool enumerate_infinite_sorts = true)
     : super(r, sigma), m_dataspec(dataspec), m_enumerate_infinite_sorts(enumerate_infinite_sorts), E(*this, m_dataspec, r, id_generator, (std::numeric_limits<std::size_t>::max)())
-  {
-    id_generator.clear();
-  }
+  { }
 
   Derived& derived()
   {
@@ -222,37 +211,42 @@ make_apply_enumerate_builder(const DataRewriter& R, MutableSubstitution& sigma, 
 /// \brief An attempt for improving the efficiency.
 struct enumerate_quantifiers_rewriter
 {
-  /// \brief A data rewriter
-  data::rewriter m_rewriter;
+  protected:
+    /// \brief A data rewriter
+    data::rewriter m_rewriter;
 
-  /// \brief A data specification
-  data::data_specification m_dataspec;
+    /// \brief A data specification
+    data::data_specification m_dataspec;
 
-  /// \brief If true, quantifier variables of infinite sort are enumerated.
-  bool m_enumerate_infinite_sorts;
+    /// \brief If true, quantifier variables of infinite sort are enumerated.
+    bool m_enumerate_infinite_sorts;
 
-  mutable data::enumerator_identifier_generator m_id_generator;
+    mutable data::enumerator_identifier_generator m_id_generator;
 
-  typedef pbes_expression term_type;
-  typedef data::variable variable_type;
+  public:
+    typedef pbes_expression term_type;
+    typedef data::variable variable_type;
 
-  enumerate_quantifiers_rewriter(const data::rewriter& R, const data::data_specification& dataspec, bool enumerate_infinite_sorts = true)
-    : m_rewriter(R), m_dataspec(dataspec), m_enumerate_infinite_sorts(enumerate_infinite_sorts)
-  {}
+    enumerate_quantifiers_rewriter(const data::rewriter& R, const data::data_specification& dataspec, bool enumerate_infinite_sorts = true)
+      : m_rewriter(R), m_dataspec(dataspec), m_enumerate_infinite_sorts(enumerate_infinite_sorts)
+    {}
 
-  pbes_expression operator()(const pbes_expression& x) const
-  {
-    data::rewriter::substitution_type sigma;
-    m_id_generator.clear();
-    return detail::apply_enumerate_builder<detail::enumerate_quantifiers_builder, data::rewriter, data::rewriter::substitution_type>(m_rewriter, sigma, m_dataspec, m_id_generator, m_enumerate_infinite_sorts).apply(x);
-  }
+    pbes_expression operator()(const pbes_expression& x) const
+    {
+      data::rewriter::substitution_type sigma;
+      return detail::apply_enumerate_builder<detail::enumerate_quantifiers_builder, data::rewriter, data::rewriter::substitution_type>(m_rewriter, sigma, m_dataspec, m_id_generator, m_enumerate_infinite_sorts).apply(x);
+    }
 
-  template <typename MutableSubstitution>
-  pbes_expression operator()(const pbes_expression& x, MutableSubstitution& sigma) const
-  {
-    m_id_generator.clear();
-    return detail::apply_enumerate_builder<detail::enumerate_quantifiers_builder, data::rewriter, MutableSubstitution>(m_rewriter, sigma, m_dataspec, m_id_generator, m_enumerate_infinite_sorts).apply(x);
-  }
+    template <typename MutableSubstitution>
+    pbes_expression operator()(const pbes_expression& x, MutableSubstitution& sigma) const
+    {
+      return detail::apply_enumerate_builder<detail::enumerate_quantifiers_builder, data::rewriter, MutableSubstitution>(m_rewriter, sigma, m_dataspec, m_id_generator, m_enumerate_infinite_sorts).apply(x);
+    }
+
+    void clear_identifier_generator()
+    {
+      m_id_generator.clear();
+    }
 };
 
 } // namespace pbes_system

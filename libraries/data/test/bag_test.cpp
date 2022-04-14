@@ -1,11 +1,11 @@
 // Author(s): Jeroen Keiren
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
-// 
+//
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-// 
+//
 // / \file bag_test.cpp
 // / \brief Basic regression test for bag expressions.
 
@@ -13,7 +13,6 @@
 #include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/data/bag.h"
-#include "mcrl2/data/fbag.h"
 #include "mcrl2/data/parse.h"
 #include "mcrl2/data/rewriter.h"
 
@@ -135,10 +134,39 @@ void bag_expression_test()
   test_expression("{true:2, false:2} <= {true:2, false:2}", "true",normaliser);
   test_expression("{false:2, true:2} <= {false:2, true:2}", "true",normaliser);
   test_expression("{false:2, true:2} <= {true:2, false:2}", "true",normaliser);
-  test_expression("{false:1, false:2} <= {false:2}", "false",normaliser);
-  
+  test_expression("{false:1, false:2} <= {false:2}", "false", normaliser);
 
-  
+  // Test the operation - on bags.
+  test_expression("{true:0} - {:}", "{true:0}", normaliser);
+  test_expression("{:} - {true:1}", "{true:0}", normaliser);
+  test_expression("{true:1} - {:}", "{true:1}", normaliser);
+  test_expression("{:} - {true:2}", "{true:0}", normaliser);
+  test_expression("{true:2} - {:}", "{true:2}", normaliser);
+  test_expression("{true:1} - {true:1}", "{true:0}", normaliser);
+  test_expression("{true:2} - {true:1}", "{true:1}", normaliser);
+  test_expression("{true:1} - {true:2}", "{true:0}", normaliser);
+  test_expression("{true:1} - {false:1}", "{true:1}", normaliser);
+  test_expression("{false:1} - {true:1}", "{false:1}", normaliser);
+  test_expression("{true:2} - {false:1}", "{true:2}", normaliser);
+  test_expression("{false:2} - {true:1}", "{false:2}", normaliser);
+  test_expression("{true:1} - {false:2}", "{true:1}", normaliser);
+  test_expression("{false:1} - {true:2}", "{false:1}", normaliser);
+  test_expression("{true:1, false:1} - {false:1}", "{true:1}", normaliser);
+  test_expression("{true:1, false:1} - {true:1}", "{false:1}", normaliser);
+  test_expression("{true:1, false:1} - {true:1, false:1}", "{true:0}",
+                  normaliser);
+  test_expression("{true:1, false:1} - {false:1, true:1}", "{true:0}",
+                  normaliser);
+  test_expression("{true:2, false:2} - {false:1}", "{true:2, false:1}",
+                  normaliser);
+  test_expression("{true:2, false:2} - {true:1}", "{true:1, false:2}",
+                  normaliser);
+  test_expression("{true:2, false:2} - {true:1,false:1}", "{true:1, false:1}",
+                  normaliser);
+  test_expression("{true:2, false:2} - {false:1,true:1}", "{true:1, false:1}",
+                  normaliser);
+  test_expression("{true:2, false:2} - {false:2}", "{true:2}", normaliser);
+  test_expression("{true:2, false:2} - {false:2}", "{true:2}", normaliser);
 }
 
 BOOST_AUTO_TEST_CASE(test_main)

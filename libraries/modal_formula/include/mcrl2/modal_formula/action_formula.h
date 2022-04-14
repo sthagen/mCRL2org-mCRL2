@@ -12,15 +12,8 @@
 #ifndef MCRL2_MODAL_FORMULA_ACTION_FORMULA_H
 #define MCRL2_MODAL_FORMULA_ACTION_FORMULA_H
 
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/lps/multi_action.h"
-#include "mcrl2/process/process_expression.h"
 #include "mcrl2/process/untyped_multi_action.h"
-#include <cassert>
-#include <iostream> // for debugging
-#include <stdexcept>
-#include <string>
 
 namespace mcrl2
 {
@@ -251,7 +244,7 @@ class not_: public action_formula
     }
 
     /// \brief Constructor.
-    not_(const action_formula& operand)
+    explicit not_(const action_formula& operand)
       : action_formula(atermpp::aterm_appl(core::detail::function_symbol_ActNot(), operand))
     {}
 
@@ -722,7 +715,7 @@ class multi_action: public action_formula
     }
 
     /// \brief Constructor.
-    multi_action(const process::action_list& actions)
+    explicit multi_action(const process::action_list& actions)
       : action_formula(atermpp::aterm_appl(core::detail::function_symbol_ActMultAct(), actions))
     {}
 

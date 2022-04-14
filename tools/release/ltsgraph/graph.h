@@ -51,27 +51,32 @@ class Edge
     {}
 
     /// \brief Obtain the value of from.
-    std::size_t from() const
+    constexpr std::size_t from() const
     {
       return m_from;
     }
 
     /// \brief Obtain a reference to the value of from.
-    std::size_t& from()
+    constexpr std::size_t& from()
     {
       return m_from;
     }
 
     /// \brief Obtain the value of to.
-    std::size_t to() const
+    constexpr std::size_t to() const
     {
       return m_to;
     }
 
     /// \brief Obtain a reference to the value of to.
-    std::size_t& to()
+    constexpr std::size_t& to()
     {
       return m_to;
+    }
+
+    constexpr bool is_selfloop() const
+    {
+      return m_from == m_to;
     }
 };
 
@@ -282,7 +287,11 @@ class NodeNode : public NodeWithColor
     NodeNode(const QVector3D& p, const bool is_probabilistic)
       : NodeWithColor(p), m_is_probabilistic(is_probabilistic), m_active(false)
     {
-      if (!m_is_probabilistic) // Color action states white (probabilistic states remain black)
+      if (m_is_probabilistic) // Color probabilistic states light blue
+      {
+        m_color = QVector3D(0.35f, 0.7f, 1.0f);
+      }
+      else // Color normal states white
       {
         m_color = QVector3D(1.0f, 1.0f, 1.0f);
       }
@@ -338,7 +347,7 @@ class Graph
     Exploration* m_exploration;     ///< The exploration of the current graph (or null).
     mcrl2::lts::lts_type m_type;    ///< The type of the current graph.
     QString m_empty;                ///< Empty string that is returned as label if none present.
-    QReadWriteLock m_lock;          ///< Lock protecting the structure from being changed while rendering and simulating
+    mutable QReadWriteLock m_lock;          ///< Lock protecting the structure from being changed while rendering and simulating
     bool m_stable;                  ///< When true, the graph is considered stable, spring forces should not be applied.
     QVector3D m_clip_min;
     QVector3D m_clip_max;
@@ -374,11 +383,11 @@ class Graph
     /**
      * @brief makes the graph structure read-only
      */
-    void lock();
+    void lock() const;
     /**
      * @brief makes the graph structure writable again after a lock
      */
-    void unlock();
+    void unlock() const;
 
 #ifndef DEBUG_GRAPH_LOCKS
 #define GRAPH_LOCK_TRACE
@@ -387,6 +396,17 @@ class Graph
     void unlock(const char* where);
 #define GRAPH_LOCK_TRACE __func__
 #endif
+
+    /**
+     * @brief Helper class that allows RAII-style locking for graph access
+     */
+    class Guard
+    {
+      public:
+        Graph& graph;
+        Guard(Graph& graph) : graph(graph) { graph.lock(GRAPH_LOCK_TRACE); }
+        ~Guard() { graph.unlock(GRAPH_LOCK_TRACE); }
+    };
 
     /**
      * @brief Deletes all nodes, handles, edges and labels stored in this graph

@@ -12,22 +12,9 @@
 #ifndef MCRL2_PBES_DETAIL_PFNF_TRAVERSER_H
 #define MCRL2_PBES_DETAIL_PFNF_TRAVERSER_H
 
-#include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/optimized_boolean_operators.h"
 #include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/set_identifier_generator.h"
-#include "mcrl2/pbes/pbes_expression.h"
 #include "mcrl2/pbes/replace.h"
-#include "mcrl2/pbes/traverser.h"
-#include <algorithm>
-#include <functional>
-#include <iterator>
 #include <numeric>
-#include <set>
-#include <sstream>
-#include <stdexcept>
-#include <utility>
-#include <vector>
 
 #ifdef MCRL2_PFNF_VISITOR_DEBUG
 #include "mcrl2/data/print.h"
@@ -45,7 +32,7 @@ namespace detail
 /// \brief Represents a quantifier Qv:V. If the bool is true it is a forall, otherwise an exists.
 typedef std::pair<bool, data::variable_list> pfnf_traverser_quantifier;
 
-struct variable_variable_substitution: public std::unary_function<data::variable, data::variable>
+struct variable_variable_substitution
 {
   std::map<data::variable, data::variable> sigma;
 
@@ -86,7 +73,7 @@ struct variable_variable_substitution: public std::unary_function<data::variable
   }
 };
 
-struct variable_data_expression_substitution: public std::unary_function<data::variable, data::data_expression>
+struct variable_data_expression_substitution
 {
   typedef data::variable variable_type;
   typedef data::data_expression expression_type;

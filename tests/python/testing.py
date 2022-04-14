@@ -8,9 +8,6 @@
 import os
 import os.path
 import shutil
-import sys
-sys.path += [os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'python')]
-import testrunner
 from text_utility import read_text, write_text
 from tools import Node, ToolFactory
 
@@ -33,13 +30,19 @@ class ToolCrashedError(Exception):
     def __str__(self):
         return repr(self.value)
 
-class Test:
-    def __init__(self, file, settings):
+class YmlTest(object):
+    def __init__(self, name, ymlfile, inputfiles, settings):
+        import copy
         import yaml
 
         if not settings:
             raise RuntimeError('ERROR in Test.__init__: settings == None')
 
+        settings = copy.deepcopy(settings)
+        self.name = name
+        self.ymlfile = ymlfile
+        self.inputfiles = inputfiles
+        self.settings = settings
         self.verbose = settings.get('verbose', True)
         self.toolpath = settings.get('toolpath', '')
         self.cleanup_files = settings.get('cleanup_files', False)
@@ -48,8 +51,7 @@ class Test:
         self.allow_non_zero_return_values = settings.get('allow-non-zero-return-values', False)
 
         # Reads a test from a YAML file
-        self.name = file
-        f = open(file)
+        f = open(ymlfile)
         data = yaml.safe_load(f)
 
         # Add tool arguments specified in settings
@@ -209,7 +211,7 @@ class Test:
                 contents = read_text(file)
                 print('Contents of file {}:\n{}'.format(file, contents))
 
-    def run(self):
+    def _run(self):
         import popen
 
         tasks = self.tasks[:]
@@ -264,7 +266,7 @@ class Test:
             return result
 
     # Returns the tool with the given label
-    def tool(self, label):
+    def find_tool(self, label):
         try:
             return next(tool for tool in self.tools if tool.label == label)
         except StopIteration:
@@ -275,75 +277,40 @@ class Test:
         print('#--- commands ---#')
         print('\n'.join([tool.command(working_directory, no_paths) for tool in self.tasks]))
 
-def result_string(result):
-    if result == True:
-        return 'Pass'
-    elif result == False:
-        return 'FAIL'
-    else:
-        return 'Indeterminate'
-
-def run_yml_test(name, testfile, inputfiles, settings):
-    for filename in [testfile] + inputfiles:
-        if not os.path.isfile(filename):
-            print('Error:', filename, 'does not exist!')
-            return
-    t = Test(testfile, settings)
-    if 'verbose' in settings and settings['verbose']:
-        print('Running test ' + testfile)
-    t.setup(inputfiles)
-    result = t.run()
-    print('{} {}'.format(name, result_string(result)))
-    if result == False:
-        raise RuntimeError('The result expression evaluated to False. The output of the tools likely does not match.')
-    return result
-
-class TestRunner(testrunner.TestRunner):
-    def __init__(self):
-        super(TestRunner, self).__init__()
-        self.settings = {'toolpath': self._tool_path,
-                         'verbose': self._args.verbose,
-                         'cleanup_files': not self._args.keep_files}
-        self.tests = []
-
-    def main(self):
-        if self._args.print_names:
-            self.print_names()
-        if self._args.command is not None:
-            try:
-                test = self.tests[self._args.command]
-                test.print_commands(os.path.join(os.getcwd(), test.name))
-            except Exception as e:
-                sys.exit(str(e))
-        super(TestRunner, self).main()
-
-    def ymlfile(self, name):
-        return '{}/tests/specifications/{}.yml'.format(self._source_path, name)
-
-    def mcrl2file(self, file):
-        return self._source_path + file
-
-    def _get_commandline_parser(self):
-        parser = super(TestRunner, self)._get_commandline_parser()
-        parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='Display additional progress messages.')
-        parser.add_argument('-k', '--keep-files', dest='keep_files', action='store_true', help='Keep the files produced by the test')
-        parser.add_argument('-p', '--print-names', dest='print_names', action='store_true', help='Print the names and the numbers of the tests')
-        parser.add_argument('-c', '--print-commands', dest='command', metavar='N', type=int, action='store', help='Print the commands of test N, or exit with return value 1 if N is too large.')
-        return parser
-
-    def names(self):
-        for test in self.tests:
-            yield test.name
-
-    # displays names and numbers of the tests
-    def print_names(self):
-        for i, test in enumerate(self.tests):
-            print('{} {}'.format(i, test.name))
-
-    def run(self, testnum):
-        if testnum < len(self.tests):
-            test = self.tests[testnum]
-            test.settings.update(self.settings)
-            test.execute_in_sandbox()
+    def result_string(self, result):
+        if result == True:
+            return 'Pass'
+        elif result == False:
+            return 'FAIL'
         else:
-            raise RuntimeError('Invalid test number')
+            return 'Indeterminate'
+
+    def execute(self, runpath = '.'):
+        for filename in [self.ymlfile] + self.inputfiles:
+            if not os.path.isfile(filename):
+                print('Error:', filename, 'does not exist!')
+                return
+        if 'verbose' in self.settings and self.settings['verbose']:
+            print('Running test ' + self.ymlfile)
+        self.setup(self.inputfiles)
+        result = self._run()
+        print('{} {}'.format(self.name, self.result_string(result)))
+        if result == False:
+            raise RuntimeError(
+                'The result expression evaluated to False. The output of the tools likely does not match.')
+        return result
+
+    def execute_in_sandbox(self):
+        runpath = self.name
+        if not os.path.exists(runpath):
+            os.mkdir(runpath)
+        cwd = os.getcwd()
+        os.chdir(runpath)
+        self.execute()
+        os.chdir(cwd)
+        if os.listdir(runpath) == []:
+            os.rmdir(runpath)
+
+    def add_command_line_options(self, tool_label, options):
+        tool = self.find_tool(tool_label)
+        tool.args = tool.args + options

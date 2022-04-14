@@ -14,11 +14,6 @@
 
 #include "mcrl2/data/is_simple_substitution.h"
 #include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
@@ -35,7 +30,7 @@ namespace data {
 /// sigma[v] = v; // remove the assignment to v
 ///\endverbatim
 template <typename AssociativeContainer = std::map<variable,data_expression> >
-class mutable_map_substitution : public std::unary_function<typename AssociativeContainer::key_type, typename AssociativeContainer::mapped_type>
+class mutable_map_substitution
 {
 protected:
   AssociativeContainer m_map;
@@ -45,6 +40,7 @@ public:
   typedef typename AssociativeContainer::mapped_type expression_type;
   typedef typename AssociativeContainer::const_iterator const_iterator;
   typedef typename AssociativeContainer::iterator iterator;
+  using argument_type = variable_type;
 
   /// \brief Wrapper class for internal storage and substitution updates using operator()
   struct assignment
@@ -61,7 +57,7 @@ public:
     { }
 
     template <typename AssignableToExpression>
-    void operator=(AssignableToExpression const& e)
+    assignment& operator=(AssignableToExpression const& e)
     {
       mCRL2log(log::debug2, "substitutions") << "Setting " << m_variable << " := " << e << std::endl;
       if (e != m_variable)
@@ -72,23 +68,22 @@ public:
       {
         m_map.erase(m_variable);
       }
+      return *this;
     }
   };
 
-  mutable_map_substitution()
-  {}
+  mutable_map_substitution() = default;
 
-  mutable_map_substitution(const AssociativeContainer& m)
+  explicit mutable_map_substitution(const AssociativeContainer& m)
     : m_map(m)
   {}
 
   template <typename VariableContainer, typename ExpressionContainer>
-  mutable_map_substitution(VariableContainer const& vc, ExpressionContainer const& ec)
+  mutable_map_substitution(VariableContainer const& variables, ExpressionContainer const& expressions)
   {
-    assert(vc.size() == ec.size());
-
-    typename ExpressionContainer::const_iterator j = ec.begin();
-    for (typename VariableContainer::const_iterator i = vc.begin(); i != vc.end(); ++i, ++j)
+    assert(variables.size() == expressions.size());
+    auto j = expressions.begin();
+    for (auto i = variables.begin(); i != variables.end(); ++i, ++j)
     {
       m_map[*i] = *j;
     }
@@ -96,7 +91,7 @@ public:
 
   expression_type operator()(const variable_type& v) const
   {
-    typename AssociativeContainer::const_iterator i = m_map.find(v);
+    auto i = m_map.find(v);
     if (i == m_map.end())
     {
       return v;
@@ -123,12 +118,6 @@ public:
   bool operator==(const Substitution&) const
   {
     return false;
-  }
-
-  mutable_map_substitution& operator=(const mutable_map_substitution& other)
-  {
-    m_map=other.m_map;
-    return *this;
   }
 
   /// \brief Returns an iterator pointing to the beginning of the sequence of assignments
@@ -169,7 +158,7 @@ public:
   {
     std::stringstream result;
     result << "[";
-    for (const_iterator i = begin(); i != end(); ++i)
+    for (auto i = begin(); i != end(); ++i)
     {
       result << (i == begin() ? "" : "; ") << i->first << ":" << i->first.sort() << " := " << i->second;
     }

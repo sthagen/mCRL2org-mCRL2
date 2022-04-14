@@ -12,32 +12,17 @@
 #ifndef MCRL2_PBES_DETAIL_LPSSTATEGRAPH_ALGORITHM_H
 #define MCRL2_PBES_DETAIL_LPSSTATEGRAPH_ALGORITHM_H
 
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/lps/detail/instantiate_global_variables.h"
 #include "mcrl2/lps/io.h"
 #include "mcrl2/lps/is_well_typed.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/pbes/detail/stategraph_global_reset_variables.h"
 #include "mcrl2/pbes/detail/stategraph_local_reset_variables.h"
-#include "mcrl2/pbes/join.h"
-#include "mcrl2/pbes/tools/pbesstategraph_options.h"
 
 namespace mcrl2 {
 
 namespace pbes_system {
 
 namespace detail {
-
-inline
-data::data_expression_list right_hand_sides(const data::assignment_list& x)
-{
-  std::vector<data::data_expression> result;
-  for (const data::assignment& a: x)
-  {
-    result.push_back(a.rhs());
-  }
-  return data::data_expression_list(result.begin(), result.end());
-}
 
 class lpsstategraph_algorithm;
 void lps_reset_variables(lpsstategraph_algorithm& algorithm,
@@ -94,7 +79,7 @@ class lpsstategraph_algorithm: public local_reset_variables_algorithm
         data::data_expression x = ci;
         for (const data::variable& v: lps::find_free_variables(summand.multi_action()))
         {
-          x = data::and_(x, data::application(functions[v.sort()], { v }));
+          x = data::and_(x, data::application(functions[v.sort()], v ));
         }
         propositional_variable_instantiation Xi(X, gi);
         conjuncts.push_back(make_forall(ei, imp(x, Xi)));
@@ -113,7 +98,7 @@ class lpsstategraph_algorithm: public local_reset_variables_algorithm
       pbes_equation eqn(fixpoint_symbol::nu(), propositional_variable(X, lpsspec.process().process_parameters()), rhs);
 
       pbesspec.data() = dataspec;
-      pbesspec.initial_state() = propositional_variable_instantiation(X, right_hand_sides(lpsspec.initial_process().assignments()));
+      pbesspec.initial_state() = propositional_variable_instantiation(X, lpsspec.initial_process().expressions());
       pbesspec.equations().push_back(eqn);
       return pbesspec;
     }

@@ -14,11 +14,7 @@
 #ifndef MCRL2_DATA_FOURIER_MOTZKIN_H
 #define MCRL2_DATA_FOURIER_MOTZKIN_H
 
-#include <algorithm>
-
 #include "mcrl2/data/optimized_boolean_operators.h"
-#include "mcrl2/data/standard_utility.h"
-#include "mcrl2/data/linear_inequalities.h"
 #include "mcrl2/data/detail/linear_inequalities_utilities.h"
 
 namespace mcrl2
@@ -317,7 +313,7 @@ inline void fourier_motzkin(const data_expression& e_in,
 /// Apply this function innermost first if the expresion contains
 /// nested quantifiers.
 /// \author Thomas Neele
-struct fourier_motzkin_sigma: public std::unary_function<data_expression, data_expression>
+struct fourier_motzkin_sigma
 {
 
   protected:
@@ -334,7 +330,7 @@ struct fourier_motzkin_sigma: public std::unary_function<data_expression, data_e
 
       if (negate)
       {
-        return rewr(new_variables.empty() ? sort_bool::not_(new_body) : forall(new_variables, sort_bool::not_(new_body)));
+        return (new_variables.empty() ? rewr(sort_bool::not_(new_body)) : rewr(forall(new_variables, sort_bool::not_(new_body))));
       }
       else
       {

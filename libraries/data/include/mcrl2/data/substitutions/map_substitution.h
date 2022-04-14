@@ -14,11 +14,6 @@
 
 #include "mcrl2/data/is_simple_substitution.h"
 #include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
@@ -27,7 +22,7 @@ namespace data {
 /// \brief Generic substitution function. The substitution is stored as a mapping
 /// of variables to expressions.
 template <typename AssociativeContainer>
-struct map_substitution : public std::unary_function<typename AssociativeContainer::key_type, typename AssociativeContainer::mapped_type>
+struct map_substitution
 {
   typedef typename AssociativeContainer::key_type variable_type;
   typedef typename AssociativeContainer::mapped_type expression_type;
@@ -51,13 +46,6 @@ struct map_substitution : public std::unary_function<typename AssociativeContain
     }
     // N.B. This does not work!
     // return i == m_map.end() ? v : i->second;
-  }
-
-  template <typename Expression>
-  expression_type operator()(const Expression&) const
-  {
-    throw mcrl2::runtime_error("data::map_substitution::operator(const Expression&) is a deprecated interface!");
-    return data::undefined_data_expression();
   }
 
   std::string to_string() const

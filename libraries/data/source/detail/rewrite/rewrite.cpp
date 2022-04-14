@@ -6,19 +6,6 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <cstdlib>
-#include <cassert>
-#include <stdexcept>
-#include <string>
-#include <cstring>
-#include <limits>
-#include <algorithm>
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/atermpp/algorithm.h"
-#include "mcrl2/core/detail/function_symbols.h"
-#include "mcrl2/core/print.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/detail/rewrite.h"
 #include "mcrl2/data/detail/rewrite/jitty.h"
 #include "mcrl2/data/detail/rewrite/jitty_jittyc.h"
 #ifdef MCRL2_JITTYC_AVAILABLE
@@ -29,7 +16,6 @@
 
 #include "mcrl2/data/detail/rewriter_wrapper.h"
 #include "mcrl2/data/enumerator_with_iterator.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
 
 using namespace mcrl2::core;
 using namespace mcrl2::core::detail;
@@ -197,14 +183,14 @@ data_expression Rewriter::rewrite_lambda_application(
 {
   if (is_lambda(t))
   {
-    const abstraction& ta(t);
+    const abstraction& ta=atermpp::down_cast<abstraction>(t);
     return rewrite_single_lambda(ta.variables(),ta.body(),false,sigma);
   }
 
   const application ta(t);
   if (is_lambda(ta.head()))
   {
-    return rewrite_lambda_application(ta.head(),ta,sigma);
+    return rewrite_lambda_application(atermpp::down_cast<abstraction>(ta.head()),ta,sigma);
   }
 
   return rewrite(application(rewrite_lambda_application(ta.head(),sigma),ta.begin(),ta.end()),sigma);
@@ -242,7 +228,7 @@ data_expression Rewriter::rewrite_lambda_application(
   // Calculate the values that must be substituted for the variables in vl and store these in vl_backup.
   for(std::size_t count=0; count<vl.size(); count++)
   {
-    new (&vl_backup[count]) data_expression(rewrite(data_expression(t[count]),sigma));
+    new (&vl_backup[count]) data_expression(rewrite(t[count],sigma));
   }
 
   // Swap the values assigned to variables in vl with those in vl_backup.
@@ -251,7 +237,7 @@ data_expression Rewriter::rewrite_lambda_application(
   {
     const data_expression temp=sigma(v);
     sigma[v]=vl_backup[count];
-    vl_backup[count]=temp;
+    vl_backup[count]=temp; 
     count++;
   }
 
@@ -276,7 +262,9 @@ data_expression Rewriter::rewrite_lambda_application(
   return application(result,
                      t.begin()+vl.size(),
                      t.end(),
-                     [this, &sigma](const data_expression& t) -> data_expression { return rewrite(t, sigma); });
+                     [this, &sigma](const data_expression& t) -> data_expression { return rewrite(t, sigma); },
+                     false // This false indicates that the function is not applied to head, i.e., result. 
+                    );
 }
 
 data_expression Rewriter::existential_quantifier_enumeration(

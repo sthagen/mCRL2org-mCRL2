@@ -12,21 +12,12 @@
 #ifndef MCRL2_PBES_BDD_H
 #define MCRL2_PBES_BDD_H
 
-#include <iostream>
-#include <memory>
-#include <string>
-#include <sstream>
-#include <utility>
-
 #include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/application.h"
 #include "mcrl2/data/consistency.h"
-#include "mcrl2/data/join.h"
-#include "mcrl2/data/parse.h"
 #include "mcrl2/data/standard.h"
+#include "mcrl2/data/join.h"
 #include "mcrl2/pbes/join.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
-#include "mcrl2/utilities/exception.h"
 
 namespace mcrl2 {
 
@@ -314,6 +305,45 @@ bdd_node make_imp(bdd_node left, bdd_node right)
   return std::make_shared<imp>(left, right);
 }
 
+class ite: public term
+{
+  protected:
+    bdd_node m_condition;
+    bdd_node m_then;
+    bdd_node m_else;
+
+  public:
+    ite(bdd_node condtion, bdd_node then_, bdd_node else_)
+      : m_condition(condtion), m_then(then_), m_else(else_)
+    { }
+
+  const term& condition() const
+  {
+    return *m_condition;
+  }
+
+  const term& then_() const
+  {
+    return *m_then;
+  }
+
+  const term& else_() const
+  {
+    return *m_else;
+  }
+
+  std::string print(bool after) const override
+  {
+    return "ite(" + m_condition->print(after) + ", " + m_then->print(after) + ", " + m_else->print(after) + ")";
+  }
+};
+
+inline
+bdd_node make_ite(bdd_node condition, bdd_node then_, bdd_node else_)
+{
+  return std::make_shared<ite>(condition, then_, else_);
+}
+
 inline
 bdd_node all(const std::vector<bdd_node>& v)
 {
@@ -405,6 +435,14 @@ bdd_node to_bdd(const data::data_expression& x)
     const auto& right = data::binary_right1(x);
     return make_imp(to_bdd(left), to_bdd(right));
   }
+  else if (is_if_application(x))
+  {
+    const auto& x_ = atermpp::down_cast<data::application>(x);
+    const data::data_expression& condition = x_[0];
+    const data::data_expression& then_ = x_[1];
+    const data::data_expression& else_ = x_[2];
+    return make_ite(to_bdd(condition), to_bdd(then_), to_bdd(else_));
+  }
   throw mcrl2::runtime_error("Unsupported data expression " + data::pp(x) + " encountered in to_bdd.");
 }
 
@@ -413,6 +451,17 @@ std::vector<bdd_node> to_bdd(const data::data_expression_list& v)
 {
   std::vector<bdd_node> result;
   for (const data::data_expression& x: v)
+  {
+    result.push_back(to_bdd(x));
+  }
+  return result;
+}
+
+inline
+std::vector<bdd_node> to_bdd(const data::variable_list & v)
+{
+  std::vector<bdd_node> result;
+  for (const data::variable& x: v)
   {
     result.push_back(to_bdd(x));
   }
@@ -453,17 +502,16 @@ std::vector<bdd_node> id_variables(std::size_t n, bool unary_encoding)
 }
 
 inline
-std::vector<bdd_node> equation_identifiers(const std::vector<pbes_system::pbes_equation>& equations, const std::vector<bdd_node>& id_variables, bool unary_encoding)
+std::vector<bdd_node> equation_identifiers(std::size_t equation_count, const std::vector<bdd_node>& id_variables, bool unary_encoding)
 {
   std::vector<bdd_node> result;
-  std::size_t n = equations.size();
-  std::vector<std::vector<bdd_node>> sequences(n, std::vector<bdd_node>());
+  std::vector<std::vector<bdd_node>> sequences(equation_count, std::vector<bdd_node>());
 
   if (unary_encoding)
   {
-    for (std::size_t i = 0; i < n; i++)
+    for (std::size_t i = 0; i < equation_count; i++)
     {
-      for (std::size_t j = 0; j < n; j++)
+      for (std::size_t j = 0; j < equation_count; j++)
       {
         sequences[j].push_back(i == j ? make_not(id_variables[i]) : id_variables[i]);
       }
@@ -476,7 +524,7 @@ std::vector<bdd_node> equation_identifiers(const std::vector<pbes_system::pbes_e
     std::size_t repeat = 1;
     for (std::size_t i = 0; i < m; i++)
     {
-      for (std::size_t j = 0; j < n; j++)
+      for (std::size_t j = 0; j < equation_count; j++)
       {
         bool negate = (j / repeat) % 2 == 0;
         sequences[j].push_back(negate ? make_not(id_variables[i]) : id_variables[i]);
@@ -485,7 +533,7 @@ std::vector<bdd_node> equation_identifiers(const std::vector<pbes_system::pbes_e
     }
   }
 
-  for (std::size_t j = 0; j < n; j++)
+  for (std::size_t j = 0; j < equation_count; j++)
   {
     result.push_back(all(sequences[j]));
   }
@@ -584,8 +632,12 @@ struct bdd_equation
       std::size_t i1 = eqn_index.index(e.second.name());
       std::string id1 = ids[i1]->print(true);
       std::string f = to_bdd(e.first)->print(false);
-      std::string updates = parameter_updates(e, parameters);
-      std::vector<std::string> v = { id0, id1, f, updates };
+      std::vector<std::string> v = { id0, id1, f };
+      if (!parameters.empty())
+      {
+        std::string updates = parameter_updates(e, parameters);
+        v.push_back(updates);
+      }
       result.push_back(string_join(add_parens(v), " & "));
     }
     return result;
@@ -769,6 +821,7 @@ std::map<std::size_t, std::vector<bdd_node>> priority_map(const std::vector<bdd_
   return result;
 }
 
+
 inline
 std::string pbes2bdd(const pbes_system::pbes& p, bool unary_encoding = false)
 {
@@ -781,7 +834,7 @@ std::string pbes2bdd(const pbes_system::pbes& p, bool unary_encoding = false)
   std::vector<bdd_node> pvar = param_variables(p.equations().front().variable());
 
   // equation ids
-  std::vector<bdd_node> ids = equation_identifiers(p.equations(), ivar, unary_encoding);
+  std::vector<bdd_node> ids = equation_identifiers(p.equations().size(), ivar, unary_encoding);
 
   std::vector<bdd_equation> equations = split_pbes(p, eqn_index, ids);
 

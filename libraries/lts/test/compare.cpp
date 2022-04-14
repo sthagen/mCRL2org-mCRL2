@@ -10,7 +10,6 @@
 #include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/lts/lts_algorithm.h"
-#include "mcrl2/lts/lts_aut.h"
 
 using namespace mcrl2::lts;
 
@@ -408,3 +407,49 @@ BOOST_AUTO_TEST_CASE(failures_divergence_incomparable_test)
   BOOST_CHECK(preorder_compare(bP, aPtauP, lts_pre_failures_divergence_refinement)); // failures(bP) subset failures(aPtau) != empty because divergences.
 }
 
+
+// Test belonging to #1595. Check wheter action a|b and b|a are considered equal. 
+BOOST_AUTO_TEST_CASE(properly_order_multiactions)
+{
+
+  const std::string ab =
+    "des (0,1,1)\n"
+    "(0,\"a|b\",0)\n";
+  
+  // P = b.P
+  const std::string ba =
+    "des (0,1,1)\n"
+    "(0,\"b|a\",0)\n";
+
+  BOOST_CHECK(compare(ab, ba, lts_eq_bisim)); // These transition systems must be equal. 
+}
+
+// Test cases for coupled similarity
+
+const std::string philosophers_gradual =
+ "des (0,8,6)\n"
+ "(0,\"tau\",1)\n"
+ "(0,\"tau\",2)\n"
+ "(1,\"tau\",3)\n"
+ "(2,\"tau\",4)\n"
+ "(2,\"tau\",5)\n"
+ "(3,\"aEats\",3)\n"
+ "(4,\"bEats\",4)\n"
+ "(5,\"cEats\",5)\n"
+ ;
+
+const std::string philosophers_merged =
+ "des (0,6,4)\n"
+ "(0,\"tau\",1)\n"
+ "(0,\"tau\",2)\n"
+ "(0,\"tau\",3)\n"
+ "(1,\"aEats\",1)\n"
+ "(2,\"bEats\",2)\n"
+ "(3,\"cEats\",3)\n"
+ ;
+
+BOOST_AUTO_TEST_CASE(coupled_similarity_test)
+{
+  BOOST_CHECK(compare(philosophers_gradual, philosophers_merged, lts_eq_coupled_sim)); // These transition systems must be equal.
+  BOOST_CHECK(!compare(philosophers_gradual, philosophers_merged, lts_eq_bisim)); // These transition systems must be different.
+}

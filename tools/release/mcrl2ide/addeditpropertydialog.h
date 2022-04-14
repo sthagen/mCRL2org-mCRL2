@@ -11,11 +11,9 @@
 #define ADDEDITPROPERTYDIALOG_H
 
 #include "processsystem.h"
-#include "filesystem.h"
 
 #include <QDialog>
-#include <QComboBox>
-#include <QRegExpValidator>
+#include <QRegularExpressionValidator>
 
 namespace Ui
 {
@@ -43,21 +41,10 @@ class AddEditPropertyDialog : public QDialog
   ~AddEditPropertyDialog();
 
   /**
-   * @brief resetFocus Puts the focus on the add/edit button and the property
-   *   name field
+   * @brief activateDialog Activates the dialog, making it visible
+   * @param property Fill in a property if applicable
    */
-  void resetFocus();
-
-  /**
-   * @brief clearFields Empties the property name and text fields
-   */
-  void clearFields();
-
-  /**
-   * @brief setProperty Sets the property in the text fields
-   * @param property The property to fill in
-   */
-  void setProperty(const Property& property);
+  void activateDialog(const Property& property = Property());
 
   /**
    * @brief getProperty Gets the property as entered in the text fields
@@ -65,17 +52,11 @@ class AddEditPropertyDialog : public QDialog
    */
   Property getProperty();
 
-  /**
-   * @brief setOldProperty Records the property as when editing began
-   * @param oldProperty The property as when editing began
-   */
-  void setOldProperty(const Property& oldProperty);
-
   public slots:
   /**
-   * @brief parseProperty Parse the filled in property
+   * @brief actionSaveAndParse Saves and parses the filled in property
    */
-  void parseProperty();
+  void actionSaveAndParse();
 
   /**
    * @brief parseResults Handles the result of parsing the property
@@ -84,16 +65,23 @@ class AddEditPropertyDialog : public QDialog
   void parseResults(int processid);
 
   /**
-   * @brief addEditProperty Finishes adding/editing the property by saving the
-   *   property (if the input is ok)
+   * @brief actionSaveAndClose Saves the filled in property and then closes the
+   *   dialog
    */
-  void addEditProperty();
+  void actionSaveAndClose();
 
   /**
-   * @brief onRejected On rejected (Cancel, escape, "X"), abort the last parsing
-   *   process
+   * @brief setEquivalenceTabToModified Sets the equivalence tab to modified to
+   *   when one of its child widgets becomes modified
    */
-  void onRejected();
+  void setEquivalenceTabToModified();
+
+  /**
+   * @brief done When done (accepted or rejected), abort the last parsing
+   *   process
+   * @param r Equals 0 if rejected or 1 of accepted
+   */
+  void done(int r) override;
 
   private:
   Ui::AddEditPropertyDialog* ui;
@@ -104,7 +92,7 @@ class AddEditPropertyDialog : public QDialog
   Property oldProperty;
   int propertyParsingProcessid;
   bool lastParsingPropertyIsMucalculus;
-  QRegExpValidator* propertyNameValidator;
+  QRegularExpressionValidator* propertyNameValidator;
 
   /**
    * @brief checkInput Checks whether the fields are non-empty and whether the
@@ -115,9 +103,27 @@ class AddEditPropertyDialog : public QDialog
   bool checkInput();
 
   /**
+   * @brief saveProperty Saves the filled in property and removes the old one if
+   *   applicable
+   * @return Whether the property could be saved
+   */
+  bool saveProperty();
+
+  /**
+   * @brief resetStateAfterParsing Resets the state of the dialog after parsing
+   *   is done or aborted
+   */
+  void resetStateAfterParsing();
+
+  /**
    * @brief abortPropertyParsing Abort the current property parsing process
    */
   void abortPropertyParsing();
+
+  /**
+   * @brief resetModificationState Puts all fields to not modified
+   */
+  void resetModificationState();
 };
 
 #endif // ADDEDITPROPERTYDIALOG_H

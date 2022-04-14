@@ -11,35 +11,21 @@
 
 #define BOOST_TEST_MODULE rewriting_test
 #include "mcrl2/data/bag.h"
-#include "mcrl2/data/data_specification.h"
-#include "mcrl2/data/detail/data_functional.h"
 #include "mcrl2/data/detail/rewrite_strategies.h"
-#include "mcrl2/data/find.h"
-#include "mcrl2/data/function_sort.h"
-#include "mcrl2/data/int.h"
 #include "mcrl2/data/list.h"
-#include "mcrl2/data/nat.h"
 #include "mcrl2/data/parse.h"
-#include "mcrl2/data/real.h"
 #include "mcrl2/data/rewriter.h"
-#include "mcrl2/data/set.h"
-#include "mcrl2/data/standard_utility.h"
-#include "mcrl2/data/structured_sort.h"
-#include "mcrl2/utilities/text_utility.h"
+
 #include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <set>
-#include <string>
 
 using namespace mcrl2;
 using namespace mcrl2::core;
 using namespace mcrl2::data;
-using namespace mcrl2::data::detail;
 
 typedef std::vector<rewrite_strategy > rewrite_strategy_vector;
 
 template <typename Rewriter>
-void data_rewrite_test(Rewriter& R, data_expression const& input, data_expression const& expected_output)
+void data_rewrite_test(Rewriter& R, const data_expression& input, const data_expression& expected_output)
 {
   data_expression output = R(input);
 
@@ -897,7 +883,7 @@ BOOST_AUTO_TEST_CASE(test_lambda_expression)
     "     remove(i,q) = lambda j:Nat.if(i==j,empty,q(j));\n"
     "     i mod 2*n==j mod 2*n -> release(i,j,q) = q;\n"
     "     i mod 2*n!=j mod 2*n ->\n"
-    "          release(i,j,q) = release((i+1) mod 2*n,j,remove(i,q));\n"
+    "         release(i,j,q) = release((i+1) mod 2*n,j,remove(i,q));\n"
     "     k<n -> nextempty_rec(i,q,k) =\n"
     "               if(q(i)==empty,i,nextempty_rec((i+1) mod n,q,k+1));\n"
     "     k==n -> nextempty_rec(i,q,k)=i;\n"
@@ -1507,8 +1493,32 @@ BOOST_AUTO_TEST_CASE(Check_normal_forms_in_function_update)   // In the jitty re
     data::rewriter R(specification, *strat);
 
     data::data_expression e(parse_data_expression("update(a,0,0,0)", specification));
-    data::data_expression f(parse_data_expression("a[0 -> a(0)[0 -> 0]]", specification));
+    data::data_expression f(R(parse_data_expression("a[0 -> a(0)[0 -> 0]]", specification)));
     data_rewrite_test(R, e, f);
   }
 }
 
+BOOST_AUTO_TEST_CASE(Problem_with_recursive_templates_in_jittyc)   // This rewrite system cannot stand the compiling rewriter
+                                                                   // if it uses templates freely. The templates will be
+                                                                   // used recursively, causing infinite template nesting, which
+                                                                   // the compiler cannot handle. 
+{
+  std::string s(
+  "map f:Nat#Nat->Nat;\n"
+  "var n,m:Nat;\n"
+  "eqn n>0 -> f(n,m)=f(Int2Nat(n-1),m+1);\n"
+  );
+
+  data_specification specification(parse_data_specification(s));
+
+  rewrite_strategy_vector strategies(data::detail::get_test_rewrite_strategies(false));
+  for (rewrite_strategy_vector::const_iterator strat = strategies.begin(); strat != strategies.end(); ++strat)
+  {
+    std::cerr << "  Strategy32: " << *strat << std::endl;
+    data::rewriter R(specification, *strat);
+
+    data::data_expression e(parse_data_expression("f(3,3)", specification));
+    data::data_expression f(parse_data_expression("f(0,6)", specification));
+    data_rewrite_test(R, e, f);
+  }
+}

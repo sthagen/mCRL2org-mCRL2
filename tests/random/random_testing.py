@@ -9,13 +9,14 @@ import os.path
 import random
 import re
 import sys
+import traceback
 sys.path += [os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'python'))]
 
 import random_state_formula_generator
 from random_bes_generator import make_bes
 from random_pbes_generator import make_pbes
 import random_process_expression
-from testcommand import YmlTest
+from testing import YmlTest
 from text_utility import write_text
 
 MCRL2_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -33,7 +34,7 @@ class RandomTest(YmlTest):
 
     # create input files for the random test, and add the filenames to self.inputfiles
     def create_inputfiles(self, runpath = '.'):
-        raise NotImplemented
+        raise NotImplementedError
 
     # removes input files that are in the runpath directory
     def remove_inputfiles(self, runpath = '.'):
@@ -122,7 +123,7 @@ class LpsParelmTest(ProcessTest):
 class LpsOnePointRuleRewriteTest(ProcessTest):
     def __init__(self, name, settings):
         super(LpsOnePointRuleRewriteTest, self).__init__(name, ymlfile('lpstransform'), settings)
-        self.set_command_line_options('t2', ['-alps-one-point-rule-rewriter'])
+        self.add_command_line_options('t2', ['-alps-one-point-rule-rewriter'])
 
 class LpsConfcheckTest(ProcessTauTest):
     def __init__(self, name, confluence_type, settings):
@@ -134,14 +135,14 @@ class LpsConfcheckTest(ProcessTauTest):
                           }
         assert confluence_type in self.option_map
         super(LpsConfcheckTest, self).__init__(name, ymlfile('lpsconfcheck'), settings)
-        self.set_command_line_options('t2', ['-x' + self.option_map[confluence_type]])
+        self.add_command_line_options('t2', ['-x' + self.option_map[confluence_type]])
 
 class LtscompareTest(ProcessTauTest):
     def __init__(self, name, equivalence_type, settings):
         assert equivalence_type in ['bisim', 'bisim-gv', 'bisim-gjkw', 'branching-bisim', 'branching-bisim-gv', 'branching-bisim-gjkw', 'dpbranching-bisim', 'dpbranching-bisim-gv', 'dpbranching-bisim-gjkw', 'weak-bisim', 'dpweak-bisim', 'sim', 'ready-sim' , 'trace', 'weak-trace']
         super(LtscompareTest, self).__init__(name, ymlfile('ltscompare'), settings)
-        self.set_command_line_options('t3', ['-e' + equivalence_type])
-        self.set_command_line_options('t4', ['-e' + equivalence_type])
+        self.add_command_line_options('t3', ['-e' + equivalence_type])
+        self.add_command_line_options('t4', ['-e' + equivalence_type])
 
 class StochasticLtscompareTest(StochasticProcessTest):
     def __init__(self, name, settings):
@@ -151,14 +152,14 @@ class BisimulationTest(ProcessTauTest):
     def __init__(self, name, equivalence_type, settings):
         assert equivalence_type in ['bisim', 'bisim-gv', 'bisim-gjkw', 'branching-bisim', 'branching-bisim-gv', 'branching-bisim-gjkw', 'weak-bisim']
         super(BisimulationTest, self).__init__(name, ymlfile('bisimulation'), settings)
-        self.set_command_line_options('t3', ['-e' + equivalence_type])
-        self.set_command_line_options('t4', ['-e' + equivalence_type])
+        self.add_command_line_options('t3', ['-e' + equivalence_type])
+        self.add_command_line_options('t4', ['-e' + equivalence_type])
         if equivalence_type in ['branching-bisim-gv', 'branching-bisim-gjkw']:
-            self.set_command_line_options('t7', ['-bbranching-bisim'])
+            self.add_command_line_options('t7', ['-bbranching-bisim'])
         elif equivalence_type in ['bisim', 'bisim-gv', 'bisim-gjkw']:
-            self.set_command_line_options('t7', ['-bstrong-bisim'])
+            self.add_command_line_options('t7', ['-bstrong-bisim'])
         else:
-            self.set_command_line_options('t7', ['-b' + equivalence_type])
+            self.add_command_line_options('t7', ['-b' + equivalence_type])
 
 class Lps2ltsAlgorithmsTest(ProcessTauTest):
     def __init__(self, name, settings):
@@ -171,8 +172,8 @@ class Lps2ltsAlgorithmsTest(ProcessTauTest):
             tau_actions = random.choice(['', '', 'b', 'b,c'])
             if tau_actions:
                 options.append('--tau={}'.format(tau_actions))
-        self.set_command_line_options('t2', options)
-        self.set_command_line_options('t3', options)
+        self.add_command_line_options('t2', options)
+        self.add_command_line_options('t3', options)
 
 class LpsConstelmTest(ProcessTest):
     def __init__(self, name, settings):
@@ -205,6 +206,10 @@ class Lts2pbesTest(ProcessTest):
         super(Lts2pbesTest, self).create_inputfiles(runpath)
         self.inputfiles.append(mcrl2file('examples/modal-formulas/nodeadlock.mcf'))
 
+class LtsconvertsymbolicTest(ProcessTest):
+    def __init__(self, name, settings):
+        super(LtsconvertsymbolicTest, self).__init__(name, ymlfile('ltsconvertsymbolic'), settings)
+
 class PbesTest(RandomTest):
     def __init__(self, name, ymlfile, settings):
         super(PbesTest, self).__init__(name, ymlfile, settings)
@@ -212,10 +217,11 @@ class PbesTest(RandomTest):
         self.atom_count = 4
         self.propvar_count = 3
         self.use_quantifiers = True
+        self.use_integers = True
 
     def create_inputfiles(self, runpath = '.'):
         filename = '{0}.txt'.format(self.name)
-        p = make_pbes(self.equation_count, self.atom_count, self.propvar_count, self.use_quantifiers)
+        p = make_pbes(self.equation_count, self.atom_count, self.propvar_count, self.use_quantifiers, use_integers=self.use_integers)
         write_text(filename, str(p))
         self.inputfiles += [filename]
 
@@ -228,6 +234,12 @@ class PbesabsintheTest(PbesTest):
 class PbesabstractTest(PbesTest):
     def __init__(self, name, settings):
         super(PbesabstractTest, self).__init__(name, ymlfile('pbesabstract'), settings)
+
+class PbesbddsolveTest(PbesTest):
+    def __init__(self, name, settings):
+        super(PbesbddsolveTest, self).__init__(name, ymlfile('pbesbddsolve'), settings)
+        self.use_integers = False
+        self.use_quantifiers = False
 
 class PbesconstelmTest(PbesTest):
     def __init__(self, name, settings):
@@ -259,17 +271,17 @@ class Pbespor2Test(ProcessTest):
 class PbesrewrTest(PbesTest):
     def __init__(self, name, rewriter, settings):
         super(PbesrewrTest, self).__init__(name, ymlfile('pbesrewr'), settings)
-        self.set_command_line_options('t2', ['-p' + rewriter])
+        self.add_command_line_options('t2', ['-p' + rewriter])
 
 class PbestransformTest(PbesTest):
     def __init__(self, name, rewriter, settings):
         super(PbestransformTest, self).__init__(name, ymlfile('pbestransform'), settings)
-        self.set_command_line_options('t2', ['-a' + rewriter])
+        self.add_command_line_options('t2', ['-a' + rewriter])
 
 class PbesinstTest(PbesTest):
     def __init__(self, name, options, settings):
         super(PbesinstTest, self).__init__(name, ymlfile('pbesinst'), settings)
-        self.set_command_line_options('t2', options)
+        self.add_command_line_options('t2', options)
 
 class PbespgsolveTest(PbesTest):
     def __init__(self, name, settings):
@@ -283,31 +295,35 @@ class PbessymbolicbisimTest(PbesTest):
     def __init__(self, name, settings):
         super(PbessymbolicbisimTest, self).__init__(name, ymlfile('pbessymbolicbisim'), settings)
 
-class PbessolveTest(PbesTest):
+class PbessolvesymbolicTest(PbesTest):
     def __init__(self, name, settings):
-        super(PbessolveTest, self).__init__(name, ymlfile('pbessolve'), settings)
-
-class PbessolveDepthFirstTest(PbesTest):
+        super(PbessolvesymbolicTest, self).__init__(name, ymlfile('pbessolvesymbolic'), settings)
+        
+class Pbes2boolTest(PbesTest):
     def __init__(self, name, settings):
-        super(PbessolveDepthFirstTest, self).__init__(name, ymlfile('pbessolve'), settings)
-        self.set_command_line_options('t2', ['-zdepth-first'])
-        self.set_command_line_options('t3', ['-zdepth-first'])
-        self.set_command_line_options('t4', ['-zdepth-first'])
-        self.set_command_line_options('t5', ['-zdepth-first'])
-        self.set_command_line_options('t6', ['-zdepth-first'])
-        self.set_command_line_options('t7', ['-zdepth-first'])
-        self.set_command_line_options('t8', ['-zdepth-first'])
+        super(Pbes2boolTest, self).__init__(name, ymlfile('pbessolve'), settings)
 
-class Pbessolve_counter_exampleTest(ProcessTest):
+class Pbes2boolDepthFirstTest(PbesTest):
+    def __init__(self, name, settings):
+        super(Pbes2boolDepthFirstTest, self).__init__(name, ymlfile('pbessolve'), settings)
+        self.add_command_line_options('t2', ['-zdepth-first'])
+        self.add_command_line_options('t3', ['-zdepth-first'])
+        self.add_command_line_options('t4', ['-zdepth-first'])
+        self.add_command_line_options('t5', ['-zdepth-first'])
+        self.add_command_line_options('t6', ['-zdepth-first'])
+        self.add_command_line_options('t7', ['-zdepth-first'])
+        self.add_command_line_options('t8', ['-zdepth-first'])
+
+class Pbes2bool_counter_exampleTest(ProcessTest):
     def __init__(self, name, optimization, settings):
-        super(Pbessolve_counter_exampleTest, self).__init__(name, ymlfile('pbessolve-counter-example'), settings)
+        super(Pbes2bool_counter_exampleTest, self).__init__(name, ymlfile('pbessolve-counter-example'), settings)
         if optimization in [4, 5]:
-            self.set_command_line_options('t3', ['-l{}'.format(optimization), '--aggressive', '--prune-todo-list'])
+            self.add_command_line_options('t3', ['-l{}'.format(optimization), '--aggressive', '--prune-todo-list'])
         else:
-            self.set_command_line_options('t3', ['-l{}'.format(optimization), '--prune-todo-list'])
+            self.add_command_line_options('t3', ['-l{}'.format(optimization), '--prune-todo-list'])
 
     def create_inputfiles(self, runpath = '.'):
-        super(Pbessolve_counter_exampleTest, self).create_inputfiles(runpath)
+        super(Pbes2bool_counter_exampleTest, self).create_inputfiles(runpath)
         filename = '{0}.mcf'.format(self.name, self.settings)
         formula = random_state_formula_generator.make_modal_formula()
         write_text(filename, str(formula))
@@ -361,13 +377,13 @@ available_tests = {
     'lts2pbes'                                    : lambda name, settings: Lts2pbesTest(name, settings)                                                ,
     'ltscompare-bisim'                            : lambda name, settings: LtscompareTest(name, 'bisim', settings)                                     ,
     'ltscompare-bisim-gv'                         : lambda name, settings: LtscompareTest(name, 'bisim-gv', settings)                                  ,
-    'ltscompare-bisim-gjkw'                        : lambda name, settings: LtscompareTest(name, 'bisim-gjkw', settings)                               ,
+    'ltscompare-bisim-gjkw'                       : lambda name, settings: LtscompareTest(name, 'bisim-gjkw', settings)                                ,
     'ltscompare-branching-bisim'                  : lambda name, settings: LtscompareTest(name, 'branching-bisim', settings)                           ,
     'ltscompare-branching-bisim-gv'               : lambda name, settings: LtscompareTest(name, 'branching-bisim-gv', settings)                        ,
-    'ltscompare-branching-bisim-gjkw'              : lambda name, settings: LtscompareTest(name, 'branching-bisim-gjkw', settings)                     ,
+    'ltscompare-branching-bisim-gjkw'             : lambda name, settings: LtscompareTest(name, 'branching-bisim-gjkw', settings)                      ,
     'ltscompare-dpbranching-bisim'                : lambda name, settings: LtscompareTest(name, 'dpbranching-bisim', settings)                         ,
     'ltscompare-dpbranching-bisim-gv'             : lambda name, settings: LtscompareTest(name, 'dpbranching-bisim-gv', settings)                      ,
-    'ltscompare-dpbranching-bisim-gjkw'            : lambda name, settings: LtscompareTest(name, 'dpbranching-bisim-gjkw', settings)                   ,
+    'ltscompare-dpbranching-bisim-gjkw'           : lambda name, settings: LtscompareTest(name, 'dpbranching-bisim-gjkw', settings)                    ,
     'ltscompare-weak-bisim'                       : lambda name, settings: LtscompareTest(name, 'weak-bisim', settings)                                ,
     'ltscompare-dpweak-bisim'                     : lambda name, settings: LtscompareTest(name, 'dpweak-bisim', settings)                              ,
     'ltscompare-sim'                              : lambda name, settings: LtscompareTest(name, 'sim', settings)                                       ,
@@ -376,15 +392,14 @@ available_tests = {
     'ltscompare-weak-trace'                       : lambda name, settings: LtscompareTest(name, 'weak-trace', settings)                                ,
     'bisimulation-bisim'                          : lambda name, settings: BisimulationTest(name, 'bisim', settings)                                   ,
     'bisimulation-bisim-gv'                       : lambda name, settings: BisimulationTest(name, 'bisim-gv', settings)                                ,
-    'bisimulation-bisim-gjkw'                      : lambda name, settings: BisimulationTest(name, 'bisim-gjkw', settings)                             ,
+    'bisimulation-bisim-gjkw'                     : lambda name, settings: BisimulationTest(name, 'bisim-gjkw', settings)                              ,
     'bisimulation-branching-bisim'                : lambda name, settings: BisimulationTest(name, 'branching-bisim', settings)                         ,
     'bisimulation-branching-bisim-gv'             : lambda name, settings: BisimulationTest(name, 'branching-bisim-gv', settings)                      ,
-    'bisimulation-branching-bisim-gjkw'            : lambda name, settings: BisimulationTest(name, 'branching-bisim-gjkw', settings)                   ,
+    'bisimulation-branching-bisim-gjkw'           : lambda name, settings: BisimulationTest(name, 'branching-bisim-gjkw', settings)                    ,
     'bisimulation-weak-bisim'                     : lambda name, settings: BisimulationTest(name, 'weak-bisim', settings)                              ,
     'pbesconstelm'                                : lambda name, settings: PbesconstelmTest(name, settings)                                            ,
     'pbesparelm'                                  : lambda name, settings: PbesparelmTest(name, settings)                                              ,
     'pbespareqelm'                                : lambda name, settings: PbespareqelmTest(name, settings)                                            ,
-    #'pbespor1'                                    : lambda name, settings: Pbespor1Test(name, settings)                                               ,
     'pbespor2'                                    : lambda name, settings: Pbespor2Test(name, settings)                                                ,
     'pbesrewr-simplify'                           : lambda name, settings: PbesrewrTest(name, 'simplify', settings)                                    ,
     'pbesrewr-pfnf'                               : lambda name, settings: PbesrewrTest(name, 'pfnf', settings)                                        ,
@@ -401,26 +416,32 @@ available_tests = {
     'pbesinst-alternative_lazy'                   : lambda name, settings: PbesinstTest(name, ['-salternative-lazy'], settings)                        ,
     'pbesinst-finite'                             : lambda name, settings: PbesinstTest(name, ['-sfinite', '-f*(*:Bool)'], settings)                   ,
     'pbespgsolve'                                 : lambda name, settings: PbespgsolveTest(name, settings)                                             ,
-    'pbessolve'                                   : lambda name, settings: PbessolveTest(name, settings)                                               ,
-    'pbessolve-depth-first'                       : lambda name, settings: PbessolveDepthFirstTest(name, settings)                                     ,
-    'pbessolve-counter-example-optimization-0'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 0, settings)                            ,
-    'pbessolve-counter-example-optimization-1'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 1, settings)                            ,
-    'pbessolve-counter-example-optimization-2'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 2, settings)                            ,
-    'pbessolve-counter-example-optimization-3'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 3, settings)                            ,
-    'pbessolve-counter-example-optimization-4'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 4, settings)                            ,
-    'pbessolve-counter-example-optimization-5'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 5, settings)                            ,
-    'pbessolve-counter-example-optimization-6'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 6, settings)                            ,
-    'pbessolve-counter-example-optimization-7'    : lambda name, settings: Pbessolve_counter_exampleTest(name, 7, settings)                            ,
+    'pbessolve'                                   : lambda name, settings: Pbes2boolTest(name, settings)                                               ,
+    'pbessolve-depth-first'                       : lambda name, settings: Pbes2boolDepthFirstTest(name, settings)                                     ,
+    'pbessolve-counter-example-optimization-0'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 0, settings)                            ,
+    'pbessolve-counter-example-optimization-1'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 1, settings)                            ,
+    'pbessolve-counter-example-optimization-2'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 2, settings)                            ,
+    'pbessolve-counter-example-optimization-3'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 3, settings)                            ,
+    'pbessolve-counter-example-optimization-4'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 4, settings)                            ,
+    'pbessolve-counter-example-optimization-5'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 5, settings)                            ,
+    'pbessolve-counter-example-optimization-6'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 6, settings)                            ,
+    'pbessolve-counter-example-optimization-7'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 7, settings)                            ,
     'pbesstategraph'                              : lambda name, settings: PbesstategraphTest(name, settings)                                          ,
     'pbes-unify-parameters'                       : lambda name, settings: Pbes_unify_parametersTest(name, settings)                                   ,
     'pbes-srf'                                    : lambda name, settings: Pbes_srfTest(name, settings)                                                ,
     # 'pbessymbolicbisim'                           : lambda name, settings: PbessymbolicbisimTest(name, settings)                                       , # excluded from the tests because of Z3 dependency
     'bessolve'                                    : lambda name, settings: BessolveTest(name, settings)                                                ,
-    #'stochastic-ltscompare'                       : lambda name, settings: StochasticLtscompareTest(name, settings)                                     ,
+    #'stochastic-ltscompare'                      : lambda name, settings: StochasticLtscompareTest(name, settings)                                     ,
 }
 
+# These test do not work on Windows due to dependencies.
+if os.name != 'nt':
+    available_tests.update({'pbessolvesymbolic' : lambda name, settings: PbessolvesymbolicTest(name, settings) })
+    available_tests.update({'pbessolvesymbolic-partial' : lambda name, settings: PbessolvesymbolicTest(name, settings) })
+    available_tests.update({'ltsconvertsymbolic' : lambda name, settings: LtsconvertsymbolicTest(name, settings) })
+#    available_tests.update({ 'pbesbddsolve' : lambda name, settings: PbesbddsolveTest(name, settings) })
+
 def print_names(tests):
-    print('--- available tests ---')
     for name in sorted(tests):
         print(name)
 
@@ -440,6 +461,7 @@ def main(tests):
     cmdline_parser.add_argument('-k', '--keep-files', dest='keep_files', action='store_true', help='Keep the files produced by the test')
     cmdline_parser.add_argument('-n', '--names', dest='names', action='store_true', help='Print the names of the available tests')
     cmdline_parser.add_argument('-p', '--pattern', dest='pattern', metavar='P', default='.', action='store', help='Run the tests that match with pattern P')
+    cmdline_parser.add_argument('-o', '--output', dest='output', metavar='o', action='store', help='Run the tests in the given directory')
     args = cmdline_parser.parse_args()
     if args.names:
         print_names(tests)
@@ -450,18 +472,24 @@ def main(tests):
     settings = {'toolpath': toolpath, 'verbose': args.verbose, 'cleanup_files': not args.keep_files, 'allow-non-zero-return-values': True}
     I = range(int(args.repetitions))
 
-    testdir = 'output'
-    if not os.path.exists(testdir):
-        os.mkdir(testdir)
-    os.chdir(testdir)
+    if args.output:
+        if not os.path.exists(args.output):
+            os.mkdir(args.output)
+        os.chdir(args.output)
 
+    test_failed = False
     for name in matching_tests(tests, args.pattern):
         try:
             for i in I:
                 test = tests[name]('{}_{}'.format(name, i), settings)
                 test.execute_in_sandbox()
         except Exception as e:
-            print(e)
+            print('An exception occurred:', e.__class__, e)
+            traceback.print_exc()
+            test_failed = True
+
+    if (test_failed):
+      sys.exit(-1)
 
 if __name__ == '__main__':
     main(available_tests)

@@ -12,22 +12,12 @@
 #ifndef MCRL2_LPS_SPECIFICATION_H
 #define MCRL2_LPS_SPECIFICATION_H
 
-#include "mcrl2/core/load_aterm.h"
-#include "mcrl2/data/data_specification.h"
+#include "mcrl2/data/data_io.h"
 #include "mcrl2/data/detail/io.h"
-#include "mcrl2/lps/linear_process.h"
 #include "mcrl2/lps/process_initializer.h"
-#include "mcrl2/process/process_expression.h"
-#include "mcrl2/utilities/exception.h"
-#include <algorithm>
-#include <cassert>
+#include "mcrl2/lps/linear_process.h"
+
 #include <cerrno>
-#include <cstring>
-#include <iostream>
-#include <iterator>
-#include <set>
-#include <stdexcept>
-#include <utility>
 
 namespace mcrl2
 {
@@ -75,28 +65,6 @@ class specification_base
     /// \brief The initial state of the specification
     InitialProcessExpression m_initial_process;
 
-    /// \brief Returns the i-th element of t, converted to aterm_appl
-    const atermpp::aterm_appl& get(const atermpp::aterm_appl& t, std::size_t i)
-    {
-      return atermpp::down_cast<atermpp::aterm_appl>(t[i]);
-    }
-
-    /// \brief Initializes the specification with an aterm.
-    /// \param t An aterm.
-    /// \param stochastic_distributions_allowed A boolean indicating that the specification can contain stochastic operators.
-    void construct_from_aterm(const atermpp::aterm_appl& t, bool stochastic_distributions_allowed = true)
-    {
-      using atermpp::down_cast;
-      assert(core::detail::check_term_LinProcSpec(t));
-      m_data             = data::data_specification(get(t, 0));
-      m_action_labels    = down_cast<process::action_label_list>(get(t, 1)[0]);
-      const data::variable_list& global_variables = down_cast<data::variable_list>(get(t, 2)[0]);
-      m_global_variables = std::set<data::variable>(global_variables.begin(),global_variables.end());
-      m_process          = LinearProcess(get(t, 3), stochastic_distributions_allowed);
-      m_initial_process  = InitialProcessExpression(get(t, 4));
-      m_data.declare_data_specification_to_be_type_checked();
-    }
-
   public:
     /// \brief The process type
     typedef LinearProcess process_type;
@@ -104,24 +72,6 @@ class specification_base
     /// \brief Constructor.
     specification_base()
     { }
-
-    specification_base(const specification_base<LinearProcess, InitialProcessExpression>& other)
-    {
-      m_data = other.m_data;
-      m_action_labels = other.m_action_labels;
-      m_global_variables = other.m_global_variables;
-      m_process = other.m_process;
-      m_initial_process = other.m_initial_process;
-    }
-
-    /// \brief Constructor.
-    /// \param t A term
-    /// \param stochastic_distributions_allowed A boolean indicating that the specification can contain stochastic operators.
-    explicit specification_base(const atermpp::aterm_appl& t, bool stochastic_distributions_allowed = true)
-    {
-      assert(core::detail::check_rule_LinProcSpec(t));
-      construct_from_aterm(t, stochastic_distributions_allowed);
-    }
 
     /// \brief Constructor.
     /// \param data A data specification
@@ -141,47 +91,7 @@ class specification_base
       m_process(lps),
       m_initial_process(initial_process)
     {
-    }
-
-    /// \brief Reads the specification from a stream.
-    /// \param stream An input stream.
-    /// \param binary An boolean that if true means the stream contains a term in binary encoding.
-    //                Otherwise the encoding is textual.
-    /// \param source The source from which the stream originates. Used for error messages.
-    void load(std::istream& stream, bool binary = true, const std::string& source = "")
-    {
-      atermpp::aterm t = core::load_aterm(stream, binary, "LPS", source);
-      std::unordered_map<atermpp::aterm_appl, atermpp::aterm> cache;
-      t = data::detail::add_index(t, cache);
-      if (!t.type_is_appl() || !is_specification(atermpp::down_cast<const atermpp::aterm_appl>(t)))
-      {
-        throw mcrl2::runtime_error("Input stream does not contain an LPS");
-      }
-      construct_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
-      // The well typedness check is only done in debug mode, since for large LPSs it takes too much
-      // time
-    }
-
-    /// \brief Writes the specification to a stream.
-    /// \param stream The output stream.
-    /// \param binary
-    /// If binary is true the linear process is saved in compressed binary format.
-    /// Otherwise an ascii representation is saved. In general the binary format is
-    /// much more compact than the ascii representation.
-    void save(std::ostream& stream, bool binary=true) const
-    {
-      // The well typedness check is only done in debug mode, since for large
-      // LPSs it takes too much time
-      atermpp::aterm t = specification_to_aterm(*this);
-      t = data::detail::remove_index(t);
-      if (binary)
-      {
-        atermpp::write_term_to_binary_stream(t, stream);
-      }
-      else
-      {
-        atermpp::write_term_to_text_stream(t, stream);
-      }
+      assert(lps.process_parameters().size()==initial_process.expressions().size());
     }
 
     /// \brief Returns the linear process of the specification.
@@ -267,16 +177,6 @@ class specification: public specification_base<linear_process, process_initializ
     /// \brief Constructor.
     specification() = default;
 
-    specification(const specification& other) = default;
-
-    /// \brief Constructor.
-    /// \param t A term
-    explicit specification(const atermpp::aterm_appl& t)
-      : super(t, false)
-    {
-      complete_data_specification(*this);
-    }
-
     /// \brief Constructor.
     /// \param data A data specification
     /// \param action_labels A sequence of action labels
@@ -291,19 +191,6 @@ class specification: public specification_base<linear_process, process_initializ
       : super(data, action_labels, global_variables, lps, initial_process)
     {
       complete_data_specification(*this);
-    }
-
-    void save(std::ostream& stream, bool binary = true) const
-    {
-      assert(check_well_typedness(*this));
-      super::save(stream, binary);
-    }
-
-    void load(std::istream& stream, bool binary = true, const std::string& source = "")
-    {
-      super::load(stream, binary, source);
-      complete_data_specification(*this);
-      assert(check_well_typedness(*this));
     }
 };
 

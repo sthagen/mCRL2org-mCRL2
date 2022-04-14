@@ -7,24 +7,15 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #define BOOST_TEST_MODULE substitution_test
-#include <functional>
-#include <string>
-#include <utility>
 
 #include <boost/test/included/unit_test_framework.hpp>
 
-#include "mcrl2/data/assignment.h"
 #include "mcrl2/data/detail/concepts.h"
 #include "mcrl2/data/expression_traits.h"
-#include "mcrl2/data/lambda.h"
+#include "mcrl2/data/list.h"
 #include "mcrl2/data/parse.h"
-#include "mcrl2/data/replace.h"
-#include "mcrl2/data/replace.h"
-#include "mcrl2/data/standard_utility.h"
 #include "mcrl2/data/substitutions/assignment_sequence_substitution.h"
 #include "mcrl2/data/substitutions/enumerator_substitution.h"
-#include "mcrl2/data/substitutions/mutable_indexed_substitution.h"
-#include "mcrl2/data/substitutions/mutable_map_substitution.h"
 #include "mcrl2/data/substitutions/mutable_substitution_composer.h"
 #include "mcrl2/data/substitutions/sort_expression_assignment.h"
 
@@ -132,10 +123,11 @@ std::cerr << "RES " << data::replace_free_variables(c + x * y, s) << "\n";
   BOOST_CHECK(data::replace_free_variables(lambda(y,y)(x) + y, sb) == lambda(y,y)(x) + c);
 }
 
-struct my_assignment_sequence_substitution: public std::unary_function<variable, data_expression>
+struct my_assignment_sequence_substitution
 {
-  typedef variable variable_type;
-  typedef data_expression expression_type;
+  using variable_type = variable;
+  using expression_type = data_expression;
+  using argument_type = variable;
 
   assignment_list assignments;
 
@@ -272,8 +264,10 @@ void test_mutable_substitution_composer()
   BOOST_CHECK(g(x) == y);
 }
 
-struct my_sort_substitution: public std::unary_function<data::basic_sort, data::sort_expression>
+struct my_sort_substitution
 {
+  using argument_type = data::basic_sort;
+
   data::sort_expression operator()(const data::basic_sort& s)
   {
     if (s == sort_nat::nat()) {

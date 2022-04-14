@@ -24,7 +24,7 @@
 #     not be generated from a clean Git clone.
 #
 # Package maintainers may set the variable below to issue a new release.
-set(MCRL2_MAJOR_VERSION "201908.0")
+set(MCRL2_MAJOR_VERSION "202106.0")
 string(SUBSTRING ${MCRL2_MAJOR_VERSION} 0 4 MCRL2_COPYRIGHT_YEAR)
 
 option(MCRL2_PACKAGE_RELEASE "Include release version information. This discards Git commit information and only uses the MCRL2_MAJOR_VERSION CMake variable." FALSE)
@@ -91,8 +91,17 @@ else()
   set(MCRL2_VERSION "${MCRL2_MAJOR_VERSION}.${MCRL2_MINOR_VERSION}")
 endif()
 
-if("${CMAKE_CFG_INTDIR}" STREQUAL ".")
-  add_definitions(-DMCRL2_BUILD_TYPE=${CMAKE_BUILD_TYPE})
+# This script can be included from other CMake files to set variables and add definitions,
+# but it can also be run standalone in script mode. In that case, it will output the mCRL2
+# version. This is used by the documentation and ensures that the version number of mCRL2
+# needs to be changed in only one place: this file.
+if(CMAKE_SCRIPT_MODE_FILE AND CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_PARENT_LIST_FILE)
+  message(STATUS "MCRL2_MAJOR_VERSION ${MCRL2_MAJOR_VERSION}")
+  message(STATUS "MCRL2_MINOR_VERSION ${MCRL2_MINOR_VERSION}")
 else()
-  add_definitions(-DMCRL2_BUILD_TYPE=${CMAKE_CFG_INTDIR})
+  if("${CMAKE_CFG_INTDIR}" STREQUAL ".")
+    add_definitions(-DMCRL2_BUILD_TYPE=${CMAKE_BUILD_TYPE})
+  else()
+    add_definitions(-DMCRL2_BUILD_TYPE=${CMAKE_CFG_INTDIR})
+  endif()
 endif()

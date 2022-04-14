@@ -20,19 +20,13 @@
 // ======================================================================
 
 //C++
-#include <cstdio>
 #include <exception>
-#include <iostream>
-#include <string>
 
 //MCRL2-specific
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/pbes/tools.h"
 #include "mcrl2/utilities/input_tool.h"
 #include "mcrl2/bes/pbes_input_tool.h"
-#include "mcrl2/bes/boolean_expression.h"
 
-using namespace std;
 using namespace mcrl2;
 using namespace mcrl2::utilities;
 using namespace mcrl2::pbes_system;
@@ -47,13 +41,13 @@ class pbesinfo_tool: public pbes_input_tool<input_tool>
     bool opt_full;
 
     /// Parse the non-default options.
-    void parse_options(const command_line_parser& parser)
+    void parse_options(const command_line_parser& parser) override
     {
       super::parse_options(parser);
       opt_full = parser.options.count("full") > 0;
     }
 
-    void add_options(interface_description& desc)
+    void add_options(interface_description& desc) override
     {
       super::add_options(desc);
       desc.add_option("full",
@@ -82,7 +76,7 @@ class pbesinfo_tool: public pbes_input_tool<input_tool>
     /// - Show predicate variables and their type
     /// else
     /// - Give error
-    bool run()
+    bool run() override
     {
       bes::boolean_expression b;
       pbesinfo(input_filename(),

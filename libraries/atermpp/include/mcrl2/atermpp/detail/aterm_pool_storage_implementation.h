@@ -11,16 +11,10 @@
 #define MCRL2_ATERMPP_ATERM_POOL_STORAGE_IMPLEMENTION_H
 #pragma once
 
-#include "mcrl2/atermpp/detail/aterm_pool_storage.h"
 #include "mcrl2/atermpp/detail/aterm_pool.h"
 
-#include "mcrl2/atermpp/detail/aterm_appl.h"
-#include "mcrl2/utilities/unused.h"
-#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/stack_array.h"
 
-#include <algorithm>
-#include <assert.h>
 #include <cstring>
 
 namespace atermpp
@@ -33,16 +27,21 @@ namespace detail
 template<std::size_t N,
          typename InputIterator,
          typename TermConverter,
-         typename std::enable_if<is_iterator<InputIterator>::value, void>::type* = nullptr>
-static inline std::array<unprotected_aterm, N> construct_arguments(InputIterator it, TermConverter converter)
+         typename std::enable_if<mcrl2::utilities::is_iterator<InputIterator>::value, void>::type* = nullptr>
+inline std::array<unprotected_aterm, N> construct_arguments(InputIterator it, InputIterator end, TermConverter converter)
 {
+  // The end is only used for debugging to ensure that the arity and std::distance(it, end) match.
+  mcrl2::utilities::mcrl2_unused(end);
+
   // Copy the arguments into this array. Doesn't change any reference count, because they are unprotected terms.
   std::array<unprotected_aterm, N> arguments;
   for (size_t i = 0; i < N; ++i)
   {
+    assert(it != end);
     arguments[i] = converter(*it);
     ++it;
   }
+  assert(it == end);
 
   return arguments;
 }
@@ -57,23 +56,8 @@ ATERM_POOL_STORAGE::aterm_pool_storage(aterm_pool& pool) :
 {}
 
 ATERM_POOL_STORAGE_TEMPLATES
-void ATERM_POOL_STORAGE::add_creation_hook(function_symbol sym, term_callback callback)
-{
-  // The code handling the hooks is currently assuming that there is only one
-  // hook per function symbol. If more hooks are allowed, then this code
-  // should be changed.
-  for (const auto& hook : m_creation_hooks)
-  {
-    mcrl2::utilities::mcrl2_unused(hook);
-    assert(hook.first != sym);
-  }
-  m_creation_hooks.emplace_back(sym, callback);
-}
-
-ATERM_POOL_STORAGE_TEMPLATES
 void ATERM_POOL_STORAGE::add_deletion_hook(function_symbol sym, term_callback callback)
 {
-  // See the comments at add_creation_hook.
   for (const auto& hook : m_deletion_hooks)
   {
     mcrl2::utilities::mcrl2_unused(hook);
@@ -91,23 +75,25 @@ aterm ATERM_POOL_STORAGE::create_int(std::size_t value)
 ATERM_POOL_STORAGE_TEMPLATES
 aterm ATERM_POOL_STORAGE::create_term(const function_symbol& symbol)
 {
+  assert(symbol.arity() == 0);
   return emplace(symbol);
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
 template<class ...Terms>
-aterm ATERM_POOL_STORAGE::create_appl(const function_symbol& sym, const Terms&... arguments)
+aterm ATERM_POOL_STORAGE::create_appl(const function_symbol& symbol, const Terms&... arguments)
 {
-  return emplace(sym, arguments...);
+  assert(symbol.arity() == sizeof...(arguments));
+  return emplace(symbol, arguments...);
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
 template<typename ForwardIterator>
 aterm ATERM_POOL_STORAGE::create_appl_iterator(const function_symbol& symbol,
                                         ForwardIterator begin,
-                                        ForwardIterator)
+                                        ForwardIterator end)
 {
-  return emplace(symbol, begin);
+  return emplace(symbol, begin, end);
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
@@ -115,9 +101,9 @@ template<typename InputIterator, typename TermConverter>
 aterm ATERM_POOL_STORAGE::create_appl_iterator(const function_symbol& symbol,
                                         TermConverter converter,
                                         InputIterator begin,
-                                        InputIterator)
+                                        InputIterator end)
 {
-  std::array<unprotected_aterm, N> arguments = construct_arguments<N>(begin, converter);
+  std::array<unprotected_aterm, N> arguments = construct_arguments<N>(begin, end, converter);
   return emplace(symbol, arguments);
 }
 
@@ -125,9 +111,9 @@ ATERM_POOL_STORAGE_TEMPLATES
 template<typename ForwardIterator>
 aterm ATERM_POOL_STORAGE::create_appl_dynamic(const function_symbol& symbol,
                                         ForwardIterator begin,
-                                        ForwardIterator)
+                                        ForwardIterator end)
 {
-  return emplace(symbol, begin);
+  return emplace(symbol, begin, end);
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
@@ -136,17 +122,22 @@ template<typename InputIterator,
 aterm ATERM_POOL_STORAGE::create_appl_dynamic(const function_symbol& symbol,
                                         TermConverter converter,
                                         InputIterator it,
-                                        InputIterator)
+                                        InputIterator end)
 {
+  // The end is only used for debugging to ensure that the arity and std::distance(it, end) match.
+  mcrl2::utilities::mcrl2_unused(end);
+
   MCRL2_DECLARE_STACK_ARRAY(arguments, unprotected_aterm, symbol.arity());
   for (std::size_t i = 0; i < symbol.arity(); ++i)
   {
+    assert(it != end);
     arguments[i] = converter(*it);
     ++it;
   }
+  assert(it == end);
 
   // Find or create a new term and return it.
-  return emplace(symbol, arguments.begin());
+  return emplace(symbol, arguments.begin(), arguments.end());
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
@@ -173,7 +164,7 @@ void ATERM_POOL_STORAGE::print_performance_stats(const char* identifier) const
 ATERM_POOL_STORAGE_TEMPLATES
 void ATERM_POOL_STORAGE::mark()
 {
-  for (Element& term : m_term_set)
+  for (const Element& term : m_term_set)
   {
     // If a term is marked its arguments have been marked as well.
     if (term.is_reachable() && !term.is_marked())
@@ -190,7 +181,7 @@ void ATERM_POOL_STORAGE::sweep()
   // Iterate over all terms and removes the ones that are marked.
   for (auto it = m_term_set.begin(); it != m_term_set.end(); )
   {
-    Element& term = *it;
+    const Element& term = *it;
 
     if (!term.is_reachable())
     {
@@ -214,25 +205,13 @@ void ATERM_POOL_STORAGE::sweep()
 /// PRIVATE FUNCTIONS
 
 ATERM_POOL_STORAGE_TEMPLATES
-void ATERM_POOL_STORAGE::call_creation_hook(unprotected_aterm term)
-{
-  for (auto& pair : m_creation_hooks)
-  {
-    if (pair.first == term.function())
-    {
-      pair.second(static_cast<const aterm&>(term));
-    }
-  }
-}
-
-ATERM_POOL_STORAGE_TEMPLATES
 void ATERM_POOL_STORAGE::call_deletion_hook(unprotected_aterm term)
 {
-  for (auto& pair : m_deletion_hooks)
+  for (const auto& [symbol, callback] : m_deletion_hooks)
   {
-    if (pair.first == term.function())
+    if (symbol == term.function())
     {
-      pair.second(static_cast<const aterm&>(term));
+      callback(static_cast<const aterm&>(term));
     }
   }
 }
@@ -242,11 +221,11 @@ ATERM_POOL_STORAGE_TEMPLATES
 bool ATERM_POOL_STORAGE::verify_mark()
 {
   // Check for consistency that if a term is reachable its arguments are as well.
-  for (Element& term : m_term_set)
+  for (const Element& term : m_term_set)
   {
     if (term.is_reachable() && term.function().arity() > 0)
     {
-       const _term_appl& ta = static_cast<const _term_appl&>(term);
+       const _term_appl& ta = static_cast<_term_appl&>(const_cast<Element&>(term));
        for (std::size_t i = 0; i < ta.function().arity(); ++i)
        {
          assert(detail::address(ta.arg(i))->is_reachable());
@@ -260,7 +239,7 @@ ATERM_POOL_STORAGE_TEMPLATES
 bool ATERM_POOL_STORAGE::verify_sweep()
 {
   // Check that no argument was removed from a reachable term.
-  for (Element& term : m_term_set)
+  for (const Element& term : m_term_set)
   {
     (void)term;
     assert(verify_term(term));
@@ -274,7 +253,7 @@ ATERM_POOL_STORAGE_TEMPLATES
 typename ATERM_POOL_STORAGE::iterator ATERM_POOL_STORAGE::destroy(iterator it)
 {
   // Store the term temporarily to be able to deallocate it after removing it from the set.
-  Element& term = *it;
+  const Element& term = *it;
   assert(!term.is_reachable());
 
   // Trigger the deletion hook before the term is actually destroyed.
@@ -288,15 +267,14 @@ ATERM_POOL_STORAGE_TEMPLATES
 template<typename ...Args>
 aterm ATERM_POOL_STORAGE::emplace(Args&&... args)
 {
+  auto [it, added] = m_term_set.emplace(std::forward<Args>(args)...);
 
-  auto result = m_term_set.emplace(std::forward<Args>(args)...);
-  aterm term(&(*result.first));
-  if (result.second)
+  aterm term(&(*it));
+  if (added)
   {
     // A new term was created
     if (EnableTermCreationMetrics) { m_term_metric.miss(); }
     m_pool.trigger_collection();
-    call_creation_hook(term);
   }
   else if (EnableTermCreationMetrics)
   {
@@ -314,10 +292,10 @@ constexpr bool ATERM_POOL_STORAGE::is_dynamic_storage() const
 }
 
 ATERM_POOL_STORAGE_TEMPLATES
-void ATERM_POOL_STORAGE::mark_term(_aterm& root)
+void ATERM_POOL_STORAGE::mark_term(const _aterm& root)
 {
   // Do not use the stack, because this might run out of stack memory for large lists.
-  todo.push(root);
+  todo.push(const_cast<_aterm&>(root));
 
   // Mark the term depth-first to reduce the maximum todo size required.
   while (!todo.empty())
@@ -352,7 +330,7 @@ void ATERM_POOL_STORAGE::mark_term(_aterm& root)
 
 ATERM_POOL_STORAGE_TEMPLATES
 template<std::size_t Arity>
-bool ATERM_POOL_STORAGE::verify_term(_aterm& term)
+bool ATERM_POOL_STORAGE::verify_term(const _aterm& term)
 {
   // Check that a valid function symbol was used and that its arity belongs to this storage.
   assert(term.function().defined());
@@ -361,7 +339,7 @@ bool ATERM_POOL_STORAGE::verify_term(_aterm& term)
   // Check that all of its arguments are defined.
   if (term.function().arity() > 0)
   {
-    _term_appl& ta = static_cast<_term_appl&>(term);
+    const _term_appl& ta = static_cast<const _term_appl&>(term);
     for (std::size_t i = 0; i < ta.function().arity(); ++i)
     {
       assert(ta.arg(i).defined());

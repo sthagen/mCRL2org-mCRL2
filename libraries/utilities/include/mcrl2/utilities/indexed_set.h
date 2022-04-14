@@ -12,7 +12,6 @@
 #include <deque>
 
 #include "mcrl2/utilities/unordered_map.h"
-#include "mcrl2/utilities/block_allocator.h"
 
 namespace mcrl2
 {
@@ -61,13 +60,15 @@ public:
   
   /// \brief Value returned when an element does not exist in the set.
   /// \return Value indicating non existing element, equal to std::numeric_limits<std::size_t>::max(). 
-  static const size_type npos = std::numeric_limits<std::size_t>::max();
+  static constexpr size_type npos = std::numeric_limits<std::size_t>::max();
 
   /// \brief Constructor of an empty indexed set. Starts with a hashtable of size 128.
   indexed_set();
 
   /// \brief Constructor of an empty index set. Starts with a hashtable of the indicated size. 
   /// \param initial_hashtable_size The initial size of the hashtable.
+  /// \param hash The hash function.
+  /// \param equals The comparison function for its elements.
   indexed_set(std::size_t initial_hashtable_size,
     const hasher& hash = hasher(),
     const key_equal& equals = key_equal());
@@ -102,13 +103,13 @@ public:
 
   /// \brief Forward iterator which runs through the elements from the lowest to the largest number.
   /// \details Complexity is constant per operation.
-  iterator begin() const
+  const_iterator begin() const
   {
     return m_keys.begin();
   }
 
   /// \brief End of the forward iterator.
-  iterator end() const
+  const_iterator end() const
   {
     return m_keys.end();
   }

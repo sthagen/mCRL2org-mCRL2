@@ -1,38 +1,59 @@
-# Authors: Jeroen Keiren
-# Copyright: see the accompanying file COPYING or copy at
-# https://github.com/mCRL2org/mCRL2/blob/master/COPYING
-#
-# Distributed under the Boost Software License, Version 1.0.
-# (See accompanying file LICENSE_1_0.txt or copy at
-# http://www.boost.org/LICENSE_1_0.txt)
+set(SPHINX_BUILD_CMD "sphinx-build")
+set(SPHINX_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(SPHINX_BUILD_ROOT_DIR "${CMAKE_BINARY_DIR}/sphinx")
+set(SPHINX_BUILD_SRC_DIR "${SPHINX_BUILD_ROOT_DIR}/source")
+set(SPHINX_BUILD_OUT_DIR "${SPHINX_BUILD_ROOT_DIR}/build")
+set(SPHINX_BUILD_TEMP_DIR "${SPHINX_BUILD_ROOT_DIR}/temp")
 
-# This script generates toolset documentation
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source/user_manual/downloads-nightly.inc.template"
-               "${CMAKE_CURRENT_BINARY_DIR}/_temp/source/user_manual/downloads-nightly.inc" @ONLY)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/source/user_manual/downloads-release.inc.template"
-               "${CMAKE_CURRENT_BINARY_DIR}/_temp/source/user_manual/downloads-release.inc" @ONLY)
-
-if(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-  set(BIN_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-else()
-  set(BIN_PATH ${CMAKE_BINARY_DIR})
+set(SPHINX_PARALLEL "-jauto")
+if(CMAKE_BUILD_PARALLEL_LEVEL)
+  set(SPHINX_PARALLEL "-j${CMAKE_BUILD_PARALLEL_LEVEL}")
 endif()
 
-set(MCRL2_GENERATE_DOC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/generate.py)
-set(MCRL2_GENERATE_DOC_COMMAND ${MCRL2_GENERATE_DOC_SCRIPT} --version ${MCRL2_VERSION} --path=${BIN_PATH}
-  --temp=${CMAKE_CURRENT_BINARY_DIR}/_temp --out=${CMAKE_CURRENT_BINARY_DIR}/html)
 
-if(MCRL2_PACKAGE_RELEASE)
-  set(MCRL2_GENERATE_DOC_COMMAND ${MCRL2_GENERATE_DOC_COMMAND} -r)
-endif()
-
-add_custom_target(doc
-  COMMAND ${MCRL2_GENERATE_DOC_COMMAND} -ddc
-  COMMENT "(Re)-generating mCRL2 documentation (regenerates all cached documentation)" VERBATIM
+add_custom_target(cleandoc
+  COMMENT "Delete all cached documentation"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${SPHINX_BUILD_SRC_DIR}
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${SPHINX_BUILD_OUT_DIR}
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${SPHINX_BUILD_TEMP_DIR}
+  COMMAND ${CMAKE_COMMAND} -E remove "${SPHINX_BUILD_ROOT_DIR}/build-warnings.log"
+  VERBATIM
 )
 
-add_custom_target(fastdoc 
-  COMMAND ${MCRL2_GENERATE_DOC_COMMAND} -dd
-  COMMENT "Generating mCRL2 documentation (does not regenerate cached PDF, manual pages and Doxygen documentation)" VERBATIM
-)
+function(add_build_doc_target NAME DESC INCLUDE_CLEAN)
+  add_custom_target(${NAME}
+    COMMENT ${DESC}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    # ensure the build directory exists, because Sphinx does not create it
+    # automatically
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SPHINX_BUILD_OUT_DIR}
+    # copy the Sphinx source to the build directory, because some of the
+    # extensions modify the source and we don't want to pollute source dir
+    COMMAND ${CMAKE_COMMAND}
+      -DCOPY_SRC=${SPHINX_SOURCE_DIR}
+      -DCOPY_DEST=${SPHINX_BUILD_SRC_DIR}
+      -P "${CMAKE_SOURCE_DIR}/build/cmake/CopyIfDifferent.cmake"
+    # run the Sphinx build command
+    COMMAND ${CMAKE_COMMAND} -E env MCRL2_SRC_DIR=${CMAKE_SOURCE_DIR}
+      ${SPHINX_BUILD_CMD}
+      -b html -d "${SPHINX_BUILD_TEMP_DIR}/doctrees" ${SPHINX_PARALLEL}
+      ${SPHINX_BUILD_SRC_DIR} ${SPHINX_BUILD_OUT_DIR}
+      2> ${SPHINX_BUILD_ROOT_DIR}/build-warnings.log
+    VERBATIM
+  )
+
+  add_custom_command(
+    TARGET ${NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --red --bold
+      "-- Please check ${SPHINX_BUILD_ROOT_DIR}/build-warnings.log for warnings and errors"
+  )
+
+  if (INCLUDE_CLEAN)
+    add_dependencies(${NAME} cleandoc)
+  endif()
+endfunction()
+
+add_build_doc_target(fastdoc "Generating mCRL2 documentation (does not \
+regenerate cached PDF, manual pages and Doxygen documentation)" FALSE)
+add_build_doc_target(doc "(Re)-generating mCRL2 documentation (regenerates \
+all cached documentation)" TRUE)

@@ -11,12 +11,8 @@
 #define PROPERTIESDOCK_H
 
 #include "propertywidget.h"
-#include "processsystem.h"
-#include "filesystem.h"
 
-#include <QDockWidget>
 #include <QVBoxLayout>
-#include <QScrollArea>
 #include <QScrollBar>
 
 /**
@@ -45,17 +41,17 @@ class PropertiesDock : public QDockWidget
   void setToNoProperties();
 
   /**
-   * @brief addProperty Adds a property to the dock
-   * @param property The property to add
-   */
-  void addProperty(const Property& property);
-
-  /**
    * @brief verifyAllProperties Verifies all properties in this dock
    */
   void verifyAllProperties();
 
   public slots:
+  /**
+   * @brief addProperty Adds a property to the dock
+   * @param property The property to add
+   */
+  void addProperty(const Property& property);
+
   /**
    * @brief deletePropertyWidget Removes a property widget from the dock
    * @param propertyWidget The property widget to remove

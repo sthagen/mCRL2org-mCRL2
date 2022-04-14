@@ -11,7 +11,6 @@
 #ifndef __REWR_JITTYC_PREAMBLE_H
 #define __REWR_JITTYC_PREAMBLE_H
 
-#include <cassert>
 #include "mcrl2/utilities/toolset_version_const.h"
 #include "mcrl2/data/detail/rewrite/jitty_jittyc.h"
 #include "mcrl2/data/detail/rewrite/jittyc.h"
@@ -197,12 +196,12 @@ data_expression rewrite_abstraction_aux(const abstraction& head, const data_expr
   }
   if (is_exists_binder(binder))
   {
-    const data_expression& result=this_rewriter->existential_quantifier_enumeration(a, sigma(this_rewriter));
+    const data_expression& result=this_rewriter->existential_quantifier_enumeration(head, sigma(this_rewriter));
     assert(result.sort()==a.sort());
     return result;
   }
   assert(is_forall_binder(binder));
-  const data_expression& result=this_rewriter->universal_quantifier_enumeration(a, sigma(this_rewriter));
+  const data_expression& result=this_rewriter->universal_quantifier_enumeration(head, sigma(this_rewriter));
   assert(result.sort()==a.sort());
   return result;
 }
@@ -222,7 +221,7 @@ data_expression rewrite_appl_aux(const application& t, RewriterCompilingJitty* t
       assert(t.sort()==result.sort());
       return result;
     }
-    return application(rewrite_aux(t.head(),false,this_rewriter), t.begin(), t.end(), rewrite_functor(this_rewriter));
+    return application(t.head(), t.begin(), t.end(), rewrite_functor(this_rewriter));
   }
   // Here the head symbol of, which can be deeply nested, is not a function_symbol.
   const data_expression& head0 = get_nested_head(t);
@@ -245,7 +244,8 @@ data_expression rewrite_appl_aux(const application& t, RewriterCompilingJitty* t
   else
   if (is_abstraction(head1))
   {
-    return rewrite_abstraction_aux(head1,t1,this_rewriter);
+    const abstraction& ha=down_cast<abstraction>(head1);
+    return rewrite_abstraction_aux(ha,t1,this_rewriter);
   }
   else
   {
@@ -258,7 +258,7 @@ data_expression rewrite_appl_aux(const application& t, RewriterCompilingJitty* t
       assert(t1.sort()==result.sort());
       return result;
     }
-    return application(rewrite_aux(head1,false,this_rewriter), t1.begin(), t1.end(), rewrite_functor(this_rewriter)); 
+    return application(head1, t1.begin(), t1.end(), rewrite_functor(this_rewriter)); 
   }
 }
 
@@ -267,13 +267,15 @@ data_expression rewrite_aux(const data_expression& t, const bool arguments_in_no
 {
   if (is_function_symbol(t))
   {
-    const std::size_t arity=0;
-    const rewriter_function f = get_precompiled_rewrite_function(down_cast<function_symbol>(t), arity, false,this_rewriter);
-    if (f != NULL)
+    const std::size_t index = get_index(down_cast<function_symbol>(t));
+    if (index<this_rewriter->normal_forms_for_constants.size())
     {
-      const data_expression& result=f(application(),this_rewriter); // The argument is not used.
-      assert(result.sort()==t.sort());
-      return result;
+      const data_expression& result = this_rewriter->normal_forms_for_constants[index];
+      if (!result.is_default_data_expression())
+      {
+        assert(t.sort()==result.sort());
+        return result;
+      }
     }
     return t;
   }
@@ -292,7 +294,7 @@ data_expression rewrite_aux(const data_expression& t, const bool arguments_in_no
         assert(result.sort()==t.sort());
         return result;
       }
-      return application(rewrite_aux(appl.head(),false, this_rewriter), appl.begin(), appl.end(), rewrite_functor(this_rewriter));
+      return application(appl.head(), appl.begin(), appl.end(), rewrite_functor(this_rewriter));
     }
     else
     {
@@ -309,17 +311,17 @@ data_expression rewrite_aux(const data_expression& t, const bool arguments_in_no
   else
   if (is_abstraction(t))
   {
-    const abstraction& abstr(t);
+    const abstraction& abstr=down_cast<abstraction>(t);
     const binder_type& binder(abstr.binding_operator());
     if (is_exists_binder(binder))
     {
-      const data_expression& result=this_rewriter->existential_quantifier_enumeration(t, sigma(this_rewriter));
+      const data_expression& result=this_rewriter->existential_quantifier_enumeration(abstr, sigma(this_rewriter));
       assert(result.sort()==t.sort());
       return result;
     }
     if (is_forall_binder(binder))
     {
-      const data_expression& result=this_rewriter->universal_quantifier_enumeration(t, sigma(this_rewriter));
+      const data_expression& result=this_rewriter->universal_quantifier_enumeration(abstr, sigma(this_rewriter));
       assert(result.sort()==t.sort());
       return result;
     }

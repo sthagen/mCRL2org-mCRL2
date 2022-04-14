@@ -11,17 +11,8 @@
 
 #ifndef LIBLTS_SIM_H
 #define LIBLTS_SIM_H
-#include <vector>
-#include <cstdlib>
-#include <string>
-#include <sstream>
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/logger.h"
-#include "mcrl2/utilities/exception.h"
-#include "mcrl2/lts/lts.h"
 #include "mcrl2/lts/lts_utilities.h"
 #include "mcrl2/lts/detail/sim_hashtable.h"
-#include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/lts_aut.h"
 #include "mcrl2/lts/lts_fsm.h"
 #include "mcrl2/lts/lts_dot.h"
@@ -251,7 +242,7 @@ void sim_partitioner<LTS_TYPE>::initialise_datastructures()
 {
   // aut.sort_transitions(mcrl2::lts::lbl_tgt_src);
   // trans_index = aut.get_transition_pre_table();
-  trans_index=transitions_per_outgoing_state_action_pair_reversed(aut.get_transitions(),aut.hidden_label_map());
+  trans_index=transitions_per_outgoing_state_action_pair_reversed(aut.get_transitions(),aut.hidden_label_set());
 
   std::size_t N = aut.num_states();
 

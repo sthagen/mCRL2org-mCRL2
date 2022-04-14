@@ -24,42 +24,21 @@
 #define NAME "pbes2bes"
 #define AUTHOR "Jan Friso Groote"
 
-//C++
-#include <iostream>
-#include <string>
-#include <utility>
-
-#include <sstream>
-
 //Tool framework
 #include "mcrl2/bes/pbes_output_tool.h"
 #include "mcrl2/bes/pbes_input_tool.h"
 #include "mcrl2/bes/pbes_rewriter_tool.h"
 #include "mcrl2/data/rewriter_tool.h"
 #include "mcrl2/utilities/input_output_tool.h"
-#include "mcrl2/utilities/execution_timer.h"
-
-//Data Framework
-#include "mcrl2/data/selection.h"
-#include "mcrl2/data/data_equation.h"
 
 //Parameterised boolean equation systems
 #include "mcrl2/pbes/normalize.h"
-#include "mcrl2/pbes/io.h"
-#include "mcrl2/pbes/find.h"
-#include "mcrl2/pbes/detail/instantiate_global_variables.h"
 #include "mcrl2/pbes/pbesinst_alternative_lazy_algorithm.h"
-#include "mcrl2/pbes/transformation_strategy.h"
-#include "mcrl2/pbes/search_strategy.h"
 
 //Boolean equation systems
-#include "mcrl2/bes/boolean_equation_system.h"
 #include "mcrl2/bes/bes2pbes.h"
-#include "mcrl2/bes/io.h"
 #include "mcrl2/bes/pbesinst_conversion.h"
-#include "mcrl2/bes/remove_level.h"
 
-using namespace std;
 using namespace mcrl2::log;
 using namespace mcrl2::utilities;
 using namespace mcrl2::core;
@@ -113,7 +92,7 @@ class pbes2bes_tool: public rewriter_tool<pbes_input_tool<bes_output_tool<input_
       m_search_strategy(mcrl2::pbes_system::breadth_first),
       m_erase_unused_bes_variables(none),
       m_data_elm(true),
-      m_maximal_todo_size(atermpp::npos),
+      m_maximal_todo_size(std::numeric_limits<std::size_t>::max()),
       m_approximate_true(true)
 
     {}
@@ -136,7 +115,7 @@ class pbes2bes_tool: public rewriter_tool<pbes_input_tool<bes_output_tool<input_
       }
       m_approximate_true          = 0 == parser.options.count("approximate-false");
 
-      if (m_maximal_todo_size==atermpp::npos && !m_approximate_true)
+      if (m_maximal_todo_size == std::numeric_limits<std::size_t>::max() && !m_approximate_true)
       {
         parser.error("Setting approximate-false only makes sense when setting todo-max. ");
       }
@@ -183,7 +162,7 @@ class pbes2bes_tool: public rewriter_tool<pbes_input_tool<bes_output_tool<input_
       mCRL2log(verbose) << "  substitution strategy: " << m_transformation_strategy << std::endl;
       mCRL2log(verbose) << "  search strategy:       " << m_search_strategy << std::endl;
       mCRL2log(verbose) << "  erase level:           " << m_erase_unused_bes_variables << std::endl;
-      if (m_maximal_todo_size!=atermpp::npos)
+      if (m_maximal_todo_size != std::numeric_limits<std::size_t>::max())
       {
         mCRL2log(verbose) << "  limit the todo buffer to " << m_maximal_todo_size << " bes variables and replace removed variables by " <<
                (m_approximate_true?"false":"true") << std::endl;

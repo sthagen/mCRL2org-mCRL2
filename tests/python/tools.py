@@ -64,7 +64,8 @@ class Tool(object):
         if process.max_virtual_memory > memlimit:
             raise popen.MemoryExceededError(process.max_virtual_memory)
         if returncode != 0:
-            print('warning: tool {} ended with return code {}'.format(self.name, returncode))
+            print(self.stderr)
+            raise popen.ToolRuntimeError('Tool {} ended with return code {}'.format(self.name, returncode))
         if platform.system() == 'Windows' and returncode == -1073740777:
             raise popen.ToolRuntimeError('Tool {} failed with the return code STATUS_INVALID_CRUNTIME_PARAMETER (0xC0000417)'.format(self.name))
         if platform.system() == 'Windows' and returncode == -1073741571:
@@ -136,23 +137,23 @@ class Tool(object):
 
     def parse_output(self):
         text = self.stdout + self.stderr
-        self.parse_number(text, 'summand-count'               , 'Number of summands                  : (\d+)')
-        self.parse_number(text, 'tau-summand-count'           , 'Number of tau-summands              : (\d+)')
-        self.parse_number(text, 'global-variable-count'       , 'Number of declared global variables : (\d+)')
-        self.parse_number(text, 'process-parameter-count'     , 'Number of process parameters        : (\d+)')
-        self.parse_number(text, 'action-label-count'          , 'Number of declared action labels    : (\d+)')
-        self.parse_number(text, 'used-action-label-count'     , 'Number of used actions              : (\d+)')
-        self.parse_number(text, 'used-multi-action-count'     , 'Number of used multi-actions        : (\d+)')
-        self.parse_number(text, 'state-count'                 , 'Number of states: (\d+)')
-        self.parse_number(text, 'state-label-count'           , 'Number of state labels: (\d+)')
-        self.parse_number(text, 'action-label-count'          , 'Number of action labels: (\d+)')
-        self.parse_number(text, 'transition-count'            , 'Number of transitions: (\d+)')
-        self.parse_number(text, 'equation-count'              , "Number of equations: (\d+)")
-        self.parse_number(text, 'mu-count'                    , "Number of mu's:      (\d+)")
-        self.parse_number(text, 'nu-count'                    , "Number of nu's:      (\d+)")
-        self.parse_number(text, 'block-nesting-depth'         , "Block nesting depth: (\d+)")
-        self.parse_number(text, 'vertex-count'                , "Number of vertices in the structure graph: (\d+)")
-        self.parse_numbers(text, 'confluent-tau-summand-count', 'tau-summand-count', '(\d+) of (\d+) tau summands were found to be confluent')
+        self.parse_number(text, 'summand-count'               , r'Number of summands                  : (\d+)')
+        self.parse_number(text, 'tau-summand-count'           , r'Number of tau-summands              : (\d+)')
+        self.parse_number(text, 'global-variable-count'       , r'Number of declared global variables : (\d+)')
+        self.parse_number(text, 'process-parameter-count'     , r'Number of process parameters        : (\d+)')
+        self.parse_number(text, 'action-label-count'          , r'Number of declared action labels    : (\d+)')
+        self.parse_number(text, 'used-action-label-count'     , r'Number of used actions              : (\d+)')
+        self.parse_number(text, 'used-multi-action-count'     , r'Number of used multi-actions        : (\d+)')
+        self.parse_number(text, 'state-count'                 , r'Number of states: (\d+)')
+        self.parse_number(text, 'state-label-count'           , r'Number of state labels: (\d+)')
+        self.parse_number(text, 'action-label-count'          , r'Number of action labels: (\d+)')
+        self.parse_number(text, 'transition-count'            , r'Number of transitions: (\d+)')
+        self.parse_number(text, 'equation-count'              , r'Number of equations: (\d+)')
+        self.parse_number(text, 'mu-count'                    , r"Number of mu's:      (\d+)")
+        self.parse_number(text, 'nu-count'                    , r"Number of nu's:      (\d+)")
+        self.parse_number(text, 'block-nesting-depth'         , r'Block nesting depth: (\d+)')
+        self.parse_number(text, 'vertex-count'                , r'Number of vertices in the structure graph: (\d+)')
+        self.parse_numbers(text, 'confluent-tau-summand-count', 'tau-summand-count', r'(\d+) of (\d+) tau summands were found to be confluent')
         self.parse_boolean(text, 'has-state-labels'           , 'Has state labels.', 'Does not have state labels.')
         self.parse_boolean(text, 'has-action-labels'          , 'Has action labels.')
         self.parse_boolean(text, 'is-deterministic'           , 'LTS is deterministic.', 'LTS is not deterministic.')
@@ -161,8 +162,8 @@ class Tool(object):
         self.parse_boolean(text, 'is-well-typed'              , 'is well typed', 'is not well typed')
         self.parse_boolean(text, 'result'                     , r'LTSs are strongly bisimilar', 'LTSs are not strongly bisimilar')
         self.parse_boolean(text, 'result'                     , r'LTSs are branching bisimilar', 'LTSs are not branching bisimilar')
-        self.parse_boolean(text, 'result'                     , r'LTSs are equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)', 'LTSs are not equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)')
-        self.parse_boolean(text, 'result'                     , r'LTSs are equal \(branching bisimilarity using the O\(m log n\) Groote/Keiren/Jansen/Wijs algorithm\)', 'LTSs are not equal \(branching bisimilarity using the O\(m log n\) Groote/Keiren/Jansen/Wijs algorithm\)')
+        self.parse_boolean(text, 'result'                     , r'LTSs are equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)', r'LTSs are not equal \(branching bisimilarity using the almost-O\(m log n\) Groote/Wijs algorithm\)')
+        self.parse_boolean(text, 'result'                     , r'LTSs are equal \(branching bisimilarity using the O\(m log n\) Groote/Keiren/Jansen/Wijs algorithm\)', r'LTSs are not equal \(branching bisimilarity using the O\(m log n\) Groote/Keiren/Jansen/Wijs algorithm\)')
         self.parse_boolean(text, 'result'                     , r'LTSs are divergence preserving branching bisimilar', 'LTSs are not divergence preserving branching bisimilar')
         self.parse_boolean(text, 'result'                     , r'LTSs are weak bisimilar', 'LTSs are not weak bisimilar')
         self.parse_boolean(text, 'result'                     , r'LTSs are divergence preserving weak bisimilar', 'LTSs are not divergence preserving weak bisimilar')
@@ -275,6 +276,17 @@ class Lts2LpsTool(Tool):
         args.insert(1, '-l')
         return args
 
+class Lps2LtsDeprecatedTool(Tool):
+    def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
+        super(Lps2LtsDeprecatedTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
+
+    def assign_outputs(self):
+        self.value['has-deadlock'] = None
+        self.value['has-nondeterminism'] = None
+        self.value['has-divergence'] = None
+        self.value['actions'] = set([])
+        super(Lps2LtsDeprecatedTool, self).assign_outputs()
+
 class Lps2LtsTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
         super(Lps2LtsTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
@@ -285,17 +297,6 @@ class Lps2LtsTool(Tool):
         self.value['has-divergence'] = None
         self.value['actions'] = set([])
         super(Lps2LtsTool, self).assign_outputs()
-
-class GenerateLtsTool(Tool):
-    def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
-        super(GenerateLtsTool, self).__init__(label, name, toolpath, input_nodes, output_nodes, args)
-
-    def assign_outputs(self):
-        self.value['has-deadlock'] = None
-        self.value['has-nondeterminism'] = None
-        self.value['has-divergence'] = None
-        self.value['actions'] = set([])
-        super(GenerateLtsTool, self).assign_outputs()
 
 class PbesSolveTool(Tool):
     def __init__(self, label, name, toolpath, input_nodes, output_nodes, args):
@@ -332,14 +333,14 @@ class ToolFactory(object):
             return Lps2PbesTool(label, name, toolpath, input_nodes, output_nodes, args)
         elif name == 'lts2pbes':
             return Lts2PbesTool(label, name, toolpath, input_nodes, output_nodes, args)
-        elif name == 'lps2lts':
+        elif name in ['generatelts', 'lps2lts']:
             return Lps2LtsTool(label, name, toolpath, input_nodes, output_nodes, args)
-        elif 'generatelts' in name:
-            return GenerateLtsTool(label, name, toolpath, input_nodes, output_nodes, args)
+        elif name == 'lps2ltsdeprecated':
+            return Lps2LtsDeprecatedTool(label, name, toolpath, input_nodes, output_nodes, args)
         elif name == 'lts2lps':
             return Lts2LpsTool(label, name, toolpath, input_nodes, output_nodes, args)
-        elif name in ['pbespgsolve', 'pbes2bool', 'bessolve']:
+        elif name in ['pbespgsolve', 'bessolve']:
             return SolveTool(label, name, toolpath, input_nodes, output_nodes, args)
-        elif name in ['pbessolve', 'pbessymbolicbisim']:
+        elif name in ['pbes2bool', 'pbessolve', 'pbessolvesymbolic', 'pbessymbolicbisim']:
             return PbesSolveTool(label, name, toolpath, input_nodes, output_nodes, args)
         return Tool(label, name, toolpath, input_nodes, output_nodes, args)

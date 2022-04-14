@@ -12,14 +12,6 @@
 #ifndef MCRL2_LPS_PROCESS_INITIALIZER_H
 #define MCRL2_LPS_PROCESS_INITIALIZER_H
 
-#include <algorithm>
-#include <cassert>
-#include <iterator>
-#include <string>
-#include <utility>
-#include "mcrl2/core/detail/soundness_checks.h"
-#include "mcrl2/data/data_expression.h"
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/print.h"
 #include "mcrl2/data/replace.h"
 #include "mcrl2/data/substitutions/assignment_sequence_substitution.h"
@@ -56,8 +48,8 @@ class process_initializer: public atermpp::aterm_appl
     }
 
     /// \brief Constructor.
-    explicit process_initializer(const data::assignment_list& assignments)
-      : atermpp::aterm_appl(core::detail::function_symbol_LinearProcessInit(), assignments, stochastic_distribution())
+    explicit process_initializer(const data::data_expression_list& expressions)
+      : atermpp::aterm_appl(core::detail::function_symbol_LinearProcessInit(), expressions, stochastic_distribution())
     {}
 
     /// Move semantics
@@ -66,17 +58,9 @@ class process_initializer: public atermpp::aterm_appl
     process_initializer& operator=(const process_initializer&) noexcept = default;
     process_initializer& operator=(process_initializer&&) noexcept = default;
 
-    const data::assignment_list& assignments() const
+    data::data_expression_list expressions() const
     {
-      return atermpp::down_cast<data::assignment_list>((*this)[0]);
-    }
-
-    /// \brief Returns the initial state of the LPS.
-    /// \param process_parameters The parameters of the correponding linear process
-    /// \return The initial state of the LPS.
-    data::data_expression_list state(const data::variable_list& process_parameters) const
-    {
-      return data::replace_variables(atermpp::container_cast<data::data_expression_list>(process_parameters), data::assignment_sequence_substitution(assignments()));
+      return atermpp::down_cast<data::data_expression_list>((*this)[0]);
     }
 };
 
@@ -119,7 +103,7 @@ inline void swap(process_initializer& t1, process_initializer& t2)
 // template function overloads
 std::set<data::variable> find_free_variables(const lps::process_initializer& x);
 std::set<process::action_label> find_action_labels(const lps::process_initializer& x);
- 
+
 } // namespace lps
 
 } // namespace mcrl2

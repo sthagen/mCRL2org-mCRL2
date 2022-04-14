@@ -12,20 +12,12 @@
 #define AUTHOR "Frank Stappers"
 
 // C++
-#include <iostream>
-#include <string>
-#include <algorithm>
 #include <climits>
-
-//mCRL2
-#include "mcrl2/lps/linear_process.h"
-#include "mcrl2/lps/stochastic_specification.h"
 
 //LPS framework
 #include "mcrl2/lps/io.h"
 
 //DATA
-#include "mcrl2/data/data_specification.h"
 #include "mcrl2/data/parse.h"
 
 //LPSPARUNFOLDLIB
@@ -176,16 +168,15 @@ class lpsparunfold_tool: public  rewriter_tool<input_output_tool>
             mCRL2log(warning) << "No sorts found of name " << m_unfoldsort << std::endl;
             break;
           }
-          mcrl2::data::assignment_list assignments = spec.initial_process().assignments();
-          for (mcrl2::data::assignment_list::iterator k = assignments.begin()
-               ; k != assignments.end()
-               ; ++k)
+          mcrl2::data::data_expression_list el = spec.initial_process().expressions();
+          std::size_t index=0;
+          for (const data_expression& e: spec.initial_process().expressions())
           {
-            if (k ->lhs().sort() == sort)
+            if (e.sort() == sort)
             {
-              m_set_index.insert(std::distance(assignments.begin(),k));
+              m_set_index.insert(index);
             }
-
+            index++;
           }
 
           if (m_set_index.empty())

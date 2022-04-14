@@ -12,16 +12,25 @@
 #ifndef MCRL2_LPS_IO_H
 #define MCRL2_LPS_IO_H
 
-#include <fstream>
-#include <string>
+#include "mcrl2/atermpp/aterm_io_binary.h"
 #include "mcrl2/lps/specification.h"
-#include "mcrl2/utilities/logger.h"
+#include "mcrl2/lps/stochastic_specification.h"
+
+#include <fstream>
 
 namespace mcrl2
 {
 
 namespace lps
 {
+
+/// \brief Writes LPS to the stream.
+atermpp::aterm_ostream& operator<<(atermpp::aterm_ostream& stream, const specification& spec);
+atermpp::aterm_ostream& operator<<(atermpp::aterm_ostream& stream, const stochastic_specification& spec);
+
+/// \brief Reads LPS from the stream.
+atermpp::aterm_istream& operator>>(atermpp::aterm_istream& stream, specification& spec);
+atermpp::aterm_istream& operator>>(atermpp::aterm_istream& stream, stochastic_specification& spec);
 
 /// \brief Save an LPS in the format specified.
 /// \param spec The LPS to be stored
@@ -33,7 +42,7 @@ template <typename Specification>
 void save_lps(const Specification& spec, std::ostream& stream, const std::string& target = "")
 {
   mCRL2log(log::verbose) << "Saving LPS" << (target.empty()?"":" to " + target) << ".\n";
-  spec.save(stream, true);
+  atermpp::binary_aterm_ostream(stream) << spec;
 }
 
 /// \brief Load LPS from file.
@@ -45,7 +54,7 @@ template <typename Specification>
 void load_lps(Specification& spec, std::istream& stream, const std::string& source = "")
 {
   mCRL2log(log::verbose) << "Loading LPS" << (source.empty()?"":" from " + source) << ".\n";
-  spec.load(stream, true, source);
+  atermpp::binary_aterm_istream(stream) >> spec;
 }
 
 /// \brief Saves an LPS to a file.
@@ -54,10 +63,9 @@ void load_lps(Specification& spec, std::istream& stream, const std::string& sour
 template <typename Specification>
 void save_lps(const Specification& spec, const std::string& filename)
 {
-  if (filename.empty())
+  if (filename.empty() || filename == "-")
   {
     save_lps(spec, std::cout, "standard output");
-//  std::cout << std::flush; 
     return;
   }
 
@@ -76,7 +84,7 @@ void save_lps(const Specification& spec, const std::string& filename)
 template <typename Specification>
 void load_lps(Specification& spec, const std::string& filename)
 {
-  if (filename.empty())
+  if (filename.empty() || filename == "-")
   {
     load_lps(spec, std::cin, "standard input");
     return;

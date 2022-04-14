@@ -11,10 +11,7 @@
 
 #define BOOST_TEST_MODULE builder_test
 #include <boost/test/included/unit_test_framework.hpp>
-#include <iostream>
-#include <set>
 
-#include "mcrl2/data/add_binding.h"
 #include "mcrl2/data/builder.h"
 #include "mcrl2/data/parse.h"
 
@@ -82,8 +79,10 @@ struct replace_free_variables_builder: public Binder<Builder, replace_free_varia
   }
 };
 
-struct subst: public std::unary_function<data::variable, data::data_expression>
+struct subst
 {
+  using argument_type = variable;
+
   data_expression operator()(const variable& v)
   {
     if (v == bool_("b"))

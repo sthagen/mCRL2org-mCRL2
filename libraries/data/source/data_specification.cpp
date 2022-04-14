@@ -6,8 +6,6 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file mcrl2/data/data_specification.h
-/// \brief The class data_specification.
 
 #include "mcrl2/core/load_aterm.h"
 #include "mcrl2/data/data_specification.h"
@@ -17,52 +15,13 @@
 #include "mcrl2/data/substitutions/sort_expression_assignment.h"
 
 // Predefined datatypes
-#include "mcrl2/data/bag.h"
-#include "mcrl2/data/bool.h"
 #include "mcrl2/data/function_update.h"
 #include "mcrl2/data/list.h"
-#include "mcrl2/data/int.h"
-#include "mcrl2/data/nat.h"
-#include "mcrl2/data/pos.h"
-#include "mcrl2/data/real.h"
-#include "mcrl2/data/set.h"
-#include "mcrl2/data/standard.h"
 
 namespace mcrl2
 {
-
 namespace data
 {
-/// \cond INTERNAL_DOCS
-
-namespace detail
-{
-
-/**
- * \param[in/\<aterm\>/aterm/g
- * :%s/\<aterm_int\>/aterm_int/g
- * :%s/\<aterm_appl\>/aterm_appl/g
- * :%s/\<aterm_list\>/aterm_list/g
- * :%s/\<function_symbol\>/function_symbol/g
- * :%s/\<atermpp\>/atermpp/g
- *  compatible whether the produced aterm is compatible with the `format after type checking'
- *
- * The compatible transformation should eventually disappear, it is only
- * here for compatibility with the old parser, type checker and pretty
- * print implementations.
- **/
-atermpp::aterm_appl data_specification_to_aterm(const data_specification& s)
-{
-  return atermpp::aterm_appl(core::detail::function_symbol_DataSpec(),
-           atermpp::aterm_appl(core::detail::function_symbol_SortSpec(), atermpp::aterm_list(s.user_defined_sorts().begin(),s.user_defined_sorts().end()) +
-                              atermpp::aterm_list(s.user_defined_aliases().begin(),s.user_defined_aliases().end())),
-           atermpp::aterm_appl(core::detail::function_symbol_ConsSpec(), atermpp::aterm_list(s.m_user_defined_constructors.begin(),s.m_user_defined_constructors.end())),
-           atermpp::aterm_appl(core::detail::function_symbol_MapSpec(), atermpp::aterm_list(s.m_user_defined_mappings.begin(),s.m_user_defined_mappings.end())),
-           atermpp::aterm_appl(core::detail::function_symbol_DataEqnSpec(), atermpp::aterm_list(s.m_user_defined_equations.begin(),s.m_user_defined_equations.end())));
-}
-} // namespace detail
-/// \endcond
-
 
 class finiteness_helper
 {
@@ -73,8 +32,8 @@ class finiteness_helper
 
     bool is_finite_aux(const sort_expression& s)
     {
-      function_symbol_vector constructors(m_specification.constructors(s));
-      if(constructors.empty())
+      const function_symbol_vector& constructors=m_specification.constructors(s);
+      if (constructors.empty())
       {
         return false;
       }
@@ -83,7 +42,7 @@ class finiteness_helper
       {
         if (is_function_sort(f.sort()))
         {
-          const function_sort f_sort(f.sort());
+          const function_sort& f_sort=atermpp::down_cast<function_sort>(f.sort());
           const sort_expression_list& l=f_sort.domain();
 
           for(const sort_expression& e: l)
@@ -379,13 +338,13 @@ void sort_specification::import_system_defined_sort(const sort_expression& sort)
     else if (sort_set::is_set(sort))
     {
       import_system_defined_sort(sort_fset::fset(element_sort));
-    }
-    else if (sort_fset::is_fset(sort))
-    {
       // Import the functions from element_sort->Bool.
       sort_expression_list element_sorts;
       element_sorts.push_front(element_sort);
       import_system_defined_sort(function_sort(element_sorts,sort_bool::bool_()));
+    }
+    else if (sort_fset::is_fset(sort))
+    {
     }
     else if (sort_bag::is_bag(sort))
     {
@@ -393,15 +352,15 @@ void sort_specification::import_system_defined_sort(const sort_expression& sort)
       import_system_defined_sort(sort_nat::nat()); // Required for bags.
       import_system_defined_sort(sort_set::set_(element_sort));
       import_system_defined_sort(sort_fbag::fbag(element_sort));
-    }
-    else if (sort_fbag::is_fbag(sort))
-    {
-      import_system_defined_sort(sort_nat::nat()); // Required for bags.
-
+      
       // Add the function sort element_sort->Nat to the specification
       sort_expression_list element_sorts ;
       element_sorts.push_front(element_sort);
       import_system_defined_sort(function_sort(element_sorts,sort_nat::nat()));
+    }
+    else if (sort_fbag::is_fbag(sort))
+    {
+      import_system_defined_sort(sort_nat::nat()); // Required for bags.
     }
   }
   else if (is_structured_sort(sort))
@@ -473,7 +432,7 @@ void sort_specification::reconstruct_m_normalised_aliases() const
     const sort_expression rhs=it->second;
     sort_aliases_to_be_investigated.erase(it);
 
-    for(const std::pair< sort_expression, sort_expression >& p: resulting_normalized_sort_aliases)
+    for(const std::pair<const sort_expression, sort_expression >& p: resulting_normalized_sort_aliases)
     {
       const sort_expression s1=data::replace_sort_expressions(lhs,sort_expression_assignment(p.first,p.second), true);
 
@@ -544,7 +503,7 @@ void sort_specification::reconstruct_m_normalised_aliases() const
   // If there are rules with equal left hand side, only one is arbitrarily chosen. Rewrite the
   // right hand side to normal form.
 
-  for(const std::pair< sort_expression,sort_expression>& p: resulting_normalized_sort_aliases)
+  for(const std::pair<const sort_expression,sort_expression>& p: resulting_normalized_sort_aliases)
   {
     const sort_expression normalised_rhs = find_normal_form(p.second,resulting_normalized_sort_aliases);
     m_normalised_aliases[p.first]=normalised_rhs;
@@ -560,6 +519,7 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
                    std::set < function_symbol >& constructors,
                    std::set < function_symbol >& mappings,
                    std::set < data_equation >& equations,
+                   implementation_map& cpp_implemented_functions,
                    const bool skip_equations) const
 {
   // add sorts, constructors, mappings and equations
@@ -569,6 +529,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     constructors.insert(f.begin(), f.end());
     f = sort_bool::bool_generate_functions_code();
     mappings.insert(f.begin(), f.end());
+    implementation_map f1 = sort_bool::bool_cpp_implementable_mappings();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
+    f1 = sort_bool::bool_cpp_implementable_constructors();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
     if (!skip_equations)
     {
       data_equation_vector e(sort_bool::bool_generate_equations_code());
@@ -581,6 +545,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     constructors.insert(f.begin(),f.end());
     f = sort_real::real_generate_functions_code();
     mappings.insert(f.begin(),f.end());
+    implementation_map f1 = sort_int::int_cpp_implementable_mappings();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
+    f1 = sort_int::int_cpp_implementable_constructors();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
     if (!skip_equations)
     {
       data_equation_vector e(sort_real::real_generate_equations_code());
@@ -593,6 +561,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     constructors.insert(f.begin(),f.end());
     f = sort_int::int_generate_functions_code();
     mappings.insert(f.begin(),f.end());
+    implementation_map f1 = sort_int::int_cpp_implementable_mappings();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
+    f1 = sort_int::int_cpp_implementable_constructors();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
     if (!skip_equations)
     {
       data_equation_vector e(sort_int::int_generate_equations_code());
@@ -605,6 +577,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     constructors.insert(f.begin(),f.end());
     f = sort_nat::nat_generate_functions_code();
     mappings.insert(f.begin(),f.end());
+    implementation_map f1 = sort_nat::nat_cpp_implementable_mappings();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
+    f1 = sort_nat::nat_cpp_implementable_constructors();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
     if (!skip_equations)
     {
       data_equation_vector e(sort_nat::nat_generate_equations_code());
@@ -617,6 +593,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     constructors.insert(f.begin(),f.end());
     f = sort_pos::pos_generate_functions_code();
     mappings.insert(f.begin(),f.end());
+    implementation_map f1 = sort_pos::pos_cpp_implementable_mappings();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
+    f1 = sort_pos::pos_cpp_implementable_constructors();
+    cpp_implemented_functions.insert(f1.begin(), f1.end());
     if (!skip_equations)
     {
       data_equation_vector e(sort_pos::pos_generate_equations_code());
@@ -631,7 +611,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
     {
       const function_symbol_vector f = function_update_generate_functions_code(l.front(),t);
       mappings.insert(f.begin(),f.end());
-
+      implementation_map f1 = function_update_cpp_implementable_mappings(l.front(),t);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = function_update_cpp_implementable_constructors();
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e(function_update_generate_equations_code(l.front(),t));
@@ -648,6 +631,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
       constructors.insert(f.begin(),f.end());
       f = sort_list::list_generate_functions_code(element_sort);
       mappings.insert(f.begin(),f.end());
+      implementation_map f1 = sort_list::list_cpp_implementable_mappings(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = sort_list::list_cpp_implementable_constructors(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e(sort_list::list_generate_equations_code(element_sort));
@@ -662,6 +649,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
       constructors.insert(f.begin(),f.end());
       f = sort_set::set_generate_functions_code(element_sort);
       mappings.insert(f.begin(),f.end());
+      implementation_map f1 = sort_set::set_cpp_implementable_mappings(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = sort_set::set_cpp_implementable_constructors(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e(sort_set::set_generate_equations_code(element_sort));
@@ -674,6 +665,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
       constructors.insert(f.begin(),f.end());
       f = sort_fset::fset_generate_functions_code(element_sort);
       mappings.insert(f.begin(),f.end());
+      implementation_map f1 = sort_fset::fset_cpp_implementable_mappings(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = sort_fset::fset_cpp_implementable_constructors(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e = sort_fset::fset_generate_equations_code(element_sort);
@@ -688,6 +683,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
       constructors.insert(f.begin(),f.end());
       f = sort_bag::bag_generate_functions_code(element_sort);
       mappings.insert(f.begin(),f.end());
+      implementation_map f1 = sort_bag::bag_cpp_implementable_mappings(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = sort_bag::bag_cpp_implementable_constructors(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e(sort_bag::bag_generate_equations_code(element_sort));
@@ -700,6 +699,10 @@ void data_specification::find_associated_system_defined_data_types_for_a_sort(
       constructors.insert(f.begin(),f.end());
       f = sort_fbag::fbag_generate_functions_code(element_sort);
       mappings.insert(f.begin(),f.end());
+      implementation_map f1 = sort_fbag::fbag_cpp_implementable_mappings(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
+      f1 = sort_fbag::fbag_cpp_implementable_constructors(element_sort);
+      cpp_implemented_functions.insert(f1.begin(), f1.end());
       if (!skip_equations)
       {
         data_equation_vector e = sort_fbag::fbag_generate_equations_code(element_sort);
@@ -721,6 +724,8 @@ void data_specification::get_system_defined_sorts_constructors_and_mappings(
             std::set < function_symbol >& constructors,
             std::set <function_symbol >& mappings) const
 {
+  implementation_map cpp_implemented_functions;
+
   sorts.insert(sort_bool::bool_());
   sorts.insert(sort_pos::pos());
   sorts.insert(sort_nat::nat());
@@ -735,7 +740,7 @@ void data_specification::get_system_defined_sorts_constructors_and_mappings(
   std::set < data_equation > dummy_equations;
   for(const sort_expression& s: sorts)
   {
-    find_associated_system_defined_data_types_for_a_sort(s, constructors, mappings, dummy_equations, true);
+    find_associated_system_defined_data_types_for_a_sort(s, constructors, mappings, dummy_equations, cpp_implemented_functions, true);
   }
   assert(dummy_equations.size()==0);
 }
@@ -815,30 +820,32 @@ void data_specification::build_from_aterm(const atermpp::aterm_appl& term)
   }
 }
 
-void data_specification::load(std::istream& stream, bool binary, const std::string& source)
+data_specification::data_specification(const basic_sort_vector& sorts,
+  const alias_vector& aliases,
+  const function_symbol_vector& constructors,
+  const function_symbol_vector& user_defined_mappings,
+  const data_equation_vector& user_defined_equations)
+  : sort_specification(sorts, aliases)
 {
-  atermpp::aterm t = core::load_aterm(stream, binary, "data specification", source);
-  std::unordered_map<atermpp::aterm_appl, atermpp::aterm> cache;
-  t = data::detail::add_index(t, cache);
-  if (!t.type_is_appl() || !is_data_specification(atermpp::down_cast<const atermpp::aterm_appl>(t)))
+  // Store the constructors.
+  for(const function_symbol& f: constructors)
   {
-    throw mcrl2::runtime_error("Input stream does not contain a data specification");
+    add_constructor(f);
   }
-  build_from_aterm(atermpp::down_cast<atermpp::aterm_appl>(t));
-}
 
-void data_specification::save(std::ostream& stream, bool binary) const
-{
-  atermpp::aterm t = detail::data_specification_to_aterm(*this);
-  t = data::detail::remove_index(t);
-  if (binary)
+  // Store the mappings.
+  for(const function_symbol& f: user_defined_mappings)
   {
-    atermpp::write_term_to_binary_stream(t, stream);
+    add_mapping(f);
   }
-  else
+
+  // Store the equations.
+  for(const data_equation& e: user_defined_equations)
   {
-    atermpp::write_term_to_text_stream(t, stream);
+    add_equation(e);
   }
+
+  assert(is_well_typed());
 }
 
 } // namespace data

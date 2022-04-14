@@ -13,7 +13,6 @@
 #define MCRL2_LPS_STOCHASTIC_PROCESS_INITIALIZER_H
 
 #include "mcrl2/lps/process_initializer.h"
-#include "mcrl2/lps/stochastic_distribution.h"
 
 namespace mcrl2 {
 
@@ -39,14 +38,9 @@ class stochastic_process_initializer: public process_initializer
     }
 
     /// \brief Constructor.
-    stochastic_process_initializer(const data::assignment_list& assignments, const stochastic_distribution& distribution)
-      : super(atermpp::aterm_appl(core::detail::function_symbol_LinearProcessInit(), assignments, distribution), false)
+    stochastic_process_initializer(const data::data_expression_list& expressions, const stochastic_distribution& distribution)
+      : super(atermpp::aterm_appl(core::detail::function_symbol_LinearProcessInit(), expressions, distribution), false)
     {}
-
-    /// \brief Constructor.  We don't want a silent conversion from process_initializer as this is a source of bugs.
-    /* stochastic_process_initializer(const process_initializer& other)
-      : super(other)
-    {} */
 
     const stochastic_distribution& distribution() const
     {

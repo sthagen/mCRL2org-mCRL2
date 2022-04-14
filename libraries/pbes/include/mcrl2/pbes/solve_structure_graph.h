@@ -12,22 +12,10 @@
 #ifndef MCRL2_PBES_SOLVE_STRUCTURE_GRAPH_H
 #define MCRL2_PBES_SOLVE_STRUCTURE_GRAPH_H
 
-#include <limits>
-#include <regex>
-#include <sstream>
-#include <unordered_set>
-#include <tuple>
-#include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/join.h"
-#include "mcrl2/data/standard.h"
-#include "mcrl2/lps/print.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/lts/lts_algorithm.h"
-#include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
 #include "mcrl2/pbes/pbessolve_attractors.h"
-#include "mcrl2/pbes/pbessolve_vertex_set.h"
-#include "mcrl2/pbes/structure_graph.h"
 
 namespace mcrl2 {
 
@@ -63,6 +51,23 @@ std::tuple<std::size_t, std::size_t, vertex_set> get_minmax_rank(const structure
     }
   }
   return std::make_tuple(min_rank, max_rank, vertex_set(N, M.begin(), M.end()));
+}
+
+/// \brief Guesses if a pbes has counter example information
+inline
+bool has_counter_example_information(const pbes& pbesspec)
+{
+  std::regex re("Z(neg|pos)_(\\d+)_.*");
+  std::smatch match;
+  for (const pbes_equation& eqn: pbesspec.equations())
+  {
+    std::string X = eqn.variable().name();
+    if (std::regex_match(X, match, re))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 class solve_structure_graph_algorithm
@@ -145,7 +150,6 @@ class solve_structure_graph_algorithm
           {
             global_strategy<structure_graph>(G).set_strategy(ui, v);
 //            mCRL2log(log::debug) << "set initial strategy for node " << ui << " to " << v << std::endl;
-//            u.strategy = v;
           }
         }
       }
@@ -262,7 +266,7 @@ class solve_structure_graph_algorithm
       }
     }
 
-    void insert_edge(std::vector<structure_graph::vertex>& V, structure_graph::index_type ui, structure_graph::index_type vi) const
+    static void insert_edge(std::vector<structure_graph::vertex>& V, structure_graph::index_type ui, structure_graph::index_type vi)
     {
       using utilities::detail::contains;
       auto& u = V[ui];
@@ -402,47 +406,54 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       for (structure_graph::index_type vi: V)
       {
         const auto& v = G.find_vertex(vi);
-        const auto& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
-        std::string Zname = Z.name();
-        std::smatch match;
-        if (std::regex_match(Zname, match, re))
+        if (is_propositional_variable_instantiation(v.formula))
         {
-          std::size_t summand_index = std::stoul(match[2]);
-          lps::action_summand summand = lpsspec.process().action_summands()[summand_index];
-
-          std::size_t equation_index = p_index.index(Z.name());
-          const pbes_equation& eqn = p.equations()[equation_index];
-          const data::variable_list& d = eqn.variable().parameters();
-          data::variable_vector d1(d.begin(), d.end());
-
-          const data::data_expression_list& e = Z.parameters();
-          data::data_expression_vector e1(e.begin(), e.end());
-
-          data::data_expression_vector condition;
-          data::assignment_vector next_state_assignments;
-          std::size_t m = d.size() - 2 * n;
-
-          for (std::size_t i = 0; i < n; i++)
+          const auto& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
+          std::string Zname = Z.name();
+          std::smatch match;
+          if (std::regex_match(Zname, match, re))
           {
-            condition.push_back(data::equal_to(d1[i], e1[i]));
-            next_state_assignments.emplace_back(d1[i], e1[n + m + i]);
+            std::size_t summand_index = std::stoul(match[2]);
+            if (summand_index >= lpsspec.process().action_summands().size())
+            {
+              throw mcrl2::runtime_error("Counter-example cannot be reconstructed from this LPS. Did you supply the correct file?");
+            }
+            lps::action_summand summand = lpsspec.process().action_summands()[summand_index];
+
+            std::size_t equation_index = p_index.index(Z.name());
+            const pbes_equation& eqn = p.equations()[equation_index];
+            const data::variable_list& d = eqn.variable().parameters();
+            data::variable_vector d1(d.begin(), d.end());
+
+            const data::data_expression_list& e = Z.parameters();
+            data::data_expression_vector e1(e.begin(), e.end());
+
+            data::data_expression_vector condition;
+            data::assignment_vector next_state_assignments;
+            std::size_t m = d.size() - 2 * n;
+
+            for (std::size_t i = 0; i < n; i++)
+            {
+              condition.push_back(data::equal_to(d1[i], e1[i]));
+              next_state_assignments.emplace_back(d1[i], e1[n + m + i]);
+            }
+
+            process::action_vector actions;
+            std::size_t index = 0;
+            for (const process::action& a: summand.multi_action().actions())
+            {
+              process::action a1(a.label(), data::data_expression_list(e1.begin() + n + index, e1.begin() + n + index + a.arguments().size()));
+              actions.push_back(a1);
+              index = index + a.arguments().size();
+            }
+
+            summand.summation_variables() = data::variable_list();
+            summand.condition() = data::join_and(condition.begin(), condition.end());
+            summand.multi_action() = lps::multi_action(process::action_list(actions.begin(), actions.end()),summand.multi_action().time());
+            summand.assignments() = data::assignment_list(next_state_assignments.begin(), next_state_assignments.end());
+
+            action_summands.push_back(summand);
           }
-
-          process::action_vector actions;
-          std::size_t index = 0;
-          for (const process::action& a: summand.multi_action().actions())
-          {
-            process::action a1(a.label(), data::data_expression_list(e1.begin() + n + index, e1.begin() + n + index + a.arguments().size()));
-            actions.push_back(a1);
-            index = index + a.arguments().size();
-          }
-
-          summand.summation_variables() = data::variable_list();
-          summand.condition() = data::join_and(condition.begin(), condition.end());
-          summand.multi_action().actions() = process::action_list(actions.begin(), actions.end());
-          summand.assignments() = data::assignment_list(next_state_assignments.begin(), next_state_assignments.end());
-
-          action_summands.push_back(summand);
         }
       }
       return result;
@@ -459,6 +470,15 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
     /// \return A boolean indicating the solution and a linear process that represents the counter example.
     std::pair<bool, lps::specification> solve_with_counter_example(structure_graph& G, const lps::specification& lpsspec, const pbes& p, const pbes_equation_index& p_index)
     {
+      if (!lpsspec.global_variables().empty())
+      {
+        throw mcrl2::runtime_error("solve_with_counter_example requires an LPS without global variables.");
+      }
+      if (!p.global_variables().empty())
+      {
+        throw mcrl2::runtime_error("solve_with_counter_example requires a PBES without global variables.");
+      }
+
       mCRL2log(log::verbose) << "Solving parity game..." << std::endl;
       vertex_set Wconj;
       vertex_set Wdisj;
@@ -484,6 +504,10 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       std::vector<lts::transition> transitions;
       for (std::size_t i: transition_indices)
       {
+        if (i >= lts_transitions.size())
+        {
+          throw mcrl2::runtime_error("Counter-example cannot be reconstructed from this LTS. Did you supply the correct file?");
+        }
         transitions.push_back(lts_transitions[i]);
       }
       ltsspec.get_transitions() = transitions;
@@ -502,13 +526,16 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       for (structure_graph::index_type vi: V)
       {
         const auto& v = G.find_vertex(vi);
-        const auto& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
-        std::string Zname = Z.name();
-        std::smatch match;
-        if (std::regex_match(Zname, match, re))
+        if (is_propositional_variable_instantiation(v.formula))
         {
-          std::size_t transition_index = std::stoul(match[2]);
-          transition_indices.insert(transition_index);
+          const propositional_variable_instantiation& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
+          std::string Zname = Z.name();
+          std::smatch match;
+          if (std::regex_match(Zname, match, re))
+          {
+            std::size_t transition_index = std::stoul(match[2]);
+            transition_indices.insert(transition_index);
+          }
         }
       }
       filter_transitions(ltsspec, transition_indices);

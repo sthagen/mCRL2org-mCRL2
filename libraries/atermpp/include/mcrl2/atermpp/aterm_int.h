@@ -12,8 +12,6 @@
 #ifndef MCRL2_ATERMPP_ATERM_INT_H
 #define MCRL2_ATERMPP_ATERM_INT_H
 
-#include "mcrl2/atermpp/aterm.h"
-#include "mcrl2/atermpp/detail/aterm_int.h"
 #include "mcrl2/atermpp/detail/global_aterm_pool.h"
 
 namespace atermpp
@@ -35,6 +33,13 @@ public:
    : aterm(detail::g_term_pool().create_int(value))
   {}
 
+  /// \brief Constructs an integer term from an aterm.
+  explicit aterm_int(const aterm& t)
+   : aterm(t)
+  {
+    assert(type_is_int() || !defined());
+  }
+
   /// This class has user-declared copy constructor so declare default copy and move operators.
   aterm_int(const aterm_int& other) noexcept = default;
   aterm_int& operator=(const aterm_int& other) noexcept = default;
@@ -45,7 +50,7 @@ public:
   /// \returns The value of the integer term.
   std::size_t value() const noexcept
   {
-    return reinterpret_cast<detail::_aterm_int*>(m_term)->value();
+    return reinterpret_cast<const detail::_aterm_int*>(m_term)->value();
   }
 
   /// \brief Swaps two integer terms without changing the protection.

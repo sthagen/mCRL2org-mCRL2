@@ -12,22 +12,16 @@
 #ifndef MCRL2_PBES_LPS2PBES_H
 #define MCRL2_PBES_LPS2PBES_H
 
-#include <string>
 #include "mcrl2/data/merge_data_specifications.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/lps/detail/make_timed_lps.h"
 #include "mcrl2/lps/linearise.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/modal_formula/algorithms.h"
 #include "mcrl2/modal_formula/preprocess_state_formula.h"
 #include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/detail/lps2pbes_e.h"
-#include "mcrl2/pbes/detail/lps2pbes_rhs.h"
-#include "mcrl2/pbes/detail/lps2pbes_utility.h"
 #include "mcrl2/pbes/detail/term_traits_optimized.h"
 #include "mcrl2/pbes/is_monotonous.h"
 #include "mcrl2/process/merge_action_specifications.h"
-#include "mcrl2/utilities/detail/container_utility.h"
 
 namespace mcrl2
 {
@@ -40,6 +34,7 @@ class lps2pbes_algorithm
 {
   protected:
     data::set_identifier_generator m_generator;
+    bool m_check_only = false;
 
     template <typename Parameters>
     void run(const state_formulas::state_formula& f, bool structured, bool unoptimized, std::vector<pbes_equation>& equations, Parameters& parameters)
@@ -69,6 +64,11 @@ class lps2pbes_algorithm
     }
 
   public:
+    /// \brief Constructor
+    explicit lps2pbes_algorithm(bool check_only = false)
+     : m_check_only(check_only)
+    {}
+
     /// \brief Runs the translation algorithm
     /// \param formula A modal formula that represents a property about the system modeled by the given specification
     /// \param lpsspec A linear process specification
@@ -93,6 +93,11 @@ class lps2pbes_algorithm
       std::set<core::identifier_string> dataspec_ids = data::function_and_mapping_identifiers(lpsspec.data());
       lps_ids.insert(dataspec_ids.begin(), dataspec_ids.end());
       f = state_formulas::preprocess_state_formula(f, lps_ids, preprocess_modal_operators);
+
+      if (m_check_only)
+      {
+        return pbes();
+      }
 
       m_generator.clear_context();
       m_generator.add_identifiers(lps::find_identifiers(lpsspec));
@@ -119,7 +124,7 @@ class lps2pbes_algorithm
       assert(state_formulas::is_mu(f) || state_formulas::is_nu(f));
       const core::identifier_string& Xf = detail::mu_name(f);
       data::data_expression_list fi = detail::mu_expressions(f);
-      data::data_expression_list pi = lpsspec.initial_process().state(lpsspec.process().process_parameters());
+      data::data_expression_list pi = lpsspec.initial_process().expressions();
       data::data_expression_list e = fi + pi + detail::Par(Xf, data::variable_list(), f);
       if (T != data::undefined_real_variable())
       {
@@ -156,7 +161,8 @@ pbes lps2pbes(const lps::specification& lpsspec,
               bool structured = false,
               bool unoptimized = false,
               bool preprocess_modal_operators = false,
-              bool generate_counter_example = false
+              bool generate_counter_example = false,
+              bool check_only = false
              )
 {
   if ((formula.has_time() || lpsspec.process().has_time()) && !timed)
@@ -176,11 +182,11 @@ pbes lps2pbes(const lps::specification& lpsspec,
     generator.add_identifiers(data::function_and_mapping_identifiers(lpsspec.data()));
     data::variable T(generator("T"), data::sort_real::real_());
     lps::detail::make_timed_lps(lpsspec_timed.process(), generator.context());
-    return lps2pbes_algorithm().run(formula, lpsspec_timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example, T);
+    return lps2pbes_algorithm(check_only).run(formula, lpsspec_timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example, T);
   }
   else
   {
-    return lps2pbes_algorithm().run(formula, lpsspec, structured, unoptimized, preprocess_modal_operators, generate_counter_example);
+    return lps2pbes_algorithm(check_only).run(formula, lpsspec, structured, unoptimized, preprocess_modal_operators, generate_counter_example);
   }
 }
 
@@ -195,6 +201,7 @@ pbes lps2pbes(const lps::specification& lpsspec,
 /// \param preprocess_modal_operators A boolean indicating that the modal operators can be preprocessed to
 ///                                   obtain a more compact PBES.
 /// \param generate_counter_example A boolean indicating that a counter example must be generated.
+/// \param check_only If check_only is true, only the formula will be checked, but no PBES is generated
 /// \return The resulting pbes.
 inline
 pbes lps2pbes(const lps::specification& lpsspec,
@@ -203,14 +210,15 @@ pbes lps2pbes(const lps::specification& lpsspec,
               bool structured = false,
               bool unoptimized = false,
               bool preprocess_modal_operators = false,
-              bool generate_counter_example = false
+              bool generate_counter_example = false,
+              bool check_only = false
              )
 {
   lps::specification lpsspec1 = lpsspec;
   lpsspec1.data() = data::merge_data_specifications(lpsspec1.data(), formspec.data());
   lps::normalize_sorts(lpsspec1, lpsspec1.data());
   lpsspec1.action_labels() = process::merge_action_specifications(lpsspec1.action_labels(), formspec.action_labels());
-  return lps2pbes(lpsspec1, formspec.formula(), timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example);
+  return lps2pbes(lpsspec1, formspec.formula(), timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example, check_only);
 }
 
 /// \brief Applies the lps2pbes algorithm.
@@ -223,6 +231,7 @@ pbes lps2pbes(const lps::specification& lpsspec,
 /// \param preprocess_modal_operators A boolean indicating that the modal operators can be preprocessed to
 ///                                   obtain a more compact PBES.
 /// \param generate_counter_example A boolean indicating that a counter example must be generated.
+/// \param check_only If check_only is true, only the formula will be checked, but no PBES is generated
 /// \return The result of the algorithm
 inline
 pbes lps2pbes(const std::string& spec_text,
@@ -231,14 +240,15 @@ pbes lps2pbes(const std::string& spec_text,
               bool structured = false,
               bool unoptimized = false,
               bool preprocess_modal_operators = false,
-              bool generate_counter_example = false
+              bool generate_counter_example = false,
+              bool check_only = false
              )
 {
   pbes result;
   lps::specification lpsspec = remove_stochastic_operators(lps::linearise(spec_text));
 
   state_formulas::state_formula f = state_formulas::algorithms::parse_state_formula(formula_text, lpsspec);
-  return lps2pbes(lpsspec, f, timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example);
+  return lps2pbes(lpsspec, f, timed, structured, unoptimized, preprocess_modal_operators, generate_counter_example, check_only);
 }
 
 } // namespace pbes_system

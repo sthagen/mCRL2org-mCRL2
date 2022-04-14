@@ -12,17 +12,17 @@
 #define BOOST_TEST_MODULE down_cast_test
 #include <boost/test/included/unit_test_framework.hpp>
 
-#include "mcrl2/atermpp/aterm.h"
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/function_symbol.h"
 #include "mcrl2/atermpp/aterm_list.h"
-
-using namespace std;
 
 class t1 : public atermpp::aterm
 {
 public:
-  t1(const int x) {}
+  t1(const int x) 
+  {}
+
+  explicit t1(const aterm& x) 
+   : atermpp::aterm(x)
+  {}
 };
 
 class t2 : public t1
@@ -31,6 +31,10 @@ public:
   t2(const t1& x)
     : t1(x)
   {}
+
+  explicit t2(const aterm& x)
+   : t1(x)
+  {}
 };
 
 class t3: public t1
@@ -38,6 +42,10 @@ class t3: public t1
 public:
   explicit t3(const t1& x)
     : t1(x)
+  {}
+
+  explicit t3(const aterm& x)
+   : t1(x)
   {}
 };
 

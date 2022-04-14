@@ -9,26 +9,27 @@
 #ifndef MCRL2_UTILITIES_UNORDERED_SET_H
 #define MCRL2_UTILITIES_UNORDERED_SET_H
 
-#include "mcrl2/utilities/unordered_set_iterator.h"
-
 #include "mcrl2/utilities/block_allocator.h"
-#include "mcrl2/utilities/const.h"
 #include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/detail/bucket_list.h"
 
-#include <algorithm>
 #include <cmath>
-#include <cstddef>
-#include <vector>
 
-namespace mcrl2
-{
-namespace utilities
+namespace mcrl2::utilities
 {
 
 /// \brief Prints various information for unordered_set like data structures.
 template<typename T>
 void print_performance_statistics(const T& unordered_set);
+
+// Forward declaration of an unordered_map.
+template<typename Key,
+         typename T,
+         typename Hash = std::hash<Key>,
+         typename KeyEqual = std::equal_to<Key>,
+         typename Allocator = std::allocator<Key>,
+         bool ThreadSafe = false>
+class unordered_map;
 
 /// \brief A unordered_set with a subset of the interface of std::unordered_set that only stores a single pointer for each element.
 /// \details Only supports input iterators (not bidirectional) compared to std::unordered_set. Furthermore, iterating over all elements
@@ -46,15 +47,141 @@ template<typename Key,
          bool ThreadSafe = false>
 class unordered_set
 {
-
 private:
   /// \brief Combine the bucket list and a lock that locks modifications to the bucket list.
   using bucket_type = detail::bucket_list<Key, Allocator>;
-
   using bucket_iterator = typename std::vector<bucket_type>::iterator;
   using const_bucket_iterator = typename std::vector<bucket_type>::const_iterator;
 
+  template<typename Key_, typename T, typename Hash_, typename KeyEqual, typename Allocator_, bool ThreadSafe_>
+  friend class unordered_map;
+
 public:
+  /// \brief An iterator over all elements in the unordered set.
+  template<typename Bucket, bool Constant>
+  class unordered_set_iterator : std::iterator_traits<Key>
+  {
+  private:
+    friend class unordered_set;
+
+    template<typename Key_, typename T, typename Hash_, typename KeyEqual, typename Allocator_, bool ThreadSafe_>
+    friend class unordered_map;
+
+    using bucket_it = typename std::vector<Bucket>::const_iterator;
+    using key_it_type = typename Bucket::const_iterator;
+
+  public:
+    using value_type = Key;
+    using reference = typename std::conditional<Constant, const Key&, Key&>::type;
+    using pointer = typename std::conditional<Constant, const Key*, Key*>::type;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::forward_iterator_tag;
+
+    unordered_set_iterator() = default;
+
+    operator unordered_set_iterator<Bucket, true>() const
+    {
+      return unordered_set_iterator<Bucket, true>(m_bucket_it, m_bucket_end, m_key_before_it, m_key_it);
+    }
+
+    unordered_set_iterator& operator++()
+    {
+      ++m_key_before_it;
+      ++m_key_it;
+      goto_next_bucket();
+      return *this;
+    }
+
+    unordered_set_iterator operator++(int)
+    {
+      unordered_set_iterator copy(*this);
+      ++(*this);
+      return *copy;
+    }
+
+    reference operator*() const
+    {
+      return const_cast<reference>(*m_key_it);
+    }
+
+    pointer operator->() const
+    {
+      return const_cast<pointer>(&(*m_key_it));
+    }
+
+    bool operator!=(const unordered_set_iterator& other) const
+    {
+      return m_key_it != other.m_key_it || m_bucket_it != other.m_bucket_it;
+    }
+
+    bool operator==(const unordered_set_iterator& other) const
+    {
+      return !(*this != other);
+    }
+
+  private:
+    /// \brief Construct an iterator over all keys passed in this bucket and all remaining buckets.
+    unordered_set_iterator(bucket_it it, bucket_it end, key_it_type before_it, key_it_type key) :
+      m_bucket_it(it), m_bucket_end(end), m_key_before_it(before_it), m_key_it(key)
+    {}
+
+    /// \brief Construct the begin iterator (over all elements).
+    unordered_set_iterator(bucket_it it, bucket_it end) :
+      m_bucket_it(it), m_bucket_end(end), m_key_before_it((*it).before_begin()), m_key_it((*it).begin())
+    {
+      goto_next_bucket();
+    }
+
+    /// \brief Construct the end iterator
+    explicit unordered_set_iterator(bucket_it it) :
+      m_bucket_it(it)
+    {}
+
+    operator unordered_set_iterator<Bucket, false>() const
+    {
+      return unordered_set_iterator<Bucket, false>(m_bucket_it, m_bucket_end, m_key_before_it, m_key_it);
+    }
+
+    /// \returns A reference to the before key iterator.
+    key_it_type& key_before_it() { return m_key_before_it; }
+
+    /// \returns A reference to the key iterator.
+    key_it_type& key_it() { return m_key_it; }
+
+    /// \returns A reference to the bucket iterator.
+    bucket_it& get_bucket_it() { return m_bucket_it; }
+
+    /// \brief Iterate to the next non-empty bucket.
+    void goto_next_bucket()
+    {
+      // Find the first bucket that is not empty.
+      while(!(m_key_it != detail::EndIterator))
+      {
+        // Take the next bucket and reset the key iterator.
+        ++m_bucket_it;
+
+        if (m_bucket_it != m_bucket_end)
+        {
+          m_key_it = (*m_bucket_it).begin();
+          m_key_before_it = (*m_bucket_it).before_begin();
+        }
+        else
+        {
+          // Reached the end of the buckets.
+          break;
+        }
+      }
+
+      // The current bucket contains elements or we are at the end.
+      assert(m_bucket_it == m_bucket_end || m_key_it != detail::EndIterator);
+    }
+
+    bucket_it m_bucket_it;
+    bucket_it m_bucket_end;
+    key_it_type m_key_before_it;
+    key_it_type m_key_it; // Invariant: m_key_it != EndIterator.
+  };
+
   using key_type = Key;
   using value_type = Key;
   using hasher = Hash;
@@ -66,10 +193,10 @@ public:
   using pointer = typename std::allocator_traits<Allocator>::pointer;
   using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
 
-  using iterator = unordered_set_iterator<key_type, bucket_type, Allocator, false>;
-  using local_iterator = typename bucket_type::iterator;
-  using const_iterator = unordered_set_iterator<key_type, bucket_type, Allocator, true>;
   using const_local_iterator = typename bucket_type::const_iterator;
+  using local_iterator = typename bucket_type::const_iterator;
+  using const_iterator = unordered_set_iterator<bucket_type, true>;
+  using iterator = const_iterator;
 
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
@@ -129,13 +256,13 @@ public:
   template<typename ...Args>
   std::pair<iterator, bool> emplace(Args&&... args);
 
-  /// \brief Erases the given key from the unordered set.
-  /// \details Needs to find the key first.
-  void erase(key_type& key);
+  /// \brief Erases the given key_type(args...) from the unordered set.
+  template<typename...Args>
+  void erase(const Args&... args);
 
   /// \brief Erases the element pointed to by the iterator.
   /// \returns An iterator to the next key.
-  iterator erase(iterator it);
+  iterator erase(const_iterator it);
 
   /// \brief Counts the number of occurrences of the given key (1 when it exists and 0 otherwise).
   template<typename ...Args>
@@ -174,19 +301,37 @@ public:
   void rehash(size_type number_of_buckets);
 
   /// \brief Resizes the set to the given number of elements.
-  void reserve(size_type count) { rehash(std::ceil(static_cast<float>(count) / max_load_factor())); }
-
-  /// \returns The number of elements that can be present in the set before resizing.
-  size_type capacity() const noexcept { return m_buckets.size(); }
+  void reserve(size_type count) { rehash(static_cast<std::size_t>(std::ceil(static_cast<float>(count) / max_load_factor()))); }
 
   hasher hash_function() const { return m_hash; }
   key_equal key_eq() const { return m_equals; }
 
+  /// \returns The number of elements that can be present in the set before resizing.
+  /// \details Not standard.
+  size_type capacity() const noexcept { return m_buckets.size(); }
+
 private:
+  template<typename Key_, typename T, typename Hash_, typename KeyEqual, typename Allocator_, bool ThreadSafe_>
+  friend class unordered_map;
+
+  // Check for the existence of the is_transparent type.
+  template <typename... >
+  using void_t = void;
+
+  template <typename X, typename = void>
+  struct is_transparent : std::false_type { };
+
+  template <typename X>
+  struct is_transparent<X, void_t<typename X::is_transparent>>
+  : std::true_type { };
 
   /// \brief Inserts T(args...) into the given bucket, assumes that it did not exists before.
   template<typename ...Args>
   std::pair<iterator, bool> emplace_impl(size_type bucket_index, Args&&... args);
+
+  /// \brief Removes T(args...) from the set.
+  template<typename ...Args>
+  void erase_impl(const Args&... args);
 
   /// \returns The index of the bucket that might contain the element constructed by the given arguments.
   template<typename ...Args>
@@ -196,19 +341,11 @@ private:
   template<typename ...Args>
   const_iterator find_impl(size_type bucket_index, const Args&... args) const;
 
-  template<typename ...Args>
-  iterator find_impl(size_type bucket_index, const Args&... args);
-
-  /// \brief Inserts a bucket node into the hash table.
-  /// \details Does not increment the m_number_of_elements.
-  void insert(typename bucket_type::node* node)
-  {
-    bucket_type& bucket = m_buckets[find_bucket_index(node->key())];
-    bucket.push_front(node);
-  }
-
   /// \brief Resizes the hash table if required.
   void rehash_if_needed();
+
+  /// \brief True iff the hash and equals functions allow transparent lookup,
+  static constexpr bool allow_transparent = is_transparent<Hash>() && is_transparent<Equals>();
 
   /// \brief The number of elements stored in this set.
   size_type m_number_of_elements = 0;
@@ -233,9 +370,8 @@ template<typename Key,
          bool ThreadSafe = false>
 using unordered_set_large = unordered_set<Key, Hash, Equals, Allocator, ThreadSafe>;
 
-} // namespace utilities
-} // namespace mcrl2;
+} // namespace mcrl2::utilities
 
-#include "unordered_set_implementation.h"
+#include "mcrl2/utilities/detail/unordered_set_implementation.h"
 
 #endif // MCRL2_UTILITIES_UNORDERED_SET_H

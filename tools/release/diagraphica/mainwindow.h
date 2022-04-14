@@ -9,8 +9,6 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QtCore>
-#include <QtGui>
 #include <QMainWindow>
 #include "ui_mainwindow.h"
 
@@ -20,7 +18,6 @@
 #include "diagrameditor.h"
 #include "examiner.h"
 #include "parser.h"
-#include "settings.h"
 #include "settingsdialog.h"
 #include "simulator.h"
 #include "timeseries.h"
@@ -74,11 +71,14 @@ class MainWindow : public QMainWindow
     void moveValue(int index, int newPosition);
 
     void routeCluster(Cluster *cluster, QList<Cluster *> clusterSet, QList<Attribute *> attributes);
-    void toSimulator() { m_simulator->initFrameCurr(m_routingCluster, m_routingClusterAttributes.toVector().toStdVector()); }
+    void toSimulator() { m_simulator->initFrameCurr(m_routingCluster, 
+                                                    std::vector<Attribute*>(m_routingClusterAttributes.begin(), m_routingClusterAttributes.end())); }
     void toTrace() { m_timeSeries->markItems(m_routingCluster); }
     void allToTrace() { m_timeSeries->markItems(m_routingClusterSet); }
-    void toExaminer() { m_examiner->addFrameHist(m_routingCluster, m_routingClusterAttributes.toVector().toStdVector()); }
-    void allToExaminer() { m_examiner->addFrameHist(m_routingClusterSet, m_routingClusterAttributes.toVector().toStdVector()); }
+    void toExaminer() { m_examiner->addFrameHist(m_routingCluster, 
+                                                 std::vector<Attribute*>(m_routingClusterAttributes.begin(), m_routingClusterAttributes.end())); }
+    void allToExaminer() { m_examiner->addFrameHist(m_routingClusterSet, 
+                                                    std::vector<Attribute*>(m_routingClusterAttributes.begin(), m_routingClusterAttributes.end())); }
 
     void hoverCluster(Cluster *cluster, QList<Attribute *> attributes);
 

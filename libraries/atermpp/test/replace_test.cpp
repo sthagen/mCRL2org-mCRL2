@@ -10,17 +10,11 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE replace_test
-#include <vector>
-#include <iostream>
-#include <iterator>
 #include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/algorithm.h"
 #include "mcrl2/atermpp/aterm_io.h"
-#include "mcrl2/atermpp/aterm_appl.h"
-#include "mcrl2/atermpp/aterm_list.h"
 
-using namespace std;
 using namespace atermpp;
 
 // function object to test if it is an aterm_appl with function symbol "f"

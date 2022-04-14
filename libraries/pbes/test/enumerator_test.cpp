@@ -11,7 +11,7 @@
 
 #define BOOST_TEST_MODULE enumerator_test
 #include <boost/test/included/unit_test_framework.hpp>
-#include "mcrl2/core/detail/print_utility.h"
+
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
 #include "mcrl2/data/enumerator_with_iterator.h"
 #include "mcrl2/pbes/enumerator.h"
@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE(enumerate_callback)
     id_generator.clear();
     if (is_forall(x))
     {
-      const auto& x_ = atermpp::down_cast<pbes_system::forall>(x);
+      const pbes_system::forall& x_ = atermpp::down_cast<pbes_system::forall>(x);
       result = pbes_system::true_();
       E.enumerate(enumerator_element(x_.variables(), R(x_.body())),
                   sigma,
@@ -158,7 +158,7 @@ BOOST_AUTO_TEST_CASE(enumerate_callback)
     }
     else if (is_exists(x))
     {
-      const auto& x_ = atermpp::down_cast<pbes_system::forall>(x);
+      const pbes_system::exists& x_ = atermpp::down_cast<pbes_system::exists>(x);
       result = pbes_system::false_();
       E.enumerate(enumerator_element(x_.variables(), R(x_.body())),
                   sigma,

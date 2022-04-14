@@ -10,17 +10,13 @@
 /// \brief Add your file description here.
 
 #define BOOST_TEST_MODULE function_test
-#include <iostream>
-#include <string>
 #include <boost/test/included/unit_test_framework.hpp>
 
 #include "mcrl2/atermpp/aterm_io.h"
-#include "mcrl2/atermpp/aterm_appl.h"
 
-using namespace std;
 using namespace atermpp;
 
-void test_aterm_function()
+BOOST_AUTO_TEST_CASE(test_aterm_function)
 {
   // create an unquoted function symbol
   function_symbol sym("f", 1);
@@ -30,7 +26,7 @@ void test_aterm_function()
   BOOST_CHECK(pp(a) == "f(x)");
   BOOST_CHECK(a.function() == sym);
 
-  string s = pp(a);
+  std::string s = pp(a);
   aterm_appl b ( read_appl_from_string(s));
   BOOST_CHECK(pp(a) == "f(x)");
   BOOST_CHECK(b.function() == sym); 
@@ -42,9 +38,4 @@ void test_aterm_function()
   aterm_appl f ( read_appl_from_string("f(g(a,b),c)"));
   aterm_appl g ( read_appl_from_string("g(a,b)"));
   BOOST_CHECK(f[0] == g);
-}
-
-BOOST_AUTO_TEST_CASE(test_main)
-{
-  test_aterm_function();
 }

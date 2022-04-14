@@ -13,16 +13,32 @@
 #define MCRL2_PBES_SRF_PBES_H
 
 #include "mcrl2/core/detail/print_utility.h"
-#include "mcrl2/data/set_identifier_generator.h"
 #include "mcrl2/pbes/find.h"
 #include "mcrl2/pbes/join.h"
-#include "mcrl2/pbes/pbes.h"
 #include "mcrl2/pbes/pbes_functions.h"
 #include "mcrl2/pbes/rewriters/pbes2data_rewriter.h"
 
 namespace mcrl2 {
 
 namespace pbes_system {
+
+namespace detail {
+
+inline
+pbes_expression make_not(const pbes_expression& x)
+{
+  if(data::is_data_expression(x) && data::sort_bool::is_not_application(x))
+  {
+    return data::sort_bool::arg(atermpp::down_cast<data::data_expression>(x));
+  }
+  else if(is_not(x))
+  {
+    return accessors::arg(x);
+  }
+  return not_(x);
+}
+
+} // namespace detail
 
 class srf_summand
 {
@@ -142,6 +158,11 @@ class srf_equation
       return m_summands;
     }
 
+    bool& is_conjunctive()
+    {
+      return m_conjunctive;
+    }
+
     bool is_conjunctive() const
     {
       return m_conjunctive;
@@ -156,6 +177,18 @@ class srf_equation
       }
       pbes_expression rhs = m_conjunctive ? join_and(v.begin(), v.end()) : join_or(v.begin(), v.end());
       return pbes_equation(m_sigma, m_variable, rhs);
+    }
+
+    void make_total(const srf_summand& true_summand, const srf_summand& false_summand)
+    {
+      if (m_conjunctive)
+      {
+        m_summands.push_back(true_summand);
+      }
+      else
+      {
+        m_summands.push_back(false_summand);
+      }
     }
 };
 
@@ -388,7 +421,7 @@ struct srf_and_traverser: public pbes_expression_traverser<srf_and_traverser>
       apply(x.right());
       for (auto i = summands.begin() + size; i != summands.end(); ++i)
       {
-        i->add_condition(not_(x.left()));
+        i->add_condition(detail::make_not(x.left()));
       }
     }
     else if (is_simple_expression(x.right()))
@@ -397,7 +430,7 @@ struct srf_and_traverser: public pbes_expression_traverser<srf_and_traverser>
       apply(x.left());
       for (auto i = summands.begin() + size; i != summands.end(); ++i)
       {
-        i->add_condition(not_(x.right()));
+        i->add_condition(detail::make_not(x.right()));
       }
     }
     else
@@ -450,7 +483,7 @@ struct srf_and_traverser: public pbes_expression_traverser<srf_and_traverser>
     {
       const propositional_variable_instantiation& X = propositional_variable_instantiation(X_false, {});
       const pbes_expression& f = x;
-      summands.emplace_back(data::variable_list(), not_(f), X);
+      summands.emplace_back(data::variable_list(), detail::make_not(f), X);
     }
     else
     {
@@ -505,7 +538,7 @@ bool is_conjunctive(const pbes_expression& phi)
   }
   else if (is_and(phi))
   {
-    const auto& phi_ = atermpp::down_cast<or_>(phi);
+    const auto& phi_ = atermpp::down_cast<and_>(phi);
     return !((is_simple_expression(phi_.left()) && is_propositional_variable_instantiation(phi_.right())) ||
              (is_simple_expression(phi_.right()) && is_propositional_variable_instantiation(phi_.left())));
   }
@@ -531,6 +564,8 @@ class srf_pbes
     propositional_variable_instantiation m_initial_state;
 
   public:
+    srf_pbes() = default;
+
     srf_pbes(
       const data::data_specification& dataspec,
       std::vector<srf_equation> equations,
@@ -564,6 +599,11 @@ class srf_pbes
       return m_dataspec;
     }
 
+    data::data_specification& data()
+    {
+      return m_dataspec;
+    }
+
     pbes to_pbes() const
     {
       std::vector<pbes_equation> v;
@@ -572,6 +612,19 @@ class srf_pbes
         v.push_back(eqn.to_pbes());
       }
       return pbes(m_dataspec, v, m_initial_state);
+    }
+
+    // Adds extra clauses to the equations to enforce that the PBES is in TSRF format
+    // Precondition: the last two equations must be the equations corresponding to false and true
+    void make_total()
+    {
+      std::size_t N = m_equations.size();
+      const srf_summand& false_summand = m_equations[N-2].summands().front();
+      const srf_summand& true_summand = m_equations[N-1].summands().front();
+      for (std::size_t i = 0; i < N - 2; i++)
+      {
+        m_equations[i].make_total(true_summand, false_summand);
+      }
     }
 };
 
@@ -588,7 +641,7 @@ srf_pbes pbes2srf(const pbes& p)
 
   core::identifier_string X_false = id_generator("X_false");
   core::identifier_string X_true = id_generator("X_true");
-  pbes_equation eqn_false(fixpoint_symbol::mu(), propositional_variable(X_false, {}), propositional_variable_instantiation(X_false, {}));
+  pbes_equation eqn_false(fixpoint_symbol::mu(), propositional_variable(X_false, {}), or_(data::sort_bool::false_(), propositional_variable_instantiation(X_false, {})));
   pbes_equation eqn_true(fixpoint_symbol::nu(), propositional_variable(X_true, {}), propositional_variable_instantiation(X_true, {}));
 
   const auto& p_equations = p.equations();

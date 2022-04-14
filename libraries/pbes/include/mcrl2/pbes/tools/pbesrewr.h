@@ -13,7 +13,6 @@
 #define MCRL2_PBES_TOOLS_PBESREWR_H
 
 #include "mcrl2/data/detail/one_point_rule_preprocessor.h"
-#include "mcrl2/pbes/algorithms.h"
 #include "mcrl2/pbes/detail/bqnf_traverser.h"
 #include "mcrl2/pbes/detail/ppg_rewriter.h"
 #include "mcrl2/pbes/detail/ppg_traverser.h"
@@ -24,8 +23,6 @@
 #include "mcrl2/pbes/rewriter.h"
 #include "mcrl2/pbes/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/pbes/rewriters/quantifiers_inside_rewriter.h"
-#include "mcrl2/utilities/logger.h"
-#include <cassert>
 
 namespace mcrl2 {
 
@@ -79,7 +76,8 @@ void pbesrewr(const std::string& input_filename,
     {
       // apply the one point rule rewriter
       one_point_rule_rewriter pbesr;
-      pbes_rewrite(p, pbesr);
+      bool innermost = false;
+      replace_pbes_expressions(p, pbesr, innermost); // use replace, since the one point rule rewriter does the recursion itself
 
       // post processing: apply the simplifying rewriter
       simplify_data_rewriter<data::rewriter> simp(datar);

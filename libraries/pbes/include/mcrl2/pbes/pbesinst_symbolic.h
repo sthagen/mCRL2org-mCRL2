@@ -13,15 +13,6 @@
 #define MCRL2_PBES_PBESINST_SYMBOLIC_H
 
 #include "mcrl2/pbes/algorithms.h"
-#include "mcrl2/pbes/detail/bes_equation_limit.h"
-#include "mcrl2/pbes/find.h"
-#include "mcrl2/pbes/pbes.h"
-#include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
-#include "mcrl2/utilities/logger.h"
-#include <cassert>
-#include <iostream>
-#include <set>
-#include <sstream>
 
 #include "mcrl2/pbes/pbesinst_algorithm.h"
 
@@ -96,6 +87,7 @@ class pbesinst_symbolic_algorithm
         data::rewriter::substitution_type sigma;
         make_pbesinst_substitution(eqn.variable().parameters(), X.parameters(), sigma);
         pbes_expression psi = R(phi, sigma);
+        R.clear_identifier_generator();
         for (const propositional_variable_instantiation& v: find_propositional_variable_instantiations(psi))
         {
           if (done.find(v) == done.end())

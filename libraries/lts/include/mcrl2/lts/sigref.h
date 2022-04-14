@@ -14,12 +14,7 @@
 #ifndef MCRL2_LTS_SIGREF_H
 #define MCRL2_LTS_SIGREF_H
 
-#include <set>
-#include <map>
-#include <iostream>
-#include "mcrl2/lts/lts.h"
 #include "mcrl2/lts/lts_utilities.h"
-#include "mcrl2/utilities/logger.h"
 
 namespace mcrl2
 {
@@ -389,7 +384,7 @@ protected:
     std::size_t count_prev = m_count;
     std::size_t iterations = 0;
 
-    m_lts.sort_transitions(mcrl2::lts::lbl_tgt_src);
+    sort_transitions(m_lts.get_transitions(), m_lts.hidden_label_set(), mcrl2::lts::lbl_tgt_src);
 
     do
     {

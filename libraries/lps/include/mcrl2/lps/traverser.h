@@ -11,17 +11,11 @@
 
 // To avoid circular inclusion problems
 
-#ifndef MCRL2_LPS_SPECIFICATION_H
-#include "mcrl2/lps/specification.h"
-#endif
-
 #ifndef MCRL2_LPS_TRAVERSER_H
 #define MCRL2_LPS_TRAVERSER_H
 
-#include "mcrl2/data/traverser.h"
 #include "mcrl2/lps/stochastic_specification.h"
 #include "mcrl2/process/traverser.h"
-#include "mcrl2/process/untyped_multi_action.h"
 
 namespace mcrl2
 {
@@ -81,7 +75,7 @@ struct add_traverser_sort_expressions: public Traverser<Derived>
   void apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -145,7 +139,7 @@ struct add_traverser_sort_expressions: public Traverser<Derived>
   void apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -209,7 +203,7 @@ struct add_traverser_data_expressions: public Traverser<Derived>
   void apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -265,7 +259,7 @@ struct add_traverser_data_expressions: public Traverser<Derived>
   void apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -331,7 +325,7 @@ struct add_traverser_variables: public Traverser<Derived>
   void apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -393,7 +387,7 @@ struct add_traverser_variables: public Traverser<Derived>
   void apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
   }
@@ -459,7 +453,7 @@ struct add_traverser_identifier_strings: public Traverser<Derived>
   void apply(const lps::process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).leave(x);
   }
 
@@ -523,7 +517,7 @@ struct add_traverser_identifier_strings: public Traverser<Derived>
   void apply(const lps::stochastic_process_initializer& x)
   {
     static_cast<Derived&>(*this).enter(x);
-    static_cast<Derived&>(*this).apply(x.assignments());
+    static_cast<Derived&>(*this).apply(x.expressions());
     static_cast<Derived&>(*this).apply(x.distribution());
     static_cast<Derived&>(*this).leave(x);
   }

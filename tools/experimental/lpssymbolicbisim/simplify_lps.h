@@ -13,10 +13,8 @@
 #define MCRL2_LPSSYMBOLICBISIM_SIMPLIFY_LPS_H
 
 #include "mcrl2/data/join.h"
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/data/linear_inequalities.h"
 #include "mcrl2/lps/stochastic_specification.h"
-#include "mcrl2/lps/summand.h"
 
 namespace mcrl2
 {
@@ -26,8 +24,9 @@ namespace data
 using namespace mcrl2::log;
 
 
-struct simplify_real_inequalities: public std::unary_function<data_expression, data_expression>
+struct simplify_real_inequalities
 {
+  using argument_type = data_expression;
 
   rewriter rewr;
 

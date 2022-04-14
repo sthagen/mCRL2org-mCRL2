@@ -10,12 +10,8 @@
 #ifndef ATERMPP_DETAIL_ATERM_POOL_H
 #define ATERMPP_DETAIL_ATERM_POOL_H
 
-#include "mcrl2/atermpp/aterm.h"
-#include "mcrl2/atermpp/detail/aterm_configuration.h"
 #include "mcrl2/atermpp/detail/aterm_pool_storage.h"
 #include "mcrl2/atermpp/detail/function_symbol_pool.h"
-
-#include <tuple>
 
 namespace atermpp
 {
@@ -50,9 +46,6 @@ public:
 
   inline aterm_pool();
   inline ~aterm_pool();
-
-  /// \brief Add a callback that is triggered whenever a term with the given function symbol is created.
-  inline void add_creation_hook(function_symbol sym, term_callback callback);
 
   /// \brief Add a callback that is triggered whenever a term with the given function symbol is destroyed.
   inline void add_deletion_hook(function_symbol sym, term_callback callback);

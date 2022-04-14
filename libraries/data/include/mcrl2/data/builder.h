@@ -13,34 +13,18 @@
 #define MCRL2_DATA_BUILDER_H
 
 #include "mcrl2/core/builder.h"
-#include "mcrl2/data/abstraction.h"
 #include "mcrl2/data/alias.h"
-#include "mcrl2/data/application.h"
-#include "mcrl2/data/assignment.h"
 #include "mcrl2/data/bag.h"
 #include "mcrl2/data/bag_comprehension.h"
-#include "mcrl2/data/data_equation.h"
-#include "mcrl2/data/data_expression.h"
 #include "mcrl2/data/exists.h"
-#include "mcrl2/data/forall.h"
-#include "mcrl2/data/int.h"
 #include "mcrl2/data/lambda.h"
-#include "mcrl2/data/lambda.h"
-#include "mcrl2/data/nat.h"
-#include "mcrl2/data/pos.h"
-#include "mcrl2/data/real.h"
-#include "mcrl2/data/set.h"
 #include "mcrl2/data/set_comprehension.h"
-#include "mcrl2/data/standard_utility.h"
 #include "mcrl2/data/structured_sort.h"
 #include "mcrl2/data/untyped_data_parameter.h"
-#include "mcrl2/data/untyped_identifier.h"
 #include "mcrl2/data/untyped_possible_sorts.h"
 #include "mcrl2/data/untyped_set_or_bag_comprehension.h"
-#include "mcrl2/data/untyped_sort.h"
 #include "mcrl2/data/untyped_sort_variable.h"
 #include "mcrl2/data/where_clause.h"
-#include <functional>
 
 
 namespace mcrl2
@@ -82,7 +66,7 @@ struct add_sort_expressions: public Builder<Derived>
     typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
     function_pointer fp = &Derived::apply;
     data::application result = data::application(
-       static_cast<Derived&>(*this).apply(x.head()),
+       x.head(),
        x.begin(),
        x.end(),
        std::bind(fp, static_cast<Derived*>(this), std::placeholders::_1)
@@ -425,7 +409,7 @@ struct add_data_expressions: public Builder<Derived>
     typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
     function_pointer fp = &Derived::apply;
     data::application result = data::application(
-       static_cast<Derived&>(*this).apply(x.head()),
+       x.head(),
        x.begin(),
        x.end(),
        std::bind(fp, static_cast<Derived*>(this), std::placeholders::_1)
@@ -651,7 +635,7 @@ struct add_variables: public Builder<Derived>
     typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
     function_pointer fp = &Derived::apply;
     data::application result = data::application(
-       static_cast<Derived&>(*this).apply(x.head()),
+       x.head(),
        x.begin(),
        x.end(),
        std::bind(fp, static_cast<Derived*>(this), std::placeholders::_1)

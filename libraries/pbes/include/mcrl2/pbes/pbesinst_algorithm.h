@@ -12,18 +12,11 @@
 #ifndef MCRL2_PBES_PBESINST_ALGORITHM_H
 #define MCRL2_PBES_PBESINST_ALGORITHM_H
 
-#include "mcrl2/data/rewriter.h"
 #include "mcrl2/pbes/detail/bes_equation_limit.h"
 #include "mcrl2/pbes/detail/instantiate_global_variables.h"
-#include "mcrl2/pbes/find.h"
-#include "mcrl2/pbes/pbes.h"
 #include "mcrl2/pbes/rewriters/enumerate_quantifiers_rewriter.h"
 #include "mcrl2/pbes/rewriters/one_point_rule_rewriter.h"
 #include "mcrl2/pbes/rewriters/simplify_quantifiers_rewriter.h"
-#include <cassert>
-#include <iostream>
-#include <set>
-#include <sstream>
 
 namespace mcrl2
 {
@@ -91,7 +84,7 @@ struct pbesinst_rename_long
 /// propositional variable instantiation must be closed.
 /// Originally implemented by Alexander van Dam.
 /// \return A name that uniquely corresponds to the propositional variable.
-struct pbesinst_rename: public std::unary_function<propositional_variable_instantiation, propositional_variable_instantiation>
+struct pbesinst_rename
 {
   propositional_variable_instantiation operator()(const propositional_variable_instantiation& Ye) const
   {
@@ -213,6 +206,7 @@ class pbesinst_algorithm
         make_pbesinst_substitution(eqn.variable().parameters(), X_e.parameters(), sigma);
         auto const& phi = eqn.formula();
         pbes_expression psi_e = R(phi, sigma);
+        R.clear_identifier_generator();
         for (const propositional_variable_instantiation& v: find_propositional_variable_instantiations(psi_e))
         {
           if (!contains(done, v))

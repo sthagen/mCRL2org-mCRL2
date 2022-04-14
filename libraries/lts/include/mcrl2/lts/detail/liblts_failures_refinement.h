@@ -20,7 +20,6 @@
 #ifndef LIBLTS_FAILURES_REFINEMENT_H
 #define LIBLTS_FAILURES_REFINEMENT_H
 
-#include "unordered_set"
 #include "mcrl2/lts/detail/counter_example.h"
 #include "mcrl2/lps/exploration_strategy.h"
 #include "mcrl2/lts/detail/liblts_bisim_dnj.h"
@@ -184,11 +183,12 @@ namespace detail
               const lts_cache<LTS_TYPE>& weak_property_cache,
               label_type& culprit,
               const LTS_TYPE& l,
-              const bool provide_a_counter_example);
+              const bool provide_a_counter_example,
+              const bool structured_output);
 
 } // namespace detail
 
-enum refinement_type { trace, failures, failures_divergence };
+enum class refinement_type { trace, failures, failures_divergence };
 
 template<typename T>
 struct refinement_statistics
@@ -272,7 +272,7 @@ bool destructive_refinement_checker(
   // Therefore, we apply bisimulation reduction preserving divergences.
   // A typical example is a.(b+c) which is not weak-failures included n a.tau*.(b+c). The lhs has failure pairs
   // <a,{a}>, <a,{}> while the rhs has only failure pairs <a,{}>, as the state after the a is not stable.
-  const bool preserve_divergence = weak_reduction && (refinement != trace);
+  const bool preserve_divergence = weak_reduction && (refinement != refinement_type::trace);
 
   if (!generate_counter_example.is_dummy() && preprocess)
   {
@@ -328,7 +328,7 @@ bool destructive_refinement_checker(
                              // Small scale experiments show that this is a little bit more expensive than doing the explicit check below.
 
     bool spec_diverges = false;
-    if (refinement == failures_divergence)
+    if (refinement == refinement_type::failures_divergence)
     {
       // Only compute when the result is required.
       for (detail::state_type s : impl_spec.states())
@@ -341,17 +341,17 @@ bool destructive_refinement_checker(
       }
     }
 
-    // if not diverges(spec) or not CheckDiv (refinement == failures_divergence)
-    if (!spec_diverges || refinement != failures_divergence)
+    // if not diverges(spec) or not CheckDiv (refinement == failures_divergence_preorder)
+    if (!spec_diverges || refinement != refinement_type::failures_divergence)
     {
-      if (weak_property_cache.diverges(impl_spec.state()) && refinement == failures_divergence) // if impl diverges and CheckDiv
+      if (weak_property_cache.diverges(impl_spec.state()) && refinement == refinement_type::failures_divergence) // if impl diverges and CheckDiv
       {
         generate_counter_example.save_counter_example(impl_spec.counter_example_index(),l1);
         report_statistics(stats);
         return false;  // return false;
       }
 
-      if (refinement == failures || refinement == failures_divergence)
+      if (refinement == refinement_type::failures || refinement == refinement_type::failures_divergence)
       {
         detail::label_type offending_action=std::size_t(-1);
         // if refusals(impl) not contained in refusals(spec) then
@@ -360,7 +360,8 @@ bool destructive_refinement_checker(
                                            weak_property_cache,
                                            offending_action,
                                            l1,
-                                           !generate_counter_example.is_dummy()))
+                                           !generate_counter_example.is_dummy(),
+                                           generate_counter_example.is_structured()))
         {
           generate_counter_example.save_counter_example(impl_spec.counter_example_index(), l1);
           report_statistics(stats);
@@ -609,7 +610,8 @@ namespace detail
               const lts_cache<LTS_TYPE>& weak_property_cache,
               label_type& culprit,
               const LTS_TYPE& l,
-              const bool provide_a_counter_example)
+              const bool provide_a_counter_example,
+              const bool structured_output)
   {
     if (!weak_property_cache.stable(impl)) return true; // Checking in case of instability is not necessary, but rather time consuming.
 
@@ -648,52 +650,113 @@ namespace detail
       }
     }
 
-    if (!success)
+    if (!success && provide_a_counter_example)
     {
-      if (provide_a_counter_example)
+      // Print the acceptance set of the implementation
+      if (impl_action_labels.empty())
       {
-        // Print the acceptance set of the implementation
-        if (impl_action_labels.empty())
+        if (structured_output)
+        {
+          std::cout << "left-acceptance:\n";
+        }
+        else
         {
           mCRL2log(log::verbose) << "The acceptance of the left process is empty.\n";
+        }
+      }
+      else
+      {
+        if (structured_output)
+        {
+          std::cout << "left-acceptance: ";
         }
         else
         {
           mCRL2log(log::verbose) << "A stable acceptance set of the left process is:\n";
-          for(const label_type a : impl_action_labels)
+        }
+        std::string sep = "";
+        for (const label_type a: impl_action_labels)
+        {
+          if (structured_output)
+          {
+            std::cout << sep << l.action_label(a);
+            sep = ";";
+          }
+          else
           {
             mCRL2log(log::verbose) << l.action_label(a) << "\n";
           }
         }
+        if (structured_output)
+        {
+          std::cout << "\n";
+        }
+      }
 
-        // Print the acceptance sets of the specification.
-        if (spec.empty())
+      // Print the acceptance sets of the specification.
+      if (spec.empty())
+      {
+        if (structured_output)
+        {
+          std::cout << "right-acceptance-sets: 0\n";
+        }
+        else
         {
           mCRL2log(log::verbose) << "The process at the right has no acceptance sets.\n";
+        }
+      }
+      else
+      {
+        set_of_states stable;
+        // Only the stable specification states contributed to this counter example.
+        std::copy_if(spec.begin(), spec.end(), std::inserter(stable,stable.end()), [=](const state_type s){return weak_property_cache.stable(s);});
+
+        if (structured_output)
+        {
+          std::cout << "right-acceptance-sets: " << stable.size () << "\n";
         }
         else
         {
           mCRL2log(log::verbose) << "Below all corresponding stable acceptance sets of the right process are provided:\n";
-          for(const state_type s : spec)
+        }
+        for (const state_type s: stable)
+        {
+          const action_label_set& spec_action_labels = weak_property_cache.action_labels(s);
+          if (structured_output)
           {
-            // Only the stable specification states contributed to this counter example.
-            if (!weak_property_cache.stable(s)) { continue; }
-
-            const action_label_set& spec_action_labels = weak_property_cache.action_labels(s);
+            std::cout << "right-acceptance: ";
+          }
+          else
+          {
             mCRL2log(log::verbose) << "An acceptance set of the right process is:\n";
-            for(const label_type a : spec_action_labels)
+          }
+          std::string sep = "";
+          for (const label_type a: spec_action_labels)
+          {
+            if (structured_output)
+            {
+              std::cout << sep << l.action_label(a);
+              sep = ";";
+            }
+            else
             {
               mCRL2log(log::verbose) << l.action_label(a) << "\n";
             }
           }
+          if (structured_output)
+          {
+            std::cout << "\n";
+          }
         }
-        mCRL2log(log::verbose) << "Finished printing acceptance sets.\n";
-        // Ready printing acceptance sets.
       }
-      return false;
+      if (!structured_output)
+      {
+        mCRL2log(log::verbose) << "Finished printing acceptance sets.\n";
+      }
+      // Done printing acceptance sets.
     }
 
-    return true;
+    return success;
   }
 
 

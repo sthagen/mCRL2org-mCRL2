@@ -12,13 +12,10 @@
 #ifndef MCRL2_LPS_IS_WELL_TYPED_H
 #define MCRL2_LPS_IS_WELL_TYPED_H
 
-#include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/detail/sequence_algorithm.h"
 #include "mcrl2/lps/detail/action_utility.h"
-#include "mcrl2/lps/specification.h"
 #include "mcrl2/lps/stochastic_specification.h"
 #include <boost/iterator/transform_iterator.hpp>
-#include <sstream>
 
 namespace mcrl2 {
 
@@ -219,16 +216,6 @@ struct lps_well_typed_checker
     return true;
   }
 
-  /// \brief Checks well typedness of a process_initializer
-  /// \param i A process_initializer
-  /// <ul>
-  /// <li>the left hand sides of the data assignments are unique</li>
-  /// </ul>
-  bool is_well_typed(const process_initializer& i) const
-  {
-    return !!check_assignments(i.assignments(), "process_initializer");
-  }
-
   /// \brief Checks well typedness of a linear process
   /// \param p A linear_process
   /// \return True if
@@ -342,11 +329,11 @@ struct lps_well_typed_checker
     }
 
     // check 5)
-    for (auto i = action_summands.begin(); i != action_summands.end(); ++i)
+    for (const action_summand& s: action_summands)
     {
-      if (!(detail::check_action_labels(i->multi_action().actions(), declared_labels)))
+      if (!(detail::check_action_labels(s.multi_action().actions(), declared_labels)))
       {
-        error << "is_well_typed(specification) failed: some of the labels occurring in the actions " << core::detail::print_list(i->multi_action().actions()) << " are not declared in the action specification " << core::detail::print_list(spec.action_labels()) << std::endl;
+        error << "is_well_typed(specification) failed: some of the labels occurring in the actions " << core::detail::print_list(s.multi_action().actions()) << " are not declared in the action specification " << core::detail::print_list(spec.action_labels()) << std::endl;
         return false;
       }
     }
@@ -358,11 +345,6 @@ struct lps_well_typed_checker
     {
       return false;
     }
-    if (!is_well_typed(spec.initial_process()))
-    {
-      return false;
-    }
-
     if (!free_variables.empty())
     {
       error << "is_well_typed(specification) failed: some of the free variables were not declared\n";

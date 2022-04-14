@@ -17,14 +17,11 @@
 #ifndef MCRL2_SKIP_LONG_TESTS
 
 #include "mcrl2/lps/detail/test_input.h"
-#include "mcrl2/lps/linearise.h"
-#include "mcrl2/lps/parse.h"
 #include "mcrl2/modal_formula/parse.h"
 #include "mcrl2/pbes/detail/pbessolve.h"
 #include "mcrl2/pbes/detail/test_utility.h"
 #include "mcrl2/pbes/lps2pbes.h"
 #include "mcrl2/pbes/rewrite.h"
-#include "mcrl2/utilities/text_utility.h"
 #include "test_specifications.h"
 
 using namespace mcrl2;
@@ -106,7 +103,8 @@ void one_point_rule_rewrite(pbes& p)
 
   // apply the one point rule rewriter
   pbes_system::one_point_rule_rewriter pbesr;
-  pbes_rewrite(p, pbesr);
+  bool innermost = false;
+  replace_pbes_expressions(p, pbesr, innermost);
 
   // post processing: apply the simplifying rewriter
   simplify_data_rewriter<data::rewriter> simp(datar);
@@ -748,6 +746,8 @@ BOOST_AUTO_TEST_CASE(test_elementary_formulas)
     "a         #  [a && a && b]false            #   true   \n"
     "a         #  [a && a && !b]false           #   false  \n"
     "a         #  [a || a]false                 #   false  \n"
+    "a         #  nu X.mu X.X                   #   false  \n"  // These two tests check for proper renaming. 
+    "a         #  mu X.nu X.X                   #   true   \n"
     ;
 
   std::vector<std::string> lines = utilities::regex_split(formulas, "\\n");

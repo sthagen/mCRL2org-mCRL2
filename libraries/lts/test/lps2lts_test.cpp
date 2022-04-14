@@ -16,146 +16,164 @@
 #define BOOST_TEST_MODULE lps2lts_test
 #include <boost/test/included/unit_test_framework.hpp>
 
-#ifndef MCRL2_SKIP_LONG_TESTS
-
-#include <ctime>
-#include <iostream>
-#include <sstream>
-#include <cstdio>
 #include "mcrl2/data/detail/rewrite_strategies.h"
-#include "mcrl2/lps/specification.h"
-#include "mcrl2/lps/parse.h"
 #include "mcrl2/lts/detail/exploration.h"
-#include "mcrl2/lts/lts_aut.h"
-#include "mcrl2/lts/lts_fsm.h"
-#include "mcrl2/lts/lts_lts.h"
-#include "mcrl2/lts/lts_dot.h"
+#include "mcrl2/lps/is_stochastic.h"
+#include "mcrl2/lts/state_space_generator.h"
+#include "mcrl2/lts/stochastic_lts_builder.h"
 #include "mcrl2/utilities/test_utilities.h"
 
 using namespace mcrl2;
 using namespace mcrl2::lps;
 
-
-template <class LTS_TYPE>
-LTS_TYPE translate_lps_to_lts(lps::stochastic_specification const& specification,
-                              lps::exploration_strategy const strategy = lps::es_breadth,
-                              mcrl2::data::rewrite_strategy const rewrite_strategy = mcrl2::data::jitty,
-                              const std::string& priority_action = "")
+template <bool Stochastic, bool Timed, typename Specification, typename LTSBuilder>
+void generate_state_space(const Specification& lpsspec, LTSBuilder& builder, const std::string& output_filename, const lps::explorer_options& options)
 {
-  std::clog << "Translating LPS to LTS with exploration strategy " << strategy << ", rewrite strategy " << rewrite_strategy << "." << std::endl;
+  lts::state_space_generator<Stochastic, Timed, Specification> generator(lpsspec, options);
+  generator.explore(builder);
+  builder.save(output_filename);
+}
+
+std::string file_extension(lts::lts_type output_format)
+{
+  switch (output_format)
+  {
+    case lts::lts_lts: return ".lts";
+    case lts::lts_aut: return ".aut";
+    case lts::lts_fsm: return ".fsm";
+    case lts::lts_dot: return ".dot";
+    default: throw mcrl2::runtime_error("unsupported format");
+  }
+}
+
+void run_lps2lts(
+  const lps::stochastic_specification& stochastic_lpsspec,
+  data::rewrite_strategy rstrategy,
+  lps::exploration_strategy estrategy,
+  lts::lts_type output_format,
+  const std::string& outputfile,
+  const std::string& priority_action
+)
+{
   lts::lts_generation_options options;
   options.trace_prefix = "lps2lts_test";
-  options.specification = specification;
   options.priority_action = priority_action;
-  options.strat = rewrite_strategy;
-  options.expl_strat = strategy;
-
-  options.lts = utilities::temporary_filename("lps2lts_test_file");
-
-  LTS_TYPE result;
-  options.outformat = result.type();
+  options.strat = rstrategy;
+  options.specification = stochastic_lpsspec;
+  options.expl_strat = estrategy;
+  options.lts = outputfile;
+  options.outformat = output_format;
   lts::lps2lts_algorithm lps2lts;
   lps2lts.generate_lts(options);
-
-  result.load(options.lts);
-  remove(options.lts.c_str()); // Clean up after ourselves
-
-  return result;
 }
 
-// Configure rewrite strategies to be used.
-typedef mcrl2::data::rewrite_strategy rewrite_strategy;
-typedef std::vector<rewrite_strategy > rewrite_strategy_vector;
-
-// Configure exploration strategies to be tested;
-typedef std::vector< lps::exploration_strategy > exploration_strategy_vector;
-
-static inline
-exploration_strategy_vector initialise_exploration_strategies()
+void run_generatelts(
+  const lps::stochastic_specification& stochastic_lpsspec,
+  data::rewrite_strategy rstrategy,
+  lps::exploration_strategy estrategy,
+  lts::lts_type output_format,
+  const std::string& outputfile,
+  const std::string& priority_action
+)
 {
-  exploration_strategy_vector result;
-  result.push_back(lps::es_breadth);
-  result.push_back(lps::es_depth);
-  //result.push_back(lps::es_random);
-  return result;
+  lps::explorer_options options;
+  options.trace_prefix = "lps2lts_test";
+  options.confluence_action = priority_action;
+  options.rewrite_strategy = rstrategy;
+  options.search_strategy = estrategy;
+  options.save_at_end = true;
+
+  bool is_timed = stochastic_lpsspec.process().has_time();
+
+  if (lps::is_stochastic(stochastic_lpsspec))
+  {
+    auto builder = create_stochastic_lts_builder(stochastic_lpsspec, options, output_format);
+    if (is_timed)
+    {
+      generate_state_space<true, true>(stochastic_lpsspec, *builder, outputfile, options);
+    }
+    else
+    {
+      generate_state_space<true, false>(stochastic_lpsspec, *builder, outputfile, options);
+    }
+  }
+  else
+  {
+    lps::specification lpsspec = lps::remove_stochastic_operators(stochastic_lpsspec);
+    auto builder = create_lts_builder(lpsspec, options, output_format);
+    if (is_timed)
+    {
+      generate_state_space<false, true>(lpsspec, *builder, outputfile, options);
+    }
+    else
+    {
+      generate_state_space<false, false>(lpsspec, *builder, outputfile, options);
+    }
+  }
 }
 
-static inline
-exploration_strategy_vector exploration_strategies()
+template <typename LTSType>
+void check_lts(
+  const std::string& format,
+  const lps::stochastic_specification& stochastic_lpsspec,
+  data::rewrite_strategy rstrategy,
+  lps::exploration_strategy estrategy,
+  std::size_t expected_states,
+  std::size_t expected_transitions,
+  std::size_t expected_labels,
+  const std::string& priority_action = ""
+)
 {
-  static exploration_strategy_vector exploration_strategies = initialise_exploration_strategies();
-  return exploration_strategies;
+  std::clog << "Translating LPS to LTS with exploration strategy " << estrategy << ", rewrite strategy " << rstrategy << "." << std::endl;
+  LTSType result1;
+  LTSType result2;
+  lts::lts_type output_format = result1.type();
+  std::string outputfile1 = static_cast<std::string>(boost::unit_test::framework::current_test_case().p_name) + ".lps2lts" + file_extension(output_format);
+  std::string outputfile2 = static_cast<std::string>(boost::unit_test::framework::current_test_case().p_name) + ".generatelts" + file_extension(output_format);
+  run_lps2lts(stochastic_lpsspec, rstrategy, estrategy, output_format, outputfile1, priority_action);
+  run_generatelts(stochastic_lpsspec, rstrategy, estrategy, output_format, outputfile2, priority_action);
+  result1.load(outputfile1);
+  result2.load(outputfile2);
+
+  std::cerr << format << " FORMAT\n";
+  BOOST_CHECK_EQUAL(result1.num_states(), expected_states);
+  BOOST_CHECK_EQUAL(result1.num_transitions(), expected_transitions);
+  BOOST_CHECK_EQUAL(result1.num_action_labels(), expected_labels);
+  BOOST_CHECK_EQUAL(result2.num_states(), expected_states);
+  BOOST_CHECK_EQUAL(result2.num_transitions(), expected_transitions);
+  BOOST_CHECK_EQUAL(result2.num_action_labels(), expected_labels);
+
+  std::remove(outputfile1.c_str());
+  std::remove(outputfile2.c_str());
 }
 
 static void check_lps2lts_specification(const std::string& specification,
                                         const std::size_t expected_states,
                                         const std::size_t expected_transitions,
                                         const std::size_t expected_labels,
-                                        const bool contains_probabilities=false,
                                         const std::string& priority_action = "")
 {
   std::cerr << "CHECK STATE SPACE GENERATION FOR:\n" << specification << "\n";
-  lps::stochastic_specification lps;
-  parse_lps(specification,lps);
+  lps::stochastic_specification lpsspec;
+  parse_lps(specification, lpsspec);
+  bool contains_probabilities = lps::is_stochastic(lpsspec);
 
-
-  rewrite_strategy_vector rstrategies(data::detail::get_test_rewrite_strategies(false));
-  for (rewrite_strategy_vector::const_iterator rewr_strategy = rstrategies.begin(); rewr_strategy != rstrategies.end(); ++rewr_strategy)
+  for (data::rewrite_strategy rstrategy: data::detail::get_test_rewrite_strategies(false))
   {
-    exploration_strategy_vector estrategies(exploration_strategies());
-    for (exploration_strategy_vector::const_iterator expl_strategy = estrategies.begin(); expl_strategy != estrategies.end(); ++expl_strategy)
+    for (lps::exploration_strategy estrategy: { lps::es_breadth, lps::es_depth })
     {
-      if (!contains_probabilities)
+      if (contains_probabilities)
       {
-        std::cerr << "AUT FORMAT\n";
-        lts::lts_aut_t result1 = translate_lps_to_lts<lts::lts_aut_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-        BOOST_CHECK_EQUAL(result1.num_states(), expected_states);
-        BOOST_CHECK_EQUAL(result1.num_transitions(), expected_transitions);
-        BOOST_CHECK_EQUAL(result1.num_action_labels(), expected_labels);
+        check_lts<lts::probabilistic_lts_aut_t>("PROBABILISTIC AUT", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
+        check_lts<lts::probabilistic_lts_lts_t>("PROBABILISTIC LTS", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
+        check_lts<lts::probabilistic_lts_fsm_t>("PROBABILISTIC FSM", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
       }
-
-      std::cerr << "PROBABILISTIC AUT FORMAT\n";
-      lts::probabilistic_lts_aut_t result1 = translate_lps_to_lts<lts::probabilistic_lts_aut_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-      BOOST_CHECK_EQUAL(result1.num_states(), expected_states);
-      BOOST_CHECK_EQUAL(result1.num_transitions(), expected_transitions);
-      BOOST_CHECK_EQUAL(result1.num_action_labels(), expected_labels);
-
-      if (!contains_probabilities)
+      else
       {
-        std::cerr << "LTS FORMAT\n";
-        lts::lts_lts_t result2 = translate_lps_to_lts<lts::lts_lts_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-        BOOST_CHECK_EQUAL(result2.num_states(), expected_states);
-        BOOST_CHECK_EQUAL(result2.num_transitions(), expected_transitions);
-        BOOST_CHECK_EQUAL(result2.num_action_labels(), expected_labels);
+        check_lts<lts::lts_aut_t>("AUT", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
+        check_lts<lts::lts_lts_t>("LTS", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
+        check_lts<lts::lts_fsm_t>("FSM", lpsspec, rstrategy, estrategy, expected_states, expected_transitions, expected_labels, priority_action);
       }
-
-      std::cerr << "PROBABILISTIC LTS FORMAT\n";
-      lts::probabilistic_lts_lts_t result2 = translate_lps_to_lts<lts::probabilistic_lts_lts_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-      BOOST_CHECK_EQUAL(result2.num_states(), expected_states);
-      BOOST_CHECK_EQUAL(result2.num_transitions(), expected_transitions);
-      BOOST_CHECK_EQUAL(result2.num_action_labels(), expected_labels);
-
-      if (!contains_probabilities)
-      {
-        std::cerr << "FSM FORMAT\n";
-        lts::lts_fsm_t result3 = translate_lps_to_lts<lts::lts_fsm_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-        BOOST_CHECK_EQUAL(result3.num_states(), expected_states);
-        BOOST_CHECK_EQUAL(result3.num_transitions(), expected_transitions);
-        BOOST_CHECK_EQUAL(result3.num_action_labels(), expected_labels);
-      }
-
-      std::cerr << "PROBABILISTIC FSM FORMAT\n";
-      lts::probabilistic_lts_fsm_t result3 = translate_lps_to_lts<lts::probabilistic_lts_fsm_t>(lps, *expl_strategy, *rewr_strategy, priority_action);
-
-      BOOST_CHECK_EQUAL(result3.num_states(), expected_states);
-      BOOST_CHECK_EQUAL(result3.num_transitions(), expected_transitions);
-      BOOST_CHECK_EQUAL(result3.num_action_labels(), expected_labels);
-
     }
   }
 }
@@ -229,7 +247,7 @@ BOOST_AUTO_TEST_CASE(test_abp)
     "init P(1, dc, true, 1, dc1, dc2, 1, dc9, 1, dc13, true);\n"
   );
   check_lps2lts_specification(abp, 74, 92, 20);
-  check_lps2lts_specification(abp, 74, 92, 20, false, "tau");
+  check_lps2lts_specification(abp, 74, 92, 20, "tau");
 }
 
 BOOST_AUTO_TEST_CASE(test_confluence)
@@ -253,7 +271,7 @@ BOOST_AUTO_TEST_CASE(test_confluence)
     "init P(1, S_FSM_UNINITIALIZED, []);\n"
   );
   check_lps2lts_specification(spec, 4, 3, 3);
-  check_lps2lts_specification(spec, 3, 2, 3, false, "tau");
+  check_lps2lts_specification(spec, 3, 2, 3, "tau");
 }
 
 BOOST_AUTO_TEST_CASE(test_function_updates)
@@ -597,8 +615,7 @@ BOOST_AUTO_TEST_CASE(test_whether_probabilistic_state_spaces_are_generated_corre
     "proc P(b:Bool) = b->a.P(false);\n"
     "init dist b: Bool[if(b, 1 / 4, 3 / 4)] . P(b);\n"
   );
-  const bool contains_probabilities=true;
-  check_lps2lts_specification(spec, 2, 1, 2, contains_probabilities);
+  check_lps2lts_specification(spec, 2, 1, 2);
 }
 
 BOOST_AUTO_TEST_CASE(coins_simulate_dice)   // Example from the probabilistic examples directory. 
@@ -683,18 +700,18 @@ BOOST_AUTO_TEST_CASE(coins_simulate_dice)   // Example from the probabilistic ex
     "\n"
     "init dist b3: Bool[1 / 2] . P(2, b3, dc, dc1, dc2);\n"
   );
-  const bool contains_probabilities=true;
-  check_lps2lts_specification(spec, 26, 26, 9, contains_probabilities);
+  check_lps2lts_specification(spec, 26, 26, 9);
 } 
 
-
-
-
-#else // ndef MCRL2_SKIP_LONG_TESTS
-
-BOOST_AUTO_TEST_CASE(skip_test)
+BOOST_AUTO_TEST_CASE(test_whether_action_a_b_and_b_a_are_the_same)   // Related to #1595
 {
+  std::string spec(
+    "act a,b;\n"
+    "proc P = a|b.P+\n"
+    "         b|a.P;\n"
+    "init P;\n"
+  );
+  check_lps2lts_specification(spec, 1, 2, 2);
 }
 
-#endif // ndef MCRL2_SKIP_LONG_TESTS
 

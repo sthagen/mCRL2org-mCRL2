@@ -14,12 +14,6 @@
 
 #include "mcrl2/data/builder.h"
 #include "mcrl2/data/is_simple_substitution.h"
-#include "mcrl2/data/undefined.h"
-#include "mcrl2/utilities/exception.h"
-#include <functional>
-#include <iostream>
-#include <sstream>
-#include <string>
 
 namespace mcrl2 {
 
@@ -80,7 +74,7 @@ data_expression enumerator_replace(const T& x, const variable_list& variables, c
 /// \brief Substitution that stores the assignments as a sequence of variables and a sequence of expressions.
 /// It supports function composition efficiently. This is done by simply concatenating the variables and
 /// expressions of the two substitutions. As a result, evaluating the substitution becomes more expensive.
-struct enumerator_substitution: public std::unary_function<data::variable, data::data_expression>
+struct enumerator_substitution
 {
   /// \brief type used to represent variables
   typedef data::variable variable_type;
@@ -103,13 +97,6 @@ struct enumerator_substitution: public std::unary_function<data::variable, data:
   data::data_expression operator()(const data::variable& v) const
   {
     return detail::enumerator_replace(v, variables, expressions);
-  }
-
-  template <typename Expression>
-  data::data_expression operator()(const Expression&) const
-  {
-    throw mcrl2::runtime_error("data::enumerator_substitution::operator(const Expression&) is a deprecated interface!");
-    return data::undefined_data_expression();
   }
 
   // Adds the assignment [v := e] to this substitution, by putting it in front of the lists with variables and expressions.

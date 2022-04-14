@@ -1,24 +1,24 @@
 add_mcrl2_library(lps
   INSTALL_HEADERS TRUE
-  NOHEADERTEST
-    # These headers require C++17. Reenable when compiling with C++17.
-    mcrl2/lps/explorer-cpp17.h
-
   SOURCES
     lps.cpp
+    lps_io.cpp
     tools.cpp
     linearise.cpp
     lpsparunfoldlib.cpp
     next_state_generator.cpp
-    simulation.cpp
+    symbolic_lts_io.cpp
   DEPENDS
     mcrl2_core
     mcrl2_data
     mcrl2_process
+    mcrl2_smt
   INCLUDE
-    # TODO: get rid of the trace header dependency
-    ${CMAKE_SOURCE_DIR}/libraries/trace/include
     ${Boost_INCLUDE_DIRS}
 )
+
+if (UNIX)
+  target_link_libraries(mcrl2_lps mcrl2_symbolic)
+endif()
 
 add_subdirectory(example)

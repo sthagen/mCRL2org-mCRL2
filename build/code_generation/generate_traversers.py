@@ -7,15 +7,17 @@
 import os
 import re
 import sys
+from functools import cmp_to_key
 from mcrl2_classes import *
 from mcrl2_utility import *
 
 MCRL2_ROOT = '../../'
 
 def compare_classes(x, y):
+    mycmp = (lambda a, b : (a > b) - (a < b))
     if 'X' in x.modifiers() and 'X' in y.modifiers():
-        return cmp(x.index, y.index)
-    return cmp('X' in x.modifiers(), 'X' in y.modifiers())
+        return mycmp(x.index, y.index)
+    return mycmp('X' in x.modifiers(), 'X' in y.modifiers())
 
 def make_traverser(filename, traverser, add_traverser, parent_traverser, class_map, all_classes, namespace, expression, dependencies):
     TRAVERSER = '''template <template <class> class Traverser, class Derived>
@@ -41,7 +43,7 @@ struct <TRAVERSER>: public <ADD_TRAVERSER><<PARENT_TRAVERSER>, Derived>
     classes = [all_classes[name] for name in classnames]
 
     # preserve the same order as old generation
-    classes.sort(compare_classes)
+    classes = sorted(classes, key=cmp_to_key(compare_classes))
 
     for c in classes:
         if is_dependent_type(dependencies, c.classname(True)) or ('E' in c.modifiers() and is_dependent_type(dependencies, c.superclass(True))):
@@ -93,7 +95,7 @@ struct <BUILDER>: public <ADD_BUILDER><<PARENT_BUILDER>, Derived>
     classes = [all_classes[name] for name in classnames]
 
     # preserve the same order as old generation
-    classes.sort(compare_classes)
+    classes = sorted(classes, key=cmp_to_key(compare_classes))
 
     for c in classes:
         if is_dependent_type(dependencies, c.classname(True)) or ('E' in c.modifiers() and is_dependent_type(dependencies, c.superclass(True))):
@@ -107,11 +109,16 @@ struct <BUILDER>: public <ADD_BUILDER><<PARENT_BUILDER>, Derived>
 
     #----------------------------------------------------------------------------------------#
     # N.B. THIS IS AN UGLY HACK to deal with the optional time function in some LPS classes
-    # TODO: investigate if the time interface can be improved
+    # TODO: investigate if the time interface can be improved. 
+    # The first substitution is still necessary for a timed_deadlock summand. This needs to be adapted. 
     text = text.replace('x.time() = static_cast<Derived&>(*this).apply(x.time());', '''if (x.has_time())
     {
-      x.time() = static_cast<Derived&>(*this).apply(x.time());
+      x.time() = static_cast<Derived&>(*this).apply(x.time());    
     }''')
+    text = text.replace('lps::multi_action result = lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), static_cast<Derived&>(*this).apply(x.time()));',
+'''lps::multi_action result = x.has_time() ?
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), static_cast<Derived&>(*this).apply(x.time())) :
+      lps::multi_action(static_cast<Derived&>(*this).apply(x.actions()), x.time());''')
     #----------------------------------------------------------------------------------------#
 
     label = add_builder

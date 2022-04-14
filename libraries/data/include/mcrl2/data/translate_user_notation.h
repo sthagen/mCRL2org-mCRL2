@@ -14,8 +14,6 @@
 
 #include "mcrl2/data/builder.h"
 #include "mcrl2/data/standard_container_utility.h"
-#include "mcrl2/data/standard_utility.h"
-#include <functional>
 
 namespace mcrl2
 {
@@ -103,22 +101,22 @@ public:
         return sort_fbag::fbag(element_sort, derived().apply(data_expression_list(x.begin(), x.end())));
       }
     }
-
-    typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
-    function_pointer fp = &Derived::apply;
+   
     data_expression result = application(
-       derived().apply(x.head()),
+       x.head(),
        x.begin(),
        x.end(),
-       std::bind(fp, derived(), std::placeholders::_1)
-    );
+       [&](const data_expression& d){ return derived().apply(d); }
+    ); 
     derived().leave(x);
     return result;
   }
 };
 
-struct translate_user_notation_function: public std::unary_function<data_expression, data_expression>
+struct translate_user_notation_function
 {
+  using argument_type = data_expression;
+
   data_expression operator()(const data_expression& x) const
   {
     return core::make_apply_builder<translate_user_notation_builder>().apply(x);

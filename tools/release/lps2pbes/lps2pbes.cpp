@@ -10,7 +10,6 @@
 /// \brief Add your file description here.
 
 #include "mcrl2/pbes/tools.h"
-#include "mcrl2/utilities/text_utility.h"
 #include "mcrl2/utilities/input_output_tool.h"
 #include "mcrl2/bes/pbes_output_tool.h"
 
@@ -27,19 +26,19 @@ class lps2pbes_tool : public pbes_output_tool<input_output_tool>
 
   protected:
     std::string formula_filename;
-    bool timed;
-    bool structured;
-    bool unoptimized;
-    bool preprocess_modal_operators;
-    bool generate_counter_example;
-    bool check_only;
+    bool timed = false;
+    bool structured = false;
+    bool unoptimized = false;
+    bool preprocess_modal_operators = false;
+    bool generate_counter_example = false;
+    bool check_only = false;
 
-    std::string synopsis() const
+    std::string synopsis() const override
     {
       return "[OPTION]... --formula=FILE [INFILE [OUTFILE]]\n";
     }
 
-    void add_options(interface_description& desc)
+    void add_options(interface_description& desc) override
     {
       super::add_options(desc);
       desc.add_option("formula", make_file_argument("FILE"),
@@ -58,7 +57,7 @@ class lps2pbes_tool : public pbes_output_tool<input_output_tool>
                              "check syntax and semantics of state formula; do not generate PBES", 'e');
     }
 
-    void parse_options(const command_line_parser& parser)
+    void parse_options(const command_line_parser& parser) override
     {
       super::parse_options(parser);
       if (parser.options.count("formula"))
@@ -84,7 +83,7 @@ class lps2pbes_tool : public pbes_output_tool<input_output_tool>
       )
     {}
 
-    bool run()
+    bool run() override
     {
       lps2pbes(input_filename(),
                output_filename(),
