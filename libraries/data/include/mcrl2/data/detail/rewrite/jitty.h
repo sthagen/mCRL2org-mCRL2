@@ -11,6 +11,7 @@
 #define MCRL2_DATA_DETAIL_REWRITE_JITTY_H
 
 #include "mcrl2/data/detail/rewrite.h"
+#include "mcrl2/data/detail/rewrite/rewrite_stack.h"
 #include "mcrl2/data/detail/rewrite/strategy_rule.h"
 
 namespace mcrl2
@@ -20,26 +21,86 @@ namespace data
 namespace detail
 {
 
+struct jitty_variable_assignment_for_a_rewrite_rule
+{
+  const variable& var;
+  const data_expression& term;
+  bool variable_is_a_normal_form;
+
+   jitty_variable_assignment_for_a_rewrite_rule(const variable& m_var,  const data_expression& m_term, bool m_nf)
+   : var(m_var),
+     term(m_term),
+     variable_is_a_normal_form(m_nf)
+  {}
+};
+
+struct jitty_assignments_for_a_rewrite_rule
+{
+  std::size_t size;
+  jitty_variable_assignment_for_a_rewrite_rule* assignment;
+
+  jitty_assignments_for_a_rewrite_rule(jitty_variable_assignment_for_a_rewrite_rule* a)
+   : size(0),
+     assignment(a)
+  {}
+
+};
+
 class RewriterJitty: public Rewriter
 {
   public:
+    friend class jitty_argument_rewriter;
+
     typedef Rewriter::substitution_type substitution_type;
 
-    RewriterJitty(const data_specification& data_spec, const used_data_equation_selector &);
+    RewriterJitty(const data_specification& data_spec, const used_data_equation_selector& );
+    
+    // The copy constructor.
+    RewriterJitty(const RewriterJitty& other) = default;
+
+    // The assignment operator.
+    RewriterJitty& operator=(const RewriterJitty& other) = delete;
+
     virtual ~RewriterJitty();
 
     rewrite_strategy getStrategy();
 
-    data_expression rewrite(const data_expression &term, substitution_type &sigma);
+    data_expression rewrite(const data_expression& term, substitution_type& sigma);
 
-    RewriterJitty& operator=(const RewriterJitty& other)=delete;
+    void rewrite(data_expression& result, const data_expression& term, substitution_type& sigma);
 
-  private:
+    std::shared_ptr<detail::Rewriter> clone()
+    {
+      return std::shared_ptr<Rewriter>(new RewriterJitty(*this));
+    }
+
+    const function_symbol& this_term_is_in_normal_form() 
+    {
+      return this_term_is_in_normal_form_symbol;
+    }
+
+  protected:
+
+    // A dedicated function symbol that indicates that a term is in normal form. It has name "Rewritten@@term".
+    // The function symbol below is used to administrate that a term is in normal form. It is put around a term.
+    // Terms with this auxiliary function symbol cannot be printed using the pretty printer for data expressions.
+    function_symbol this_term_is_in_normal_form_symbol;
+    bool rewriting_in_progress;
+
+    class rewrite_stack m_rewrite_stack;     // Stack for intermediate rewrite results.
+
+    std::vector<data_expression> rhs_for_constants_cache; // Cache that contains normal forms for constants. 
     std::map< function_symbol, data_equation_list > jitty_eqns;
     std::vector<strategy> jitty_strat;
 
+    std::atomic<bool>* m_busy_flag = nullptr;
+    std::atomic<bool>* m_forbidden_flag = nullptr;
+    std::size_t* m_creation_depth = nullptr;
+
+
     template <class ITERATOR>
-    data_expression apply_cpp_code_to_higher_order_term(
+    void apply_cpp_code_to_higher_order_term(
+                  data_expression& result,
                   const application& t,
                   const std::function<data_expression(const data_expression&)> rewrite_cpp_code,
                   ITERATOR begin,
@@ -47,14 +108,16 @@ class RewriterJitty: public Rewriter
                   substitution_type& sigma);
 
 
-    data_expression rewrite_aux(const data_expression& term, substitution_type& sigma);
+    void rewrite_aux(data_expression& result, const data_expression& term, substitution_type& sigma);
 
-    data_expression rewrite_aux_function_symbol(
+    void rewrite_aux_function_symbol(
+                      data_expression& result,
                       const function_symbol& op,
                       const application& term,
                       substitution_type& sigma);
 
-    data_expression rewrite_aux_const_function_symbol(
+    void rewrite_aux_const_function_symbol(
+                      data_expression& result,
                       const function_symbol& op,
                       substitution_type& sigma);
 
@@ -66,6 +129,20 @@ class RewriterJitty: public Rewriter
     strategy create_a_rewriting_based_strategy(const function_symbol& f, const data_equation_list& rules1);
     strategy create_strategy(const function_symbol& f, const data_equation_list& rules1, const data_specification& data_spec);
     void rebuild_strategy(const data_specification& data_spec, const mcrl2::data::used_data_equation_selector& equation_selector);
+
+    data_expression remove_normal_form_function(const data_expression& t);
+    void subst_values(
+            data_expression& result,
+            const jitty_assignments_for_a_rewrite_rule& assignments,
+            const data_expression& t,
+            data::enumerator_identifier_generator& generator);
+     
+    void thread_initialise()
+    {
+      m_busy_flag = atermpp::detail::g_thread_term_pool().get_busy_flag();
+      m_forbidden_flag = atermpp::detail::g_thread_term_pool().get_forbidden_flag();
+      m_creation_depth = atermpp::detail::g_thread_term_pool().get_creation_depth();
+    }
 };
 
 /// \brief removes auxiliary expressions this_term_is_in_normal_form from data_expressions that are being rewritten.
@@ -74,8 +151,8 @@ class RewriterJitty: public Rewriter
 ///          when rewriting to avoid to rewrite too often.
 data_expression remove_normal_form_function(const data_expression& t);
 
-}
-}
-}
+} // namespace detail
+} // namespace data
+} // namespace mcrl2
 
 #endif

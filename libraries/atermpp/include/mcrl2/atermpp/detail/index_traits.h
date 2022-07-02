@@ -6,25 +6,21 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 //
-/// \file mcrl2/core/index_traits.h
-/// \brief add your file description here.
 
+#ifndef MCRL2_ATERMPP_INDEX_TRAITS_H
+#define MCRL2_ATERMPP_INDEX_TRAITS_H
 
-#ifndef MCRL2_CORE_INDEX_TRAITS_H
-#define MCRL2_CORE_INDEX_TRAITS_H
+#include "mcrl2/atermpp/standard_containers/unordered_map.h"
+#include "mcrl2/atermpp/detail/aterm_configuration.h"
 
-#include <unordered_map>
+namespace atermpp {
 
-#include "mcrl2/core/identifier_string.h"
-
-namespace mcrl2 {
-
-namespace core {
+namespace detail {
 
 template <typename Variable, typename KeyType>
-std::unordered_map<KeyType, std::size_t>& variable_index_map()
+atermpp::unordered_map<KeyType, std::size_t>& variable_index_map()
 {
-  static std::unordered_map<KeyType, std::size_t> m;
+  static atermpp::unordered_map<KeyType, std::size_t> m;
   return m;
 }
 
@@ -34,6 +30,14 @@ std::stack<std::size_t>& variable_map_free_numbers()
   static std::stack<std::size_t> s;
   return s;
 }
+
+template <typename Variable, typename KeyType>
+std::mutex& variable_mutex()
+{
+  static std::mutex m;
+  return m;
+}
+
 
 template <typename Variable, typename KeyType>
 std::size_t& variable_map_max_index()
@@ -54,12 +58,14 @@ std::size_t& variable_map_max_index()
 template <typename Variable, typename KeyType, const int N>
 struct index_traits
 {
+
+public:
   /// \brief Returns the index of the variable.
   static inline
   std::size_t index(const Variable& x)
   {
-    const atermpp::aterm_int& i = atermpp::down_cast<const atermpp::aterm_int>(x[N]);
-    return i.value();
+    const _aterm_int* i = reinterpret_cast<const _aterm_int*>(address(x[N]));
+    return i->value();
   }
 
   /// \brief Returns an upper bound for the largest index of a variable that is currently in use.
@@ -74,12 +80,14 @@ struct index_traits
   static inline
   std::size_t insert(const KeyType& x)
   {
+    if constexpr (atermpp::detail::GlobalThreadSafe) { variable_mutex<Variable, KeyType>().lock(); }
+
     auto& m = variable_index_map<Variable, KeyType>();
     auto i = m.find(x);
+    std::size_t value;
     if (i == m.end())
     {
       auto& s = variable_map_free_numbers<Variable, KeyType>();
-      std::size_t value;
       if (s.empty())
       {
         value = m.size();
@@ -91,9 +99,13 @@ struct index_traits
         s.pop();
       }
       m[x] = value;
-      return value;
     }
-    return i->second;
+    else 
+    {
+      value = i->second;
+    }
+    if constexpr (atermpp::detail::GlobalThreadSafe) { variable_mutex<Variable, KeyType>().unlock(); }
+    return value;
   }
 
   /// \brief Note: intended for internal use only!
@@ -101,12 +113,16 @@ struct index_traits
   static inline
   void erase(const KeyType& x)
   {
+    if constexpr (atermpp::detail::GlobalThreadSafe) { variable_mutex<Variable, KeyType>().lock(); }
+
     auto& m = variable_index_map<Variable, KeyType>();
     auto& s = variable_map_free_numbers<Variable, KeyType>();
     auto i = m.find(x);
     assert(i != m.end());
     s.push(i->second);
     m.erase(i);
+
+    if constexpr (atermpp::detail::GlobalThreadSafe) { variable_mutex<Variable, KeyType>().unlock(); }
   }
 
   /// \brief Note: intended for internal use only!
@@ -119,8 +135,8 @@ struct index_traits
   }
 };
 
-} // namespace core
+} // namespace detail
 
-} // namespace mcrl2
+} // namespace atermpp
 
-#endif // MCRL2_CORE_INDEX_TRAITS_H
+#endif // MCRL2_ATERMPP_INDEX_TRAITS_H

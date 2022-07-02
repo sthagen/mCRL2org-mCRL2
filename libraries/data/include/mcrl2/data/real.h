@@ -106,7 +106,7 @@ namespace mcrl2 {
       inline
       const function_symbol& creal()
       {
-        static function_symbol creal(creal_name(), make_function_sort(sort_int::int_(), sort_pos::pos(), real_()));
+        static function_symbol creal(creal_name(), make_function_sort_(sort_int::int_(), sort_pos::pos(), real_()));
         return creal;
       }
 
@@ -134,6 +134,17 @@ namespace mcrl2 {
         return sort_real::creal()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@cReal.
+      /// \param result The data expression where the \@cReal expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_creal(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::creal(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@cReal.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol creal to a
@@ -159,7 +170,7 @@ namespace mcrl2 {
       inline
       const function_symbol& pos2real()
       {
-        static function_symbol pos2real(pos2real_name(), make_function_sort(sort_pos::pos(), real_()));
+        static function_symbol pos2real(pos2real_name(), make_function_sort_(sort_pos::pos(), real_()));
         return pos2real;
       }
 
@@ -184,6 +195,16 @@ namespace mcrl2 {
       application pos2real(const data_expression& arg0)
       {
         return sort_real::pos2real()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Pos2Real.
+      /// \param result The data expression where the Pos2Real expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_pos2real(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::pos2real(),arg0);
       }
 
       /// \brief Recogniser for application of Pos2Real.
@@ -211,7 +232,7 @@ namespace mcrl2 {
       inline
       const function_symbol& nat2real()
       {
-        static function_symbol nat2real(nat2real_name(), make_function_sort(sort_nat::nat(), real_()));
+        static function_symbol nat2real(nat2real_name(), make_function_sort_(sort_nat::nat(), real_()));
         return nat2real;
       }
 
@@ -236,6 +257,16 @@ namespace mcrl2 {
       application nat2real(const data_expression& arg0)
       {
         return sort_real::nat2real()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Nat2Real.
+      /// \param result The data expression where the Nat2Real expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_nat2real(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::nat2real(),arg0);
       }
 
       /// \brief Recogniser for application of Nat2Real.
@@ -263,7 +294,7 @@ namespace mcrl2 {
       inline
       const function_symbol& int2real()
       {
-        static function_symbol int2real(int2real_name(), make_function_sort(sort_int::int_(), real_()));
+        static function_symbol int2real(int2real_name(), make_function_sort_(sort_int::int_(), real_()));
         return int2real;
       }
 
@@ -288,6 +319,16 @@ namespace mcrl2 {
       application int2real(const data_expression& arg0)
       {
         return sort_real::int2real()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Int2Real.
+      /// \param result The data expression where the Int2Real expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_int2real(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::int2real(),arg0);
       }
 
       /// \brief Recogniser for application of Int2Real.
@@ -315,7 +356,7 @@ namespace mcrl2 {
       inline
       const function_symbol& real2pos()
       {
-        static function_symbol real2pos(real2pos_name(), make_function_sort(real_(), sort_pos::pos()));
+        static function_symbol real2pos(real2pos_name(), make_function_sort_(real_(), sort_pos::pos()));
         return real2pos;
       }
 
@@ -340,6 +381,16 @@ namespace mcrl2 {
       application real2pos(const data_expression& arg0)
       {
         return sort_real::real2pos()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Real2Pos.
+      /// \param result The data expression where the Real2Pos expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_real2pos(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::real2pos(),arg0);
       }
 
       /// \brief Recogniser for application of Real2Pos.
@@ -367,7 +418,7 @@ namespace mcrl2 {
       inline
       const function_symbol& real2nat()
       {
-        static function_symbol real2nat(real2nat_name(), make_function_sort(real_(), sort_nat::nat()));
+        static function_symbol real2nat(real2nat_name(), make_function_sort_(real_(), sort_nat::nat()));
         return real2nat;
       }
 
@@ -392,6 +443,16 @@ namespace mcrl2 {
       application real2nat(const data_expression& arg0)
       {
         return sort_real::real2nat()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Real2Nat.
+      /// \param result The data expression where the Real2Nat expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_real2nat(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::real2nat(),arg0);
       }
 
       /// \brief Recogniser for application of Real2Nat.
@@ -419,7 +480,7 @@ namespace mcrl2 {
       inline
       const function_symbol& real2int()
       {
-        static function_symbol real2int(real2int_name(), make_function_sort(real_(), sort_int::int_()));
+        static function_symbol real2int(real2int_name(), make_function_sort_(real_(), sort_int::int_()));
         return real2int;
       }
 
@@ -444,6 +505,16 @@ namespace mcrl2 {
       application real2int(const data_expression& arg0)
       {
         return sort_real::real2int()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Real2Int.
+      /// \param result The data expression where the Real2Int expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_real2int(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::real2int(),arg0);
       }
 
       /// \brief Recogniser for application of Real2Int.
@@ -515,7 +586,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for maximum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol maximum(maximum_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol maximum(maximum_name(), make_function_sort_(s0, s1, target_sort));
         return maximum;
       }
 
@@ -542,6 +613,17 @@ namespace mcrl2 {
       application maximum(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::maximum(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol max.
+      /// \param result The data expression where the max expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_maximum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::maximum(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of max.
@@ -589,7 +671,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for minimum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol minimum(minimum_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol minimum(minimum_name(), make_function_sort_(s0, s1, target_sort));
         return minimum;
       }
 
@@ -616,6 +698,17 @@ namespace mcrl2 {
       application minimum(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::minimum(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol min.
+      /// \param result The data expression where the min expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_minimum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::minimum(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of min.
@@ -655,7 +748,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for abs with domain sorts " + pp(s0));
         }
 
-        function_symbol abs(abs_name(), make_function_sort(s0, target_sort));
+        function_symbol abs(abs_name(), make_function_sort_(s0, target_sort));
         return abs;
       }
 
@@ -681,6 +774,16 @@ namespace mcrl2 {
       application abs(const data_expression& arg0)
       {
         return sort_real::abs(arg0.sort())(arg0);
+      }
+
+      /// \brief Make an application of function symbol abs.
+      /// \param result The data expression where the abs expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_abs(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::abs(arg0.sort()),arg0);
       }
 
       /// \brief Recogniser for application of abs.
@@ -728,7 +831,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for negate with domain sorts " + pp(s0));
         }
 
-        function_symbol negate(negate_name(), make_function_sort(s0, target_sort));
+        function_symbol negate(negate_name(), make_function_sort_(s0, target_sort));
         return negate;
       }
 
@@ -754,6 +857,16 @@ namespace mcrl2 {
       application negate(const data_expression& arg0)
       {
         return sort_real::negate(arg0.sort())(arg0);
+      }
+
+      /// \brief Make an application of function symbol -.
+      /// \param result The data expression where the - expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_negate(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::negate(arg0.sort()),arg0);
       }
 
       /// \brief Recogniser for application of -.
@@ -801,7 +914,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for succ with domain sorts " + pp(s0));
         }
 
-        function_symbol succ(succ_name(), make_function_sort(s0, target_sort));
+        function_symbol succ(succ_name(), make_function_sort_(s0, target_sort));
         return succ;
       }
 
@@ -827,6 +940,16 @@ namespace mcrl2 {
       application succ(const data_expression& arg0)
       {
         return sort_real::succ(arg0.sort())(arg0);
+      }
+
+      /// \brief Make an application of function symbol succ.
+      /// \param result The data expression where the succ expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_succ(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::succ(arg0.sort()),arg0);
       }
 
       /// \brief Recogniser for application of succ.
@@ -874,7 +997,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for pred with domain sorts " + pp(s0));
         }
 
-        function_symbol pred(pred_name(), make_function_sort(s0, target_sort));
+        function_symbol pred(pred_name(), make_function_sort_(s0, target_sort));
         return pred;
       }
 
@@ -900,6 +1023,16 @@ namespace mcrl2 {
       application pred(const data_expression& arg0)
       {
         return sort_real::pred(arg0.sort())(arg0);
+      }
+
+      /// \brief Make an application of function symbol pred.
+      /// \param result The data expression where the pred expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_pred(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::pred(arg0.sort()),arg0);
       }
 
       /// \brief Recogniser for application of pred.
@@ -955,7 +1088,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for plus with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol plus(plus_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol plus(plus_name(), make_function_sort_(s0, s1, target_sort));
         return plus;
       }
 
@@ -982,6 +1115,17 @@ namespace mcrl2 {
       application plus(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::plus(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol +.
+      /// \param result The data expression where the + expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_plus(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::plus(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of +.
@@ -1029,7 +1173,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for minus with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol minus(minus_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol minus(minus_name(), make_function_sort_(s0, s1, target_sort));
         return minus;
       }
 
@@ -1056,6 +1200,17 @@ namespace mcrl2 {
       application minus(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::minus(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol -.
+      /// \param result The data expression where the - expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_minus(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::minus(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of -.
@@ -1103,7 +1258,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for times with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol times(times_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol times(times_name(), make_function_sort_(s0, s1, target_sort));
         return times;
       }
 
@@ -1130,6 +1285,17 @@ namespace mcrl2 {
       application times(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::times(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol *.
+      /// \param result The data expression where the * expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_times(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::times(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of *.
@@ -1177,7 +1343,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for exp with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol exp(exp_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol exp(exp_name(), make_function_sort_(s0, s1, target_sort));
         return exp;
       }
 
@@ -1206,6 +1372,17 @@ namespace mcrl2 {
         return sort_real::exp(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol exp.
+      /// \param result The data expression where the exp expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_exp(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::exp(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of exp.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol exp to a
@@ -1230,7 +1407,7 @@ namespace mcrl2 {
       function_symbol divides(const sort_expression& s0, const sort_expression& s1)
       {
         sort_expression target_sort(real_());
-        function_symbol divides(divides_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol divides(divides_name(), make_function_sort_(s0, s1, target_sort));
         return divides;
       }
 
@@ -1259,6 +1436,17 @@ namespace mcrl2 {
         return sort_real::divides(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol /.
+      /// \param result The data expression where the / expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_divides(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::divides(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of /.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol divides to a
@@ -1284,7 +1472,7 @@ namespace mcrl2 {
       inline
       const function_symbol& floor()
       {
-        static function_symbol floor(floor_name(), make_function_sort(real_(), sort_int::int_()));
+        static function_symbol floor(floor_name(), make_function_sort_(real_(), sort_int::int_()));
         return floor;
       }
 
@@ -1309,6 +1497,16 @@ namespace mcrl2 {
       application floor(const data_expression& arg0)
       {
         return sort_real::floor()(arg0);
+      }
+
+      /// \brief Make an application of function symbol floor.
+      /// \param result The data expression where the floor expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_floor(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::floor(),arg0);
       }
 
       /// \brief Recogniser for application of floor.
@@ -1336,7 +1534,7 @@ namespace mcrl2 {
       inline
       const function_symbol& ceil()
       {
-        static function_symbol ceil(ceil_name(), make_function_sort(real_(), sort_int::int_()));
+        static function_symbol ceil(ceil_name(), make_function_sort_(real_(), sort_int::int_()));
         return ceil;
       }
 
@@ -1361,6 +1559,16 @@ namespace mcrl2 {
       application ceil(const data_expression& arg0)
       {
         return sort_real::ceil()(arg0);
+      }
+
+      /// \brief Make an application of function symbol ceil.
+      /// \param result The data expression where the ceil expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_ceil(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::ceil(),arg0);
       }
 
       /// \brief Recogniser for application of ceil.
@@ -1388,7 +1596,7 @@ namespace mcrl2 {
       inline
       const function_symbol& round()
       {
-        static function_symbol round(round_name(), make_function_sort(real_(), sort_int::int_()));
+        static function_symbol round(round_name(), make_function_sort_(real_(), sort_int::int_()));
         return round;
       }
 
@@ -1413,6 +1621,16 @@ namespace mcrl2 {
       application round(const data_expression& arg0)
       {
         return sort_real::round()(arg0);
+      }
+
+      /// \brief Make an application of function symbol round.
+      /// \param result The data expression where the round expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_round(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_real::round(),arg0);
       }
 
       /// \brief Recogniser for application of round.
@@ -1440,7 +1658,7 @@ namespace mcrl2 {
       inline
       const function_symbol& reduce_fraction()
       {
-        static function_symbol reduce_fraction(reduce_fraction_name(), make_function_sort(sort_int::int_(), sort_int::int_(), real_()));
+        static function_symbol reduce_fraction(reduce_fraction_name(), make_function_sort_(sort_int::int_(), sort_int::int_(), real_()));
         return reduce_fraction;
       }
 
@@ -1468,6 +1686,17 @@ namespace mcrl2 {
         return sort_real::reduce_fraction()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@redfrac.
+      /// \param result The data expression where the \@redfrac expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_reduce_fraction(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::reduce_fraction(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@redfrac.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol reduce_fraction to a
@@ -1493,7 +1722,7 @@ namespace mcrl2 {
       inline
       const function_symbol& reduce_fraction_where()
       {
-        static function_symbol reduce_fraction_where(reduce_fraction_where_name(), make_function_sort(sort_pos::pos(), sort_int::int_(), sort_nat::nat(), real_()));
+        static function_symbol reduce_fraction_where(reduce_fraction_where_name(), make_function_sort_(sort_pos::pos(), sort_int::int_(), sort_nat::nat(), real_()));
         return reduce_fraction_where;
       }
 
@@ -1522,6 +1751,18 @@ namespace mcrl2 {
         return sort_real::reduce_fraction_where()(arg0, arg1, arg2);
       }
 
+      /// \brief Make an application of function symbol \@redfracwhr.
+      /// \param result The data expression where the \@redfracwhr expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_reduce_fraction_where(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_real::reduce_fraction_where(),arg0, arg1, arg2);
+      }
+
       /// \brief Recogniser for application of \@redfracwhr.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol reduce_fraction_where to a
@@ -1547,7 +1788,7 @@ namespace mcrl2 {
       inline
       const function_symbol& reduce_fraction_helper()
       {
-        static function_symbol reduce_fraction_helper(reduce_fraction_helper_name(), make_function_sort(real_(), sort_int::int_(), real_()));
+        static function_symbol reduce_fraction_helper(reduce_fraction_helper_name(), make_function_sort_(real_(), sort_int::int_(), real_()));
         return reduce_fraction_helper;
       }
 
@@ -1573,6 +1814,17 @@ namespace mcrl2 {
       application reduce_fraction_helper(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_real::reduce_fraction_helper()(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol \@redfrachlp.
+      /// \param result The data expression where the \@redfrachlp expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_reduce_fraction_helper(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_real::reduce_fraction_helper(),arg0, arg1);
       }
 
       /// \brief Recogniser for application of \@redfrachlp.

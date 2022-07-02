@@ -143,7 +143,6 @@ class data_expression: public atermpp::aterm_appl
     data_expression& operator=(const data_expression&) noexcept = default;
     data_expression& operator=(data_expression&&) noexcept = default;
 //--- start user section data_expression ---//
-    //
     /// \brief A function to efficiently determine whether a data expression is 
     ///        made by the default constructor.
     bool is_default_data_expression() const
@@ -203,6 +202,11 @@ inline void swap(data_expression& t1, data_expression& t2)
   t1.swap(t2);
 }
 //--- end generated class data_expression ---//
+
+inline void make_data_expression(data_expression& result)
+{
+  static_cast<atermpp::aterm_appl&>(result)=core::detail::default_values::DataExpr;
+}
 
 /// \brief Test for a data_expression expression
 /// \param x A term

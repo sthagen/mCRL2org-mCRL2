@@ -34,6 +34,7 @@ class RewriterProver: public Rewriter
       : Rewriter(data_spec, equations_selector),
         prover_obj(data_spec, equations_selector, strat)
     {
+      thread_initialise();
     }
     
     virtual ~RewriterProver()
@@ -41,7 +42,7 @@ class RewriterProver: public Rewriter
 
     rewrite_strategy getStrategy()
     {
-      switch (prover_obj.get_rewriter()->getStrategy())
+      switch (prover_obj.rewriter_strategy())
       {
         case jitty:
           return jitty_prover;
@@ -54,8 +55,8 @@ class RewriterProver: public Rewriter
       }
     }
 
-
-    data_expression rewrite(
+    void rewrite(
+         data_expression& result,
          const data_expression& t,
          substitution_type& sigma)
     {
@@ -68,7 +69,8 @@ class RewriterProver: public Rewriter
       // {
         prover_obj.set_substitution(sigma);
         prover_obj.set_formula(t);
-        return prover_obj.get_bdd();
+        result=prover_obj.get_bdd();
+        return;
       // }
       // else
       //{
@@ -76,7 +78,39 @@ class RewriterProver: public Rewriter
       //}
     }
 
+    data_expression rewrite(
+         const data_expression& t,
+         substitution_type& sigma)
+    {
+      data_expression result;
+      rewrite(result,t,sigma);
+      return result;
+    }
 
+    void thread_initialise() 
+    {
+      Rewriter::thread_initialise();
+      prover_obj.thread_initialise();
+    }
+
+  protected:
+
+    // Protected copy constructor.
+    RewriterProver(const RewriterProver& other) = delete;
+
+    // Copy constructor intended for cloning. 
+    RewriterProver(const RewriterProver& rewr, 
+                   BDD_Prover prover_obj_)
+      : Rewriter(rewr),
+        prover_obj(prover_obj_)
+    {
+      thread_initialise();
+    }
+    
+    std::shared_ptr<Rewriter> clone()
+    {
+      return std::shared_ptr<Rewriter>(new RewriterProver(*this,prover_obj.clone()));
+    }
 };
 
 }

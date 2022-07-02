@@ -65,18 +65,36 @@ data_expression Rewriter::rewrite_where(
                       const where_clause& term,
                       substitution_type& sigma)
 {
+  data_expression result;
+  rewrite_where(result, term, sigma);
+  return result;
+}
+
+void Rewriter::rewrite_where(
+                      data_expression& result,
+                      const where_clause& term,
+                      substitution_type& sigma)
+{
   const assignment_list& assignments = term.assignments();
   const data_expression& body=term.body();
 
   mutable_map_substitution<std::map < variable,data_expression> > variable_renaming;
-  for (const assignment& a: assignments)
+  bool rewrite_stack_too_big_exception_thrown=false;
+  try
   {
-    const variable& v=a.lhs();
-    const variable v_fresh(m_generator(), v.sort());
-    variable_renaming[v]=v_fresh;
-    sigma[v_fresh]=rewrite(a.rhs(),sigma);
+    for (const assignment& a: assignments)
+    {
+      const variable& v=a.lhs();
+      const variable v_fresh(m_generator(), v.sort());
+      variable_renaming[v]=v_fresh;
+      sigma[v_fresh]=rewrite(a.rhs(),sigma);
+    }
+    rewrite(result, replace_variables(body,variable_renaming),sigma);
+  } 
+  catch (recalculate_term_as_stack_is_too_small)
+  {
+    rewrite_stack_too_big_exception_thrown=true;
   }
-  const data_expression result=rewrite(replace_variables(body,variable_renaming),sigma);
 
   // Reset variables in sigma
   for (mutable_map_substitution<std::map < variable,data_expression> >::const_iterator it=variable_renaming.begin();
@@ -84,10 +102,15 @@ data_expression Rewriter::rewrite_where(
   {
     sigma[atermpp::down_cast<variable>(it->second)]=it->second;
   }
-  return result;
+  if (rewrite_stack_too_big_exception_thrown)
+  {
+    throw recalculate_term_as_stack_is_too_small();
+  }
+  return;
 }
 
-abstraction Rewriter::rewrite_single_lambda(
+void Rewriter::rewrite_single_lambda(
+                      data_expression& result,
                       const variable_list& vl,
                       const data_expression& body,
                       const bool body_in_normal_form,
@@ -123,10 +146,11 @@ abstraction Rewriter::rewrite_single_lambda(
 
   if (number_of_renamed_variables==0)
   {
-    return abstraction(lambda_binder(),vl,(body_in_normal_form?body:rewrite(body,sigma)));
+    make_abstraction(result,lambda_binder(),vl,(body_in_normal_form?body:rewrite(body,sigma)));
+    return;
   }
 
-  data_expression result;
+  data_expression result_aux;
   variable_list::const_iterator v;
   if (body_in_normal_form)
   {
@@ -140,7 +164,7 @@ abstraction Rewriter::rewrite_single_lambda(
         variable_renaming[*v] = new_variables[count];
       }
     }
-    result = replace_variables(body, variable_renaming);
+    result_aux = replace_variables(body, variable_renaming);
   }
   else
   {
@@ -156,7 +180,15 @@ abstraction Rewriter::rewrite_single_lambda(
       }
     }
     // ... then we rewrite with the new sigma ...
-    result = rewrite(body,sigma);
+    bool rewrite_stack_too_big_exception_thrown=false;
+    try
+    {
+      rewrite(result_aux,body,sigma);
+    }
+    catch  (recalculate_term_as_stack_is_too_small)
+    {
+      rewrite_stack_too_big_exception_thrown=true;
+    }
     // ... and then we restore sigma to its old state.
     std::size_t new_variable_count = 0;
     for(v = vl.begin(), count = 0; v != vl.end(); ++v, ++count)
@@ -166,9 +198,14 @@ abstraction Rewriter::rewrite_single_lambda(
         sigma[*v] = saved_substitutions[new_variable_count++];
       }
     }
+    if (rewrite_stack_too_big_exception_thrown)
+    {
+      throw recalculate_term_as_stack_is_too_small();
+    }
   }
   variable_list new_variable_list(new_variables.begin(), new_variables.end());
-  return abstraction(lambda_binder(),new_variable_list,result);
+  make_abstraction(result, lambda_binder(),new_variable_list,result_aux);
+  return;
 }
 
 
@@ -177,23 +214,29 @@ abstraction Rewriter::rewrite_single_lambda(
 // It applies the lambda term to its arguments, and rewrites the result to
 // normal form.
 
-data_expression Rewriter::rewrite_lambda_application(
+void Rewriter::rewrite_lambda_application(
+                      data_expression& result,
                       const data_expression& t,
                       substitution_type& sigma)
 {
   if (is_lambda(t))
   {
     const abstraction& ta=atermpp::down_cast<abstraction>(t);
-    return rewrite_single_lambda(ta.variables(),ta.body(),false,sigma);
+    rewrite_single_lambda(result,ta.variables(),ta.body(),false,sigma);
+    return;
   }
 
   const application ta(t);
   if (is_lambda(ta.head()))
   {
-    return rewrite_lambda_application(atermpp::down_cast<abstraction>(ta.head()),ta,sigma);
+    rewrite_lambda_application(result,atermpp::down_cast<abstraction>(ta.head()),ta,sigma);
+    return;
   }
-
-  return rewrite(application(rewrite_lambda_application(ta.head(),sigma),ta.begin(),ta.end()),sigma);
+  rewrite_lambda_application(result,ta.head(),sigma);
+  data_expression aux;     // TODO. Optimize. 
+  make_application(aux,result,ta.begin(),ta.end());
+  rewrite(result,aux,sigma);
+  return;
 }
 
 
@@ -204,7 +247,8 @@ data_expression Rewriter::rewrite_lambda_application(
 // in internal format for L(t1,...,tn). Note that the term t0 is ignored.
 // Note that we assume that neither L, nor t is in normal form.
 
-data_expression Rewriter::rewrite_lambda_application(
+void Rewriter::rewrite_lambda_application(
+                      data_expression& result,
                       const abstraction& lambda_term,
                       const application& t,
                       substitution_type& sigma)
@@ -215,8 +259,8 @@ data_expression Rewriter::rewrite_lambda_application(
   std::size_t arity=t.size();
   if (arity==0) // The term has shape application(lambda d..:D...t), i.e. without arguments.
   {
-    data_expression r= rewrite_single_lambda(vl, lambda_body, true, sigma);
-    return r;
+    rewrite_single_lambda(result, vl, lambda_body, true, sigma);
+    return;
   }
   assert(vl.size()<=arity);
 
@@ -241,7 +285,15 @@ data_expression Rewriter::rewrite_lambda_application(
     count++;
   }
 
-  const data_expression result=rewrite(lambda_body,sigma);
+  bool rewrite_stack_too_big_exception_thrown=false;
+  try
+  {
+    rewrite(result,lambda_body,sigma);
+  }
+  catch (recalculate_term_as_stack_is_too_small)
+  {
+    rewrite_stack_too_big_exception_thrown=true;
+  }
 
   // Reset variables in sigma and destroy the elements in vl_backup.
   count=0;
@@ -251,67 +303,82 @@ data_expression Rewriter::rewrite_lambda_application(
     vl_backup[count].~data_expression();
     count++;
   }
+  if (rewrite_stack_too_big_exception_thrown)
+  {
+    throw recalculate_term_as_stack_is_too_small();
+  }
 
   if (vl.size()==arity)
   {
-    return result;
+    return;
   }
 
   // There are more arguments than bound variables.
   // Rewrite the remaining arguments and apply the rewritten lambda term to them.
-  return application(result,
+  make_application(result,
+                     result,
                      t.begin()+vl.size(),
                      t.end(),
                      [this, &sigma](const data_expression& t) -> data_expression { return rewrite(t, sigma); },
                      false // This false indicates that the function is not applied to head, i.e., result. 
                     );
+  return;
 }
 
-data_expression Rewriter::existential_quantifier_enumeration(
-     const abstraction& t,
-     substitution_type& sigma)
+void Rewriter::existential_quantifier_enumeration(
+      data_expression& result,
+      const abstraction& t,
+      substitution_type& sigma)
 {
   // This is a quantifier elimination that works on the existential quantifier as specified
   // in data types, i.e. without applying the implement function anymore.
 
   assert(is_exists(t));
-  return existential_quantifier_enumeration(t.variables(), t.body(), false, sigma);
+  existential_quantifier_enumeration(result, t.variables(), t.body(), false, sigma);
+  return;
 }
 
 // Generate a term equivalent to exists vl.t1.
 // The variable t1_is_normal_form indicates whether t1 is in normal
 // form, but this information is not used as it stands.
-data_expression Rewriter::existential_quantifier_enumeration(
+void Rewriter::existential_quantifier_enumeration(
+      data_expression& result,
       const variable_list& vl,
       const data_expression& t1,
       const bool t1_is_normal_form,
       substitution_type& sigma)
 {
-  return quantifier_enumeration(vl, t1, t1_is_normal_form, sigma, exists_binder(), &lazy::or_, sort_bool::false_(), sort_bool::true_());
+  quantifier_enumeration(result, vl, t1, t1_is_normal_form, sigma, exists_binder(), &lazy::or_, sort_bool::false_(), sort_bool::true_());
+  return;
 }
 
 
-data_expression Rewriter::universal_quantifier_enumeration(
-     const abstraction& t,
-     substitution_type& sigma)
+void Rewriter::universal_quantifier_enumeration(
+      data_expression& result,
+      const abstraction& t,
+      substitution_type& sigma)
 {
   assert(is_forall(t));
-  return universal_quantifier_enumeration(t.variables(),t.body(),false,sigma);
+  universal_quantifier_enumeration(result, t.variables(),t.body(),false,sigma);
+  return;
 }
 
 // Generate a term equivalent to forall vl.t1.
 // The variable t1_is_normal_form indicates whether t1 is in normal
 // form, but this information is not used as it stands.
-data_expression Rewriter::universal_quantifier_enumeration(
+void Rewriter::universal_quantifier_enumeration(
+      data_expression& result,
       const variable_list& vl,
       const data_expression& t1,
       const bool t1_is_normal_form,
       substitution_type& sigma)
 {
-  return quantifier_enumeration(vl, t1, t1_is_normal_form, sigma, forall_binder(), &lazy::and_, sort_bool::true_(), sort_bool::false_());
+  quantifier_enumeration(result, vl, t1, t1_is_normal_form, sigma, forall_binder(), &lazy::and_, sort_bool::true_(), sort_bool::false_());
+  return;
 }
 
-data_expression Rewriter::quantifier_enumeration(
+void Rewriter::quantifier_enumeration(
+      data_expression& result,
       const variable_list& vl,
       const data_expression& t1,
       const bool t1_is_normal_form,
@@ -371,11 +438,13 @@ data_expression Rewriter::quantifier_enumeration(
   {
     if(vl_new_l_other.empty())
     {
-      return t3; // No quantified variables are bound.
+      result=t3;
+      return; // No quantified variables are bound.
     }
     else
     {
-      return abstraction(binder, vl_new_l_other, t3);
+      make_abstraction(result, binder, vl_new_l_other, t3);
+      return;
     }
   }
 
@@ -423,7 +492,8 @@ data_expression Rewriter::quantifier_enumeration(
       {
         // We found a solution, so prevent the enumerator from doing any unnecessary work
         // Also prevents any further exceptions from the enumerator
-        return absorbing_element;
+        result=absorbing_element;
+        return;
       }
     }
 
@@ -431,11 +501,13 @@ data_expression Rewriter::quantifier_enumeration(
     {
       if(vl_new_l_other.empty())
       {
-        return partial_result;
+        result=partial_result;
+        return;
       }
       else
       {
-        return abstraction(binder, vl_new_l_other, partial_result);
+        make_abstraction(result,binder, vl_new_l_other, partial_result);
+        return;
       }
     }
     // One can consider to replace the variables by their original, in order to not show
@@ -448,7 +520,8 @@ data_expression Rewriter::quantifier_enumeration(
     // the simplified expression
   }
 
-  return abstraction(binder,vl_new_l_enum+vl_new_l_other,rewrite(t3,sigma));
+  make_abstraction(result, binder,vl_new_l_enum+vl_new_l_other,rewrite(t3,sigma));
+  return;
 }
 
 

@@ -130,7 +130,8 @@ class sumelm_algorithm: public detail::lps_algorithm<Specification>
               sumelm_add_replacement(substitutions, vleft, right);
               replacement_added = true;
             }
-            else if (is_summand_variable(s, right) && substitutions.find(atermpp::down_cast<variable>(right)) == substitutions.end())
+            else if (is_summand_variable(s, right) && 
+                     substitutions.find(atermpp::down_cast<variable>(right)) == substitutions.end())
             {
               sumelm_add_replacement(substitutions, atermpp::down_cast<variable>(right), substitutions(vleft));
               replacement_added = true;
@@ -138,7 +139,7 @@ class sumelm_algorithm: public detail::lps_algorithm<Specification>
             else
             {
               const data::data_expression e = substitutions(vleft);
-              if (is_summand_variable(s, e) &&
+              if (is_summand_variable(s, e) && 
                   substitutions.find(atermpp::down_cast<data::variable>(e)) != substitutions.end())
               {
                 sumelm_add_replacement(substitutions, atermpp::down_cast<data::variable>(e), right);

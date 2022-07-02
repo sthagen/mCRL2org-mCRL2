@@ -26,54 +26,149 @@ struct add_simplify: public Builder<Derived>
   typedef Builder<Derived> super;
   using super::apply;
 
-  pbes_expression apply(const not_& x)
+  template <class T>
+  void apply(T& result, const not_& x)
   {
-    return data::optimized_not(apply(x.operand()));
-  }
-
-  pbes_expression apply(const and_& x)
-  {
-    auto left = apply(x.left());
-    if (is_false(left))
+    assert(&result!=&x);  // Result is used as temporary store and cannot match x. 
+    apply(result, x.operand());
+    if (is_false(result))
     {
-      return false_();
+      result = true_();
+      return;
     }
-    auto right = apply(x.right());
-    return data::optimized_and(left, right);
+    if (is_true(result))
+    {
+      result = false_();
+      return;
+    }
+    if (is_not(result))
+    {
+      result = atermpp::down_cast<not_>(result).operand();
+      return;
+    }
+    make_not_(result, result);
   }
 
-  pbes_expression apply(const or_& x)
+  template <class T>
+  void apply(T& result, const and_& x)
   {
-    auto left = apply(x.left());
+    assert(&result!=&x);  // Result is used as temporary store and cannot match x. 
+    apply(result, x.left());
+    if (is_false(result))
+    {
+      result = false_();
+      return;
+    }
+    if (is_true(result))
+    {
+      apply(result, x.right());
+      return;
+    }
+    pbes_expression right;
+    apply(right, x.right());
+    if (is_false(right))
+    {
+      result = false_();
+      return;
+    }
+    if (is_true(right) || result==right)
+    {
+      return;
+    }
+    make_and_(result,result, right);
+  }
+
+  template <class T>
+  void apply(T& result, const or_& x)
+  {
+    assert(&result!=&x);  // Result is used as temporary store and cannot match x. 
+    apply(result, x.left());
+    if (is_true(result))
+    {
+      result = true_();
+      return;
+    }
+    if (is_false(result))
+    {
+      apply(result, x.right());
+      return;
+    }
+    pbes_expression right;
+    apply(right, x.right());
+    if (is_true(right))
+    {
+      result = true_();
+      return;
+    }
+    if (is_false(right) || result==right)
+    {
+      return;
+    }
+    make_or_(result,result, right);
+  }
+
+  template <class T>
+  void apply(T& result, const imp& x)
+  {
+    assert(&result!=&x);  // Result is used as temporary store and cannot match x. 
+    if (is_false(x.left()))  // This test is cheap. 
+    {
+      result = true_();
+      return;
+    }
+    apply(result, x.right());
+    if (is_true(result))
+    { 
+      result = true_();
+      return;
+    }
+    if (is_false(result))
+    { 
+      apply(result, x.left());
+      if (is_not(result))
+      { 
+        result = atermpp::down_cast<not_>(result).operand();
+        return;
+      }
+      if (is_true(result))
+      {
+        result = false_();
+        return;
+      }
+      if (is_false(result))
+      {
+        result = true_();
+        return;
+      }
+      make_not_(result, result);
+      return;
+    }
+    pbes_expression left;
+    apply(left, x.left());
     if (is_true(left))
-    {
-      return true_();
+    { 
+      return;
     }
-    auto right = apply(x.right());
-    return data::optimized_or(left, right);
-  }
-
-  pbes_expression apply(const imp& x)
-  {
-    auto left = apply(x.left());
-    if (is_false(left))
-    {
-      return true_();
+    if (is_false(left) || result==left)
+    { 
+      result = true_();
+      return;
     }
-    auto right = apply(x.right());
-    return data::optimized_imp(left, right);
+    make_imp(result, left, result);
   }
 
-  pbes_expression apply(const forall& x)
+  template <class T>
+  void apply(T& result, const forall& x)
   {
-    auto body = apply(x.body());
-    return data::optimized_forall(x.variables(), body, true);
+    apply(result, x.body());
+    data::optimized_forall(result, x.variables(), result, true);
   }
 
-  pbes_expression apply(const exists& x)
+  template <class T>
+  void apply(T& result, const exists& x)
   {
-    auto body = apply(x.body());
-    return data::optimized_exists(x.variables(), body, true);
+    apply(result, x.body());
+    data::optimized_exists(result, x.variables(), result, true);
   }
 };
 
@@ -100,7 +195,14 @@ struct simplify_rewriter
 
   pbes_expression operator()(const pbes_expression& x) const
   {
-    return core::make_apply_builder<detail::simplify_builder>().apply(x);
+    pbes_expression result;
+    core::make_apply_builder<detail::simplify_builder>().apply(result, x);
+    return result;
+  }
+
+  void operator()(pbes_expression& result, const pbes_expression& x) const
+  {
+    core::make_apply_builder<detail::simplify_builder>().apply(result, x);
   }
 };
 
@@ -120,13 +222,23 @@ struct simplify_data_rewriter
   pbes_expression operator()(const pbes_expression& x) const
   {
     data::no_substitution sigma;
-    return detail::make_apply_rewriter_builder<pbes_system::detail::simplify_data_rewriter_builder>(R, sigma).apply(x);
+    pbes_expression result;
+    detail::make_apply_rewriter_builder<pbes_system::detail::simplify_data_rewriter_builder>(R, sigma).apply(result,x);
+    return result;
   }
 
   template <typename SubstitutionFunction>
   pbes_expression operator()(const pbes_expression& x, SubstitutionFunction& sigma) const
   {
-    return detail::make_apply_rewriter_builder<pbes_system::detail::simplify_data_rewriter_builder>(R, sigma).apply(x);
+    pbes_expression result;
+    detail::make_apply_rewriter_builder<pbes_system::detail::simplify_data_rewriter_builder>(R, sigma).apply(result, x);
+    return result;
+  }
+
+  template <typename SubstitutionFunction>
+  void operator()(pbes_expression& result, const pbes_expression& x, SubstitutionFunction& sigma) const
+  {
+    detail::make_apply_rewriter_builder<pbes_system::detail::simplify_data_rewriter_builder>(R, sigma).apply(result, x);
   }
 };
 

@@ -11,17 +11,18 @@
 #ifndef __REWR_JITTYC_H
 #define __REWR_JITTYC_H
 
+#include <utility>
+#include <string>
+
 #include "mcrl2/utilities/uncompiledlibrary.h"
 #include "mcrl2/utilities/toolset_version.h"
+#include "mcrl2/atermpp/standard_containers/vector.h"
 #include "mcrl2/data/detail/rewrite/jitty.h"
 #include "mcrl2/data/detail/rewrite/match_tree.h"
 #include "mcrl2/data/detail/rewrite/nfs_array.h"
 #include "mcrl2/data/substitutions/mutable_map_substitution.h"
 
 #ifdef MCRL2_JITTYC_AVAILABLE
-
-#include <utility>
-#include <string>
 
 namespace mcrl2
 {
@@ -41,15 +42,19 @@ typedef std::vector < sort_expression_list> sort_list_vector;
 class normal_form_cache
 {
   private:
-    RewriterJitty& m_rewriter;
     std::set<data_expression> m_lookup;
   public:
-    normal_form_cache(RewriterJitty& rewriter)
-      : m_rewriter(rewriter)
+    normal_form_cache()
     { 
     }
+
+  // Caches cannot be copied or moved. The addresses in the cache must remain available the lifetime of 
+  // all rewriters using this cache. 
+    normal_form_cache(const normal_form_cache& ) = delete;
+    normal_form_cache(normal_form_cache&& ) = delete;
+    normal_form_cache& operator=(const normal_form_cache& ) = delete;
+    normal_form_cache& operator=(normal_form_cache&& ) = delete;
   
-  ///
   /// \brief insert stores the normal form of t in the cache, and returns a string
   ///        that is a C++ representation of the stored normal form. This string can
   ///        be used by the generated rewriter as long as the cache object is alive,
@@ -60,19 +65,20 @@ class normal_form_cache
   std::string insert(const data_expression& t)
   {
     std::stringstream ss;
-    RewriterJitty::substitution_type sigma;
-    auto pair = m_lookup.insert(m_rewriter(t, sigma));
-    ss << "*reinterpret_cast<const data_expression*>(" << (void*)&(*pair.first) << ")";
+    const data_expression* cached_term = &*(m_lookup.insert(t).first);
+    ss << "*reinterpret_cast<const data_expression*>(" << (void*)(cached_term) << ")";
     return ss.str();
   }
 
-  ///
-  /// \brief clear clears the cache. This operation invalidates all the C++ strings
-  ///        obtained via the insert() method.
-  ///
-  void clear()
+  /// \brief Checks whether the cache is empty.
+  /// \return A boolean indicating whether the cache is empty. 
+  bool empty() const
   {
-    m_lookup.clear();
+    return m_lookup.empty();
+  }
+
+  ~normal_form_cache()
+  {
   }
 };
 
@@ -80,18 +86,23 @@ class RewriterCompilingJitty: public Rewriter
 {
   public:
     typedef Rewriter::substitution_type substitution_type;
-    typedef data_expression (*rewriter_function)(const application&, RewriterCompilingJitty*);
+    typedef void (*rewriter_function)(data_expression&, const application&, RewriterCompilingJitty*);
 
-    RewriterCompilingJitty(const data_specification& DataSpec, const used_data_equation_selector &);
+    RewriterCompilingJitty(const data_specification& DataSpec, const used_data_equation_selector&);
     virtual ~RewriterCompilingJitty();
 
     rewrite_strategy getStrategy();
 
     data_expression rewrite(const data_expression& term, substitution_type& sigma);
 
+    void rewrite(data_expression& result, const data_expression& term, substitution_type& sigma);
+
     // The variable global_sigma is a temporary store to maintain the substitution 
     // sigma during rewriting a single term. It is not a variable for public use. 
     substitution_type *global_sigma;
+    bool rewriting_in_progress;
+    rewrite_stack m_rewrite_stack;
+
     // The data structures below are used to store the variable lists2
     // that are used in the compiling rewriter in forall, where and exists.
     std::vector<variable_list> rewriter_binding_variable_lists;
@@ -127,14 +138,19 @@ class RewriterCompilingJitty: public Rewriter
     // for rewriting. They are used to find the relevant compiled rewriting code quickly. 
     std::vector<rewriter_function> functions_when_arguments_are_not_in_normal_form;
     std::vector<rewriter_function> functions_when_arguments_are_in_normal_form;
-
+ 
     // The following vector is to store normal forms of constants, indexed by the sequence number in a constant. 
     std::vector<data_expression> normal_forms_for_constants;
 
     // Standard assignment operator.
     RewriterCompilingJitty& operator=(const RewriterCompilingJitty& other)=delete;
 
-  private:
+    std::shared_ptr<detail::Rewriter> clone()
+    {
+      return std::shared_ptr<Rewriter>(new RewriterCompilingJitty(*this));
+    }
+
+  protected:
     class ImplementTree;
     friend class ImplementTree;
     
@@ -146,10 +162,24 @@ class RewriterCompilingJitty: public Rewriter
     std::set<function_symbol> m_extra_symbols;
 
     std::shared_ptr<uncompiled_library> rewriter_so;
-    normal_form_cache m_nf_cache;
+    std::shared_ptr<normal_form_cache> m_nf_cache;
+
+    // The rewriter maintains a copy of busy and forbidden flag,
+    // to allow for faster access to them. These flags are used extensively and
+    // in clang version 2021 access to them via the compiler, using tlv_get_access,
+    // is relatively slow. It is expected that in some future version of the compiler
+    // such access is faster, and no copy of these flags is needed anymore. 
+  public:
+    std::atomic<bool>* m_busy_flag = nullptr;
+    std::atomic<bool>* m_forbidden_flag = nullptr;
+    std::size_t* m_creation_depth = nullptr;
+
+  protected:
+    // Copy construction. Not (yet) for public use.
+    RewriterCompilingJitty(RewriterCompilingJitty& other) = default;
 
     void (*so_rewr_cleanup)();
-    data_expression(*so_rewr)(const data_expression&, RewriterCompilingJitty*);
+    void (*so_rewr)(data_expression& result, const data_expression&, RewriterCompilingJitty*);
 
     void add_base_nfs(nfs_array& a, const function_symbol& opid, std::size_t arity);
     void extend_nfs(nfs_array& a, const function_symbol& opid, std::size_t arity);
@@ -172,6 +202,14 @@ class RewriterCompilingJitty: public Rewriter
                                  const mutable_map_substitution<>& substs);
     match_tree build_tree(build_pars pars, std::size_t i);
     match_tree create_tree(const data_equation_list& rules);
+
+  void thread_initialise()
+  {
+    mCRL2log(mcrl2::log::debug) << "Initialise busy/forbidden flags\n";
+    m_busy_flag = atermpp::detail::g_thread_term_pool().get_busy_flag();
+    m_forbidden_flag = atermpp::detail::g_thread_term_pool().get_forbidden_flag();
+    m_creation_depth = atermpp::detail::g_thread_term_pool().get_creation_depth();
+  }
 };
 
 struct rewriter_interface
@@ -179,7 +217,7 @@ struct rewriter_interface
   std::string caller_toolset_version;
   std::string status;
   RewriterCompilingJitty* rewriter;
-  data_expression (*rewrite_external)(const data_expression& t, RewriterCompilingJitty*);
+  void (*rewrite_external)(data_expression& result, const data_expression& t, RewriterCompilingJitty*);
   void (*rewrite_cleanup)();
 };
 

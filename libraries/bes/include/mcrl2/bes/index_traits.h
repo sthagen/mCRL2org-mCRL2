@@ -18,11 +18,19 @@ namespace mcrl2 {
 
 namespace bes {
 
+/* This function is not used. 
+inline
+void on_create_boolean_variable(const atermpp::aterm& t)
+{
+//  const boolean_variable& v = atermpp::down_cast<const boolean_variable>(t);
+//  atermpp::detail::index_traits<boolean_variable, boolean_variable_key_type, 1>::insert(v.name());
+} */
+
 inline
 void on_delete_boolean_variable(const atermpp::aterm& t)
 {
   const boolean_variable& v = atermpp::down_cast<const boolean_variable>(t);
-  core::index_traits<boolean_variable, boolean_variable_key_type, 1>::erase(v.name());
+  atermpp::detail::index_traits<boolean_variable, boolean_variable_key_type, 1>::erase(v.name());
 }
 
 inline

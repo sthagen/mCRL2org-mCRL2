@@ -66,6 +66,14 @@ class stochastic_distribution: public atermpp::aterm_appl
 //--- end user section stochastic_distribution ---//
 };
 
+/// \brief Make_stochastic_distribution constructs a new term into a given address.
+/// \ \param t The reference into which the new stochastic_distribution is constructed. 
+template <class... ARGUMENTS>
+inline void make_stochastic_distribution(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Distribution(), args...);
+}
+
 /// \brief list of stochastic_distributions
 typedef atermpp::term_list<stochastic_distribution> stochastic_distribution_list;
 

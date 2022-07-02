@@ -66,6 +66,14 @@ class function_sort: public sort_expression
     }
 };
 
+/// \brief Make_function_sort constructs a new term into a given address.
+/// \ \param t The reference into which the new function_sort is constructed. 
+template <class... ARGUMENTS>
+inline void make_function_sort(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_SortArrow(), args...);
+}
+
 // prototype declaration
 std::string pp(const function_sort& x);
 
@@ -96,8 +104,8 @@ typedef std::vector<function_sort> function_sort_vector;
 /// \param[in] dom1 The first sort of the domain.
 /// \param[in] codomain The codomain of the sort.
 /// \post *this represents dom1 -> codomain
-inline function_sort make_function_sort(const sort_expression& dom1,
-                                        const sort_expression& codomain)
+inline function_sort make_function_sort_(const sort_expression& dom1,
+                                         const sort_expression& codomain)
 {
   return function_sort({ dom1 }, codomain);
 }
@@ -108,9 +116,9 @@ inline function_sort make_function_sort(const sort_expression& dom1,
 /// \param[in] dom2 The second sort of the domain.
 /// \param[in] codomain The codomain of the sort.
 /// \post *this represents dom1 # dom2 -> codomain
-inline function_sort make_function_sort(const sort_expression& dom1,
-                                        const sort_expression& dom2,
-                                        const sort_expression& codomain)
+inline function_sort make_function_sort_(const sort_expression& dom1,
+                                         const sort_expression& dom2,
+                                         const sort_expression& codomain)
 {
   return function_sort({ dom1, dom2 }, codomain);
 }
@@ -122,10 +130,10 @@ inline function_sort make_function_sort(const sort_expression& dom1,
 /// \param[in] dom3 The third sort of the domain.
 /// \param[in] codomain The codomain of the sort.
 /// \post *this represents dom1 # dom2 # dom3 -> codomain
-inline function_sort make_function_sort(const sort_expression& dom1,
-                                        const sort_expression& dom2,
-                                        const sort_expression& dom3,
-                                        const sort_expression& codomain)
+inline function_sort make_function_sort_(const sort_expression& dom1,
+                                         const sort_expression& dom2,
+                                         const sort_expression& dom3,
+                                         const sort_expression& codomain)
 {
   return function_sort({ dom1, dom2, dom3 }, codomain);
 }
@@ -138,11 +146,11 @@ inline function_sort make_function_sort(const sort_expression& dom1,
 /// \param[in] dom4 The fourth sort of the domain.
 /// \param[in] codomain The codomain of the sort.
 /// \post *this represents dom1 # dom2 # dom3 # dom4 -> codomain
-inline function_sort make_function_sort(const sort_expression& dom1,
-                                        const sort_expression& dom2,
-                                        const sort_expression& dom3,
-                                        const sort_expression& dom4,
-                                        const sort_expression& codomain)
+inline function_sort make_function_sort_(const sort_expression& dom1,
+                                         const sort_expression& dom2,
+                                         const sort_expression& dom3,
+                                         const sort_expression& dom4,
+                                         const sort_expression& codomain)
 {
   return function_sort({ dom1, dom2, dom3, dom4 }, codomain);
 }

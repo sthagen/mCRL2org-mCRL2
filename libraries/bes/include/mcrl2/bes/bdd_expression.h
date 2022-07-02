@@ -241,6 +241,14 @@ class if_: public bdd_expression
     }
 };
 
+/// \brief Make_if_ constructs a new term into a given address.
+/// \ \param t The reference into which the new if_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_if_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BddIf(), args...);
+}
+
 /// \brief Test for a if expression
 /// \param x A term
 /// \return True if \a x is a if expression

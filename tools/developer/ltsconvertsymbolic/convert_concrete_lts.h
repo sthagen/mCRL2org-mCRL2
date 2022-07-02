@@ -80,7 +80,7 @@ class convert_concrete_lts
 
     const lps::symbolic_lts& m_lts;
     std::unique_ptr<lts::lts_builder> m_builder;
-    utilities::indexed_set<lps::state> m_discovered;
+    mcrl2::lts::lts_builder::indexed_set_for_states_type m_discovered;
     mcrl2::lts::detail::progress_monitor m_progress_monitor;
     std::size_t m_number_of_states;
 };

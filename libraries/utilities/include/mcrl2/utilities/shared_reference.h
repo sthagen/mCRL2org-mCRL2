@@ -10,6 +10,8 @@
 #ifndef MCRL2_UTILITIES_SHARED_REFERENCE_H_
 #define MCRL2_UTILITIES_SHARED_REFERENCE_H_
 
+#include "tagged_pointer.h"
+
 #include <cassert>
 #include <atomic>
 #include <type_traits>
@@ -44,28 +46,42 @@ public:
   /// \brief Increment the reference count by one.
   void increment_reference_count() const
   {
-    ++m_reference_count;
-    increment_reference_count_changes();
+    if constexpr (ThreadSafe)
+    {
+      m_reference_count.fetch_add(1, std::memory_order_relaxed);
+    }
+    else
+    {
+      ++m_reference_count;
+    }
+    count_reference_count_changes();
   }
 
   /// \brief Decrement the reference count by one.
   void decrement_reference_count() const
   {
-    --m_reference_count;
-    increment_reference_count_changes();
+    if constexpr (ThreadSafe)
+    {
+      m_reference_count.fetch_sub(1, std::memory_order_relaxed);
+    }
+    else
+    {
+      --m_reference_count;
+    }
+    count_reference_count_changes();
   }
 
   /// \brief Obtain the number of times that this reference count has changed.
-  static std::size_t& reference_count_changes()
+  static std::atomic<std::size_t>& reference_count_changes()
   {
-    static std::size_t g_reference_count_changes;
+    static std::atomic<std::size_t> g_reference_count_changes;
     return g_reference_count_changes;
   }
 
   /// \brief Increment the number of reference count changes.
-  static void increment_reference_count_changes()
+  static void count_reference_count_changes()
   {
-    if (EnableReferenceCountMetrics)
+    if constexpr (EnableReferenceCountMetrics)
     {
       ++reference_count_changes();
     }
@@ -101,11 +117,6 @@ public:
     m_reference->increment_reference_count();
   }
 
-  /// \brief Takes a reference, but do not changes the reference counter.
-  shared_reference(T* reference, bool) noexcept
-    : m_reference(reference)
-  {}
-
   /// \brief Copy constructor.
   shared_reference(const shared_reference<T>& other) noexcept
     : m_reference(other.m_reference)
@@ -121,6 +132,14 @@ public:
     : m_reference(other.m_reference)
   {
     other.m_reference = nullptr;
+  }
+
+  ~shared_reference()
+  {
+    if (defined())
+    {
+      m_reference->decrement_reference_count();
+    }
   }
 
   /// \brief Copy assignment constructor.
@@ -158,7 +177,7 @@ public:
   /// \brief Check whether the shared_reference has a valid reference.
   bool defined() const
   {
-    return m_reference != nullptr;
+    return m_reference.get() != nullptr;
   }
 
   bool operator ==(const shared_reference<T>& other) const noexcept

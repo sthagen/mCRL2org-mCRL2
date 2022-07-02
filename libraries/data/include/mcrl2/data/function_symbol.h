@@ -20,7 +20,7 @@ namespace mcrl2
 namespace data
 {
 
-typedef std::pair<atermpp::aterm, atermpp::aterm> function_symbol_key_type;
+typedef std::pair<core::identifier_string, sort_expression> function_symbol_key_type;
 
 //--- start generated class function_symbol ---//
 /// \brief A function symbol
@@ -60,15 +60,29 @@ class function_symbol: public data_expression
 
     /// \brief Constructor.
     function_symbol(const core::identifier_string& name, const sort_expression& sort)
-      : data_expression(atermpp::aterm_appl(core::detail::function_symbol_OpId(), name, sort, atermpp::aterm_int(core::index_traits<function_symbol, function_symbol_key_type, 2>::insert(std::make_pair(name, sort)))))
-    {}
+    {
+      atermpp::make_term_appl_with_index<function_symbol, std::pair<core::identifier_string, sort_expression> >
+                      (*this, core::detail::function_symbol_OpId(), name, sort);
+    }
+
 
     /// \brief Constructor.
     function_symbol(const std::string& name, const sort_expression& sort)
-      : data_expression(atermpp::aterm_appl(core::detail::function_symbol_OpId(), core::identifier_string(name), sort, atermpp::aterm_int(core::index_traits<function_symbol, function_symbol_key_type, 2>::insert(std::make_pair(core::identifier_string(name), sort)))))
-    {}
+    { 
+      atermpp::make_term_appl_with_index<function_symbol, std::pair<core::identifier_string, sort_expression> >
+                      (*this, core::detail::function_symbol_OpId(), core::identifier_string(name), sort);
+    }
+
 //--- end user section function_symbol ---//
 };
+
+/// \brief Make_function_symbol constructs a new term into a given address.
+/// \ \param t The reference into which the new function_symbol is constructed. 
+template <class... ARGUMENTS>
+inline void make_function_symbol(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl_with_index<function_symbol,std::pair<core::identifier_string, sort_expression>>(t, core::detail::function_symbol_OpId(), args...);
+}
 
 /// \brief list of function_symbols
 typedef atermpp::term_list<function_symbol> function_symbol_list;

@@ -29,9 +29,11 @@ public:
   {}
 
   /// \brief Constructs an integer term from a value.
+  /// \param value The value of the new integer.
   explicit aterm_int(std::size_t value)
-   : aterm(detail::g_term_pool().create_int(value))
-  {}
+  {
+    detail::g_thread_term_pool().create_int(*this, value);
+  }
 
   /// \brief Constructs an integer term from an aterm.
   explicit aterm_int(const aterm& t)
@@ -60,6 +62,13 @@ public:
     aterm::swap(t);
   }
 };
+
+/// \brief Constructs an integer term from a value.
+/// \param target The term into which the term is constructed.
+inline void make_aterm_int(aterm_int& target, std::size_t value)
+{
+  detail::g_thread_term_pool().create_int(target, value);
+}
 
 } // namespace atermpp
 

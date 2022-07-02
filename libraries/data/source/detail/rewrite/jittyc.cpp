@@ -161,8 +161,6 @@ static std::set<variable> find_variables_in_the_scope_of_main_function_symbol_in
 
 typedef atermpp::term_list<variable_list> variable_list_list;
 
-std::set< std::size_t > m_required_appl_functions;
-
 static std::vector<bool> dep_vars(const data_equation& eqn)
 {
   std::vector<bool> result(recursive_number_of_args(eqn.lhs()), true);
@@ -1023,7 +1021,7 @@ class rewr_function_spec
       {
         name << "delayed_";
       }
-      name << "rewr_" << core::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(m_fs)
+      name << "rewr_" << atermpp::detail::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(m_fs)
            << "_" << m_arity;
       return name.str();
     }
@@ -1096,14 +1094,7 @@ class RewriterCompilingJitty::ImplementTree
     {
       return "pass_on";  // This is to avoid confusion with atermpp::aterm_appl on a function symbol and two iterators.
     }
-    if (arity <= 6)
-    {
-      return "application";
-    }
-
-    // Take care that the required function is generated.
-    m_required_appl_functions.insert(arity);
-    return "make_term_with_many_arguments";
+    return "make_application";
   }
 
   inline
@@ -1134,24 +1125,8 @@ class RewriterCompilingJitty::ImplementTree
    *
    */
 
-  void calc_inner_term_function(std::ostream& s, const function_symbol& f, const bool require_normal_form, std::size_t arity, std::ostream& result_type)
-  {
-    const bool nf = opid_is_nf(f, arity);
-    if (require_normal_form || nf)
-    {
-      s << m_rewriter.m_nf_cache.insert(f);
-      result_type << "data_expression";
-      return;
-    }
-    else
-    {
-      s << delayed_rewr_function_name(f, 0);
-      result_type << delayed_rewr_function_name(f, 0);
-      return;
-    }
-  }
-
   void calc_inner_term_variable(std::ostream& s, 
+                                const std::string& target_for_output,
                                 const variable& v, 
                                 const bool require_normal_form,
                                 std::ostream& result_type,
@@ -1167,16 +1142,32 @@ class RewriterCompilingJitty::ImplementTree
       {
         if (type_of_code_variables.at(v)=="data_expression")
         {
-          s << variable_name.substr(1);
+          if (target_for_output.empty())
+          {
+            s << variable_name.substr(1);
+          }
+          else 
+          {
+            s << m_padding << target_for_output << ".assign(" << variable_name.substr(1) 
+                           << ", this_rewriter->m_busy_flag, this_rewriter->m_forbidden_flag, *this_rewriter->m_creation_depth);\n";
+          }
         }
         else 
         {
-          s << "local_rewrite(" << variable_name.substr(1) << ", this_rewriter)";
+          if (target_for_output.empty())
+          {
+            s << "local_rewrite(" << variable_name.substr(1) << ")";
+          }
+          else
+          {
+            s << m_padding << "local_rewrite(" << target_for_output << ", " << variable_name.substr(1) << ");\n";
+          }
         }
         result_type << "data_expression";
       }
       else // No normal form is required. 
       {
+        assert(target_for_output.empty());
         s << variable_name.substr(1);
         if (type_of_code_variables.at(v)=="data_expression")
         {
@@ -1192,7 +1183,18 @@ class RewriterCompilingJitty::ImplementTree
     }
     else
     {
-      s << "static_cast<const data_expression&>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << "))";
+      if (target_for_output.empty())
+      {
+        s << "static_cast<const data_expression&>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << "))";
+      }
+      else
+      {
+        // s << m_padding << target_for_output << " = " << 
+        //     "static_cast<const data_expression&>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << "))\n";
+        s << m_padding << target_for_output << ".assign(" 
+          << "static_cast<const data_expression&>(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(v) << ")), " 
+          << "this_rewriter), this_rewriter->m_busy_flag, this_rewriter->m_forbidden_flag, *this_rewriter->m_creation_depth);\n";
+      }
       result_type << "data_expression";
       return;
     }
@@ -1200,6 +1202,7 @@ class RewriterCompilingJitty::ImplementTree
 
   void calc_inner_term_abstraction(
                     std::ostream& s, 
+                    const std::string& target_for_output,
                     const abstraction& a, 
                     const std::size_t startarg, 
                     const bool require_normal_form, 
@@ -1227,18 +1230,31 @@ class RewriterCompilingJitty::ImplementTree
     }
     if (require_normal_form)
     {
-      s << "static_cast<const data_expression&>(this_rewriter->" << rewriter_function << "("
-           "this_rewriter->binding_variable_list_get(" << m_rewriter.binding_variable_list_index(a.variables()) << "), ";
-      calc_inner_term(s, a.body(), startarg, true, result_type, type_of_code_variables);
-      s << ", true, sigma(this_rewriter)))";
-      result_type << "data_expression";
-      return;
+      if (target_for_output.empty())
+      {
+        std::stringstream argument;
+        calc_inner_term(argument, "", a.body(), startarg, true, result_type, type_of_code_variables);
+        s << "this_rewriter->" << rewriter_function << "(" << 
+             "this_rewriter->binding_variable_list_get(" << m_rewriter.binding_variable_list_index(a.variables()) << "), ";
+        s << argument.str() << ", true, sigma(this_rewriter))";
+        result_type << "data_expression";
+        return;
+      }
+      else
+      {
+        calc_inner_term(s, target_for_output, a.body(), startarg, true, result_type, type_of_code_variables);
+        s << m_padding << "this_rewriter->" << rewriter_function << "(" << target_for_output << 
+             ", this_rewriter->binding_variable_list_get(" << m_rewriter.binding_variable_list_index(a.variables()) << "), ";
+        s << target_for_output << ", true, sigma(this_rewriter));\n";
+        result_type << "data_expression";
+        return;
+      }
     }
     else
     {
       std::stringstream argument_type;
       std::stringstream argument_string;
-      calc_inner_term(argument_string, a.body(), startarg, false, argument_type, type_of_code_variables);
+      calc_inner_term(argument_string, "", a.body(), startarg, false, argument_type, type_of_code_variables);
       s << "delayed_abstraction<" << argument_type.str() << ">(" << binder_constructor << "(), "
            "this_rewriter->binding_variable_list_get(" << m_rewriter.binding_variable_list_index(a.variables()) << "), ";
       s << argument_string.str() << ", this_rewriter)";
@@ -1248,6 +1264,7 @@ class RewriterCompilingJitty::ImplementTree
   }
 
   void calc_inner_term_where_clause(std::ostream& s, 
+                                    const std::string& target_for_output,
                                     const where_clause& w, 
                                     const std::size_t startarg, 
                                     const bool require_normal_form, 
@@ -1256,7 +1273,14 @@ class RewriterCompilingJitty::ImplementTree
   {
     if (require_normal_form)  // TODO Take into account that some arguments are already in normal form.
     {
-      s << "this_rewriter->rewrite_where(";
+      if (target_for_output.empty())
+      {
+        s << "this_rewriter->rewrite_where(";
+      }
+      else
+      {
+        s << m_padding << "this_rewriter->rewrite_where(" << target_for_output << ", ";
+      }
       result_type << "data_expression";
     }
     else
@@ -1267,7 +1291,7 @@ class RewriterCompilingJitty::ImplementTree
     // A rewritten result is expected.
     std::stringstream temp_result_type;
     s << "where_clause(";
-    calc_inner_term(s, w.body(), startarg, true, temp_result_type, type_of_code_variables);
+    calc_inner_term(s, "", w.body(), startarg, true, temp_result_type, type_of_code_variables);
     s << ",";
     for(std::size_t i = w.assignments().size(); i > 0; --i)
     {
@@ -1277,7 +1301,7 @@ class RewriterCompilingJitty::ImplementTree
     for(assignment_list::const_iterator i = w.assignments().begin(); i != w.assignments().end(); ++i)
     {
       s << ", assignment(this_rewriter->bound_variable_get(" << m_rewriter.bound_variable_index(i->lhs()) << "), ";
-      calc_inner_term(s, i->rhs(), startarg, true, temp_result_type, type_of_code_variables);
+      calc_inner_term(s, "", i->rhs(), startarg, true, temp_result_type, type_of_code_variables);
       s << "))";
     }
     s << ")";
@@ -1289,9 +1313,14 @@ class RewriterCompilingJitty::ImplementTree
     {
       s << ", this_rewriter)";
     }
+    if (!target_for_output.empty())
+    {
+      s << ";\n";
+    }
   }
 
   bool calc_inner_term_appl_function(std::ostream& s,
+                                     const std::string& target_for_output,
                                      const application& a,
                                      const function_symbol& head,
                                      const std::size_t startarg,
@@ -1316,12 +1345,21 @@ class RewriterCompilingJitty::ImplementTree
 
     std::stringstream code_for_arguments;
     std::stringstream types_for_arguments;
+    args_nfs.fill(false);
     calc_inner_terms(code_for_arguments, a, startarg, args_nfs, types_for_arguments, type_of_code_variables);
 
     if (require_normal_form)
     {
-      result_type << "data_expression";
-      s << rewr_function_name(head, arity) << "(";
+      if (target_for_output.empty())
+      {
+        result_type << "data_expression";
+        s << delayed_rewr_function_name(head, arity) << "(";
+      }
+      else
+      {
+        result_type << "data_expression";
+        s << m_padding << rewr_function_name(head, arity) << "(" << target_for_output << ", ";
+      }
     }
     else
     {
@@ -1335,13 +1373,26 @@ class RewriterCompilingJitty::ImplementTree
       s << "(";
     }
     s << code_for_arguments.str();
-    s <<  (code_for_arguments.str().empty()?"":", ") << " this_rewriter)";
+    s <<  (code_for_arguments.str().empty()?"":", ") << "this_rewriter)";
+
+    if (require_normal_form)
+    {
+      if (target_for_output.empty())
+      {
+        s << ".normal_form()";
+      }
+      else
+      {
+        s << ";\n";
+      }
+    }
 
     return require_normal_form;
   }
 
   bool calc_inner_term_appl_lambda_abstraction(
                             std::ostream& s,
+                            const std::string& target_for_output,
                             const application& a,
                             const abstraction& head,
                             const std::size_t startarg,
@@ -1361,20 +1412,20 @@ class RewriterCompilingJitty::ImplementTree
       nfs_array args_nfs(recursive_number_of_args(a));
       args_nfs.fill(true);
 
-      s << "this_rewriter->rewrite_lambda_application(";
-      result_type << "data_expression";
-
-      s << appl_function(arity) << "(";
+      s << m_padding << appl_function(arity) << "(" + target_for_output + ",";
       std::stringstream types_for_arguments;
-      calc_inner_term(s, head, startarg, true, types_for_arguments, type_of_code_variables);
+      calc_inner_term(s, "", head, startarg, true, types_for_arguments, type_of_code_variables);
       s << ", ";
       if (arity>0)
       {
         types_for_arguments << ", ";
       }
       calc_inner_terms(s, a, startarg, args_nfs,types_for_arguments, type_of_code_variables);
-      s << ")";
-      s << ", sigma(this_rewriter))";
+      s << ");\n";
+      s << m_padding << "this_rewriter->rewrite_lambda_application(" << target_for_output << ", " << target_for_output;
+      result_type << "data_expression";
+
+      s << ", sigma(this_rewriter));\n";
       return require_normal_form;
     }
     else
@@ -1383,16 +1434,17 @@ class RewriterCompilingJitty::ImplementTree
       nfs_array args_nfs(arity);
       args_nfs.fill(true);
 
-      s << "term_not_in_normalform(" << appl_function(arity) << "(";
+      s << m_padding << appl_function(arity) << "(" << target_for_output;
       std::stringstream types_for_arguments;
-      calc_inner_term(s, head, startarg, true, types_for_arguments, type_of_code_variables);
+      calc_inner_term(s, target_for_output, head, startarg, true, types_for_arguments, type_of_code_variables);
       s << ", ";
       if (arity>0)
       {
         types_for_arguments << ", ";
       }
       calc_inner_terms(s, a, startarg, args_nfs,types_for_arguments, type_of_code_variables);
-      s << "))";
+      s << ");\n";
+      s << m_padding << target_for_output << "= term_not_in_normalform(" << target_for_output << ");\n";
       result_type << "term_not_in_normalform";
       return require_normal_form;
     }
@@ -1400,33 +1452,61 @@ class RewriterCompilingJitty::ImplementTree
 
   void write_application_to_stream_in_normal_form(
                             std::ostream& s,
+                            const std::string& target_for_output,
                             const application& a,
                             const std::size_t startarg,
                             const std::map<variable,std::string>& type_of_code_variables)
-  {
+  { 
     // the application is either application(variable,t1,..,tn) or application(application(...),t1,..,tn).
 
     const std::size_t arity = a.size();
     nfs_array rewr_args(arity);
     rewr_args.fill(true);
-    s << appl_function(arity) << "(";
     std::stringstream dummy_result_type;  // As we rewrite to normal forms, these are always data_expressions.
-    if (is_variable(a.head()))
-    {
-      calc_inner_term(s, down_cast<variable>(a.head()), startarg, true, dummy_result_type, type_of_code_variables);
-    }
-    else
-    {
-      assert(is_application(a.head()));
-      write_application_to_stream_in_normal_form(s,down_cast<application>(a.head()),startarg, type_of_code_variables);
-    }
-    for(const data_expression& t: a)
-    {
-      s << ", ";
 
-      calc_inner_term(s, t, startarg, rewr_args, dummy_result_type, type_of_code_variables);
+    if (target_for_output.empty())
+    {
+      if (is_variable(a.head()))
+      {
+        s << "application(";
+        calc_inner_term(s, "", down_cast<variable>(a.head()), startarg, true, dummy_result_type, type_of_code_variables);
+      }
+      else
+      {
+        assert(is_application(a.head()));
+        s << "application(";
+        write_application_to_stream_in_normal_form(s,"",down_cast<application>(a.head()),startarg, type_of_code_variables);
+      }
+      for(const data_expression& t: a)
+      {
+        s << ", ";
+
+        calc_inner_term(s, "", t, startarg, rewr_args, dummy_result_type, type_of_code_variables);
+      }
+      s << ")";
     }
-    s << ")";
+    else 
+    {
+      if (is_variable(a.head()))
+      {
+        s << m_padding << appl_function(arity) << "(" << target_for_output << ",";
+        calc_inner_term(s, "", down_cast<variable>(a.head()), startarg, true, dummy_result_type, type_of_code_variables);
+      }
+      else
+      {
+        assert(is_application(a.head()));
+        write_application_to_stream_in_normal_form(s,target_for_output,down_cast<application>(a.head()),startarg, type_of_code_variables);
+        s << m_padding << appl_function(arity) << "(" << target_for_output << "," << target_for_output;
+        std::stringstream dummy_result_type;  // As we rewrite to normal forms, these are always data_expressions.
+      }
+      for(const data_expression& t: a)
+      {
+        s << ", ";
+
+        calc_inner_term(s, "", t, startarg, rewr_args, dummy_result_type, type_of_code_variables);
+      }
+      s << ");\n";
+    }
   }
 
   std::string delayed_application(const std::size_t arity)
@@ -1454,7 +1534,7 @@ class RewriterCompilingJitty::ImplementTree
 
     if (is_variable(a.head()))
     {
-      calc_inner_term(code_string, down_cast<variable>(a.head()), startarg, true, result_types, type_of_code_variables);
+      calc_inner_term(code_string, "", down_cast<variable>(a.head()), startarg, true, result_types, type_of_code_variables);
     }
     else
     {
@@ -1465,8 +1545,8 @@ class RewriterCompilingJitty::ImplementTree
     for(const data_expression& t: a)
     {
       result_types << ",";
-      code_string << ",";
-      calc_inner_term(code_string, t, startarg, rewr_args, result_types, type_of_code_variables);
+      code_string << ", ";
+      calc_inner_term(code_string, "", t, startarg, true, result_types, type_of_code_variables);
     }
 
     s << delayed_application(arity) << "<" << result_types.str() << ">(";
@@ -1478,6 +1558,7 @@ class RewriterCompilingJitty::ImplementTree
 
   bool calc_inner_term_appl_variable
                            (std::ostream& s,
+                            const std::string& target_for_output,
                             const application& a,
                             const std::size_t startarg,
                             const bool require_normal_form,
@@ -1487,9 +1568,18 @@ class RewriterCompilingJitty::ImplementTree
     if (require_normal_form)
     {
       result_type << "data_expression";
-      s << "rewrite_with_arguments_in_normal_form(";
-      write_application_to_stream_in_normal_form(s,a,startarg, type_of_code_variables);
-      s << ", this_rewriter)";
+      if (target_for_output.empty())
+      {
+        s << "rewrite_with_arguments_in_normal_form(";
+        write_application_to_stream_in_normal_form(s,"",a,startarg, type_of_code_variables);
+        s << ", this_rewriter)";
+      }
+      else
+      {
+        write_application_to_stream_in_normal_form(s,target_for_output,a,startarg, type_of_code_variables);
+        s << m_padding << "rewrite_with_arguments_in_normal_form(" << target_for_output << ", "
+          << target_for_output << ", this_rewriter);\n";
+      }
       return true;
     }
 
@@ -1499,6 +1589,7 @@ class RewriterCompilingJitty::ImplementTree
   }
 
   bool calc_inner_term_application(std::ostream& s,
+                                   const std::string& target_for_output,
                                    const application& a,
                                    const std::size_t startarg,
                                    const bool require_normal_form,
@@ -1509,21 +1600,23 @@ class RewriterCompilingJitty::ImplementTree
 
     if (is_function_symbol(head))  // Determine whether the topmost symbol is a function symbol.
     {
-      return calc_inner_term_appl_function(s, a, down_cast<function_symbol>(head), startarg, require_normal_form, result_type, type_of_code_variables);
+      return calc_inner_term_appl_function(s, target_for_output, a, down_cast<function_symbol>(head), startarg, require_normal_form, result_type, type_of_code_variables);
     }
 
     if (is_abstraction(head)) // Here we must consider the case where head is an abstraction, and hence it must be a lambda abstraction.
     {
-      return calc_inner_term_appl_lambda_abstraction(s, a, down_cast<abstraction>(head), startarg, require_normal_form, result_type, type_of_code_variables);
+      return calc_inner_term_appl_lambda_abstraction(s, target_for_output, a, down_cast<abstraction>(head), startarg, require_normal_form, result_type, type_of_code_variables);
     }
 
     assert(is_variable(head)); // Here we must consider the case where head is a variable.
-    return calc_inner_term_appl_variable(s, a, startarg, require_normal_form, result_type, type_of_code_variables);
+    return calc_inner_term_appl_variable(s, target_for_output, a, startarg, require_normal_form, result_type, type_of_code_variables);
   }
 
   ///
   /// \brief calc_inner_term generates C++ code that reconstructs data expression t.
   /// \param s is the stream to write the generated code to.
+  /// \param target_for_output is a reference expression to which the output must be assigned, or in case of the empty string,
+  //         it is the result of the expression. 
   /// \param t is the data expression to be reconstructed in the generated code.
   /// \param startarg gives the index of the position of t in the surrounding application (0 for head position, 1 for first argument, etc.)
   /// \param require_normal_form indicates whether the reconstructed data expression should be rewritten to normal form.
@@ -1531,6 +1624,7 @@ class RewriterCompilingJitty::ImplementTree
   /// \return True if the result is in normal form, false otherwise.
   ///
   void calc_inner_term(std::ostream& s,
+                       const std::string& target_for_output,
                        const data_expression& t,
                        const std::size_t startarg,
                        const bool require_normal_form,
@@ -1539,35 +1633,42 @@ class RewriterCompilingJitty::ImplementTree
   {
     if (find_free_variables(t).empty())
     {
-      s << m_rewriter.m_nf_cache.insert(t);
+      if (target_for_output.empty())
+      { 
+        RewriterCompilingJitty::substitution_type sigma;
+        s << m_rewriter.m_nf_cache->insert(m_rewriter.jitty_rewriter(t,sigma));
+      }
+      else
+      {
+        RewriterCompilingJitty::substitution_type sigma;
+        s << m_padding << target_for_output 
+          << ".unprotected_assign<false>("
+          << m_rewriter.m_nf_cache->insert(m_rewriter.jitty_rewriter(t,sigma)) 
+          << ");\n";
+      }
       result_type << "data_expression";
       return;
     }
-    if (is_function_symbol(t))
-    {
-      // This will never be reached, as it is dealt with in the if clause above.
-      assert(0);
-      calc_inner_term_function(s, down_cast<function_symbol>(t), require_normal_form, 0, result_type);
-      return;
-    }
+    assert(!is_function_symbol(t)); // This will never be reached, as it is dealt with in the if clause above.
+    
     if (is_variable(t))
     {
-      calc_inner_term_variable(s, down_cast<variable>(t), require_normal_form, result_type, type_of_code_variables);
+      calc_inner_term_variable(s, target_for_output, down_cast<variable>(t), require_normal_form, result_type, type_of_code_variables);
       return;
     }
     if (is_abstraction(t))
     {
-      calc_inner_term_abstraction(s, down_cast<abstraction>(t), startarg, require_normal_form, result_type, type_of_code_variables);
+      calc_inner_term_abstraction(s, target_for_output, down_cast<abstraction>(t), startarg, require_normal_form, result_type, type_of_code_variables);
       return;
     }
     if (is_where_clause(t))
     {
-      calc_inner_term_where_clause(s, down_cast<where_clause>(t), startarg, require_normal_form, result_type, type_of_code_variables);
+      calc_inner_term_where_clause(s, target_for_output, down_cast<where_clause>(t), startarg, require_normal_form, result_type, type_of_code_variables);
       return;
     }
 
     assert(is_application(t));
-    calc_inner_term_application(s, down_cast<application>(t), startarg, require_normal_form, result_type, type_of_code_variables);
+    calc_inner_term_application(s, target_for_output, down_cast<application>(t), startarg, require_normal_form, result_type, type_of_code_variables);
   }
 
   ///
@@ -1578,7 +1679,7 @@ class RewriterCompilingJitty::ImplementTree
   void calc_inner_terms(std::ostream& s,
                         const application& appl,
                         const std::size_t startarg,
-                        const nfs_array& rewr,
+                        const nfs_array& rewr,   /// A Boolean would be enough. TODO:
                         std::ostream& argument_types,
                         const std::map<variable,std::string>& type_of_code_variables)
   {
@@ -1592,7 +1693,8 @@ class RewriterCompilingJitty::ImplementTree
       std::stringstream argument_string;
       std::stringstream argument_type;
       assert(i<rewr.size());
-      calc_inner_term(argument_string, get_argument_of_higher_order_term(appl,i), startarg + i, rewr.at(i),argument_type, type_of_code_variables);
+      calc_inner_term(argument_string, "", get_argument_of_higher_order_term(appl,i), startarg + i, rewr.at(i), 
+                      argument_type, type_of_code_variables);
       s << argument_string.str();
       argument_types << argument_type.str();
     }
@@ -1627,18 +1729,19 @@ class RewriterCompilingJitty::ImplementTree
       static std::size_t auxiliary_method_name_index=0;
 
       m_stream << m_padding 
-               << "const data_expression& result" << auxiliary_method_name_index << "= auxiliary_function_to_reduce_bracket_nesting" << auxiliary_method_name_index << "("
+               << "auxiliary_function_to_reduce_bracket_nesting" << auxiliary_method_name_index << "(result, "
                << brackets.current_data_arguments.top() << ",this_rewriter);\n";
       m_stream << m_padding 
-               << "if (result" << auxiliary_method_name_index << " != data_expression()) { return result" << auxiliary_method_name_index << "; }\n";
+               << "if (!result.is_default_data_expression()) { return; }\n";
 
       const std::size_t old_indent=m_padding.reset();
       std::stringstream s;
       s << "  template < " << brackets.current_template_parameters << ">\n"
-        << "  static inline data_expression auxiliary_function_to_reduce_bracket_nesting" << auxiliary_method_name_index 
-        << "(" 
+        << "  static inline void auxiliary_function_to_reduce_bracket_nesting" << auxiliary_method_name_index 
+        << "(data_expression& result" 
         << brackets.current_data_parameters.top() << (brackets.current_data_parameters.top().empty()?"":", ") << "RewriterCompilingJitty* this_rewriter)\n" 
-        << "  {\n";
+        << "  {\n"
+        << "    std::size_t old_stack_size=this_rewriter->m_rewrite_stack.stack_size();\n";
       
       auxiliary_method_name_index++;
 
@@ -1646,9 +1749,8 @@ class RewriterCompilingJitty::ImplementTree
       brackets.bracket_nesting_level=0;
       implement_tree(s,tree,cur_arg,parent,level,cnt,arity, opid, brackets,auxiliary_code_fragments, type_of_code_variables);
       brackets.bracket_nesting_level=old_bracket_nesting_level;
-      s << "    return data_expression(); // This indicates that no result has been calculated;\n";
-      // rewr_function_finish(s, arity, opid); 
-      s << "  }\n"
+      s << "    make_data_expression(result); return; // This indicates that no result has been calculated;\n"
+        << "  }\n"
         << "\n";
       m_padding.restore(old_indent);
       auxiliary_code_fragments.push(s.str());  
@@ -1740,11 +1842,9 @@ class RewriterCompilingJitty::ImplementTree
         }
         else
         {
-          // m_stream << "local_rewrite(arg_not_nf" << cur_arg << ", this_rewriter); // S1b\n";
           m_stream << m_padding << "const DATA_EXPR" << cur_arg <<"& " << std::string(treeS.target_variable().name()).c_str() + 1 << " = ";
           m_stream << "arg_not_nf" << cur_arg << "; // S1b\n";
           type_of_code_variables[treeS.target_variable()]="DATA_EXPR" + std::to_string(cur_arg);
-          // m_nnfvars.push_front(treeS.target_variable());
         }
       }
       else
@@ -1936,10 +2036,9 @@ class RewriterCompilingJitty::ImplementTree
              std::map<variable,std::string>& type_of_code_variables)
   {
     std::stringstream result_type_string;
+    calc_inner_term(m_stream, "result", tree.condition(), 0, true, result_type_string, type_of_code_variables);
     m_stream << m_padding
-             << "if (";
-    calc_inner_term(m_stream, tree.condition(), 0, true, result_type_string, type_of_code_variables);
-    m_stream << " == sort_bool::true_()) // C\n" << m_padding
+             << "if (result == sort_bool::true_()) // C\n" << m_padding
              << "{\n";
 
     brackets.bracket_nesting_level++;
@@ -1973,10 +2072,10 @@ class RewriterCompilingJitty::ImplementTree
       cur_arg = m_stack[2 * level - 1];
     }
     
-    m_stream << m_padding << "return ";
     std::stringstream result_type_string;
-    calc_inner_term(m_stream, tree.result(), cur_arg + 1, true, result_type_string, type_of_code_variables);
-    m_stream << "; // R1 " << tree.result() << "\n"; 
+    calc_inner_term(m_stream, "result", tree.result(), cur_arg + 1, true, result_type_string, type_of_code_variables);
+    m_stream << m_padding << "this_rewriter->m_rewrite_stack.reset_stack_size(old_stack_size);\n" 
+             << m_padding << "return; // R1 " << tree.result() << "\n"; 
   }
 
   const match_tree& implement_treeC(
@@ -1987,14 +2086,15 @@ class RewriterCompilingJitty::ImplementTree
   {
     std::stringstream result_type_string;
     assert(tree.true_tree().isR());
-    m_stream << m_padding
-             << "if (";
-    calc_inner_term(m_stream, tree.condition(), 0, true, result_type_string, type_of_code_variables);
-    m_stream << " == sort_bool::true_()) // C\n" << m_padding
-             << "{\n" << m_padding
-             << "  return ";
+    calc_inner_term(m_stream, "result", tree.condition(), 0, true, result_type_string, type_of_code_variables);
+    m_stream << ";\n" << m_padding
+             << "if (result == sort_bool::true_()) // C\n" << m_padding
+             << "{\n";
     brackets.bracket_nesting_level++;
-    calc_inner_term(m_stream, match_tree_R(tree.true_tree()).result(), 0, true, result_type_string, type_of_code_variables);
+    calc_inner_term(m_stream, "result", match_tree_R(tree.true_tree()).result(), 0, true, result_type_string, type_of_code_variables);
+    m_stream << ";\n" 
+             << m_padding << "this_rewriter->m_rewrite_stack.reset_stack_size(old_stack_size);\n" 
+             << m_padding << "return ";
     brackets.bracket_nesting_level--;
     m_stream << ";\n" << m_padding
              << "}\n" << m_padding
@@ -2013,19 +2113,18 @@ class RewriterCompilingJitty::ImplementTree
     std::stringstream result_type_string;
     if (arity == 0)
     {
-      m_stream << m_padding
-               << "static data_expression static_term(local_rewrite(";
-      calc_inner_term(m_stream, tree.result(), 0, true, result_type_string, type_of_code_variables);
-      m_stream << ", this_rewriter));\n" << m_padding
-               << "return static_term; // R2a\n";
+      calc_inner_term(m_stream, "result", tree.result(), 0, true, result_type_string, type_of_code_variables);
+      m_stream << ";\n" << m_padding
+               << m_padding << "this_rewriter->m_rewrite_stack.reset_stack_size(old_stack_size);\n" 
+               << m_padding << "return; // R2a\n";
     }
     else
     {
       // arity>0
-      m_stream << m_padding
-               << "return ";
-      calc_inner_term(m_stream, tree.result(), 0, true, result_type_string, type_of_code_variables);
-      m_stream << "; // R2b\n";
+      calc_inner_term(m_stream, "result", tree.result(), 0, true, result_type_string, type_of_code_variables);
+      m_stream << ";\n" 
+               << m_padding << "this_rewriter->m_rewrite_stack.reset_stack_size(old_stack_size);\n" 
+               << m_padding << "return; // R2b\n";
     }
   }
 
@@ -2100,26 +2199,29 @@ public:
 
   std::string implement_body_of_cplusplus_defined_function(
              const std::size_t arity,
+             const std::string& target_for_output,
              const std::string& head,
              const function_sort& s,
              std::size_t& used_arguments)
   {
     // In this case opid is used in a higher order fashion. 
+    assert(!target_for_output.empty());
     const std::size_t domain_size = s.domain().size();
     std::stringstream ss;
-    ss << appl_function(domain_size) << "(" << head;
+    ss << m_padding << appl_function(domain_size) << "(" << target_for_output << "," << head;
 
     for (std::size_t i = 0; i < domain_size; ++i)
     {
-        ss << ", local_rewrite(arg_not_nf" << used_arguments + i << ",this_rewriter)";
+        ss << ", [&](data_expression& r){ local_rewrite(r, arg_not_nf" << used_arguments + i << "); }";
     }
-    ss << ")";
+    ss << ");\n";
 
     used_arguments += domain_size;
     if (used_arguments<arity)
     {
-      return implement_body_of_cplusplus_defined_function(arity,
-                                                          ss.str(), 
+      return ss.str() + implement_body_of_cplusplus_defined_function(arity,
+                                                          target_for_output,
+                                                          target_for_output,
                                                           down_cast<function_sort>(s.codomain()), 
                                                           used_arguments);
     }
@@ -2131,42 +2233,69 @@ public:
 
   void implement_a_cplusplus_defined_function(
              std::ostream& m_stream,
+             const std::string& target_for_output,
              std::size_t arity,
              const function_symbol& opid,
              const data_specification& data_spec)
   {
     m_stream << m_padding << "// Implement function " << opid << " by calling a user defined rewrite function.\n";
+    
+    /* m_stream << m_padding << "stack_increment++;\n"
+             << m_padding << "this_rewriter->m_rewrite_stack.increase(1);\n"
+             << m_padding << "data_expression& local_store=this_rewriter->m_rewrite_stack.top();\n"; */
+
+    m_stream << m_padding << "data_expression& local_store=this_rewriter->m_rewrite_stack.new_stack_position();\n";
+
     const std::string cplusplus_function_name = data_spec.cpp_implemented_functions().find(opid)->second.second;
-    m_stream << m_padding << "return ";
 
     // First calculate the core function, which may be surrounded by extra applications. 
     std::stringstream ss;
     ss << cplusplus_function_name << "(";
+    
     for(size_t i=0; i<get_direct_arity(opid); ++i)
     {
       ss << (i>0?",":"");
-      ss << "local_rewrite(arg_not_nf" << i << ",this_rewriter)";
+      ss << "local_rewrite(arg_not_nf" << i << ")";
     }
     ss << ")";
 
     if (arity==get_direct_arity(opid))
     {
-      m_stream << ss.str() << ";";
+      if (target_for_output.empty())
+      {
+        m_stream << ss.str();
+      }
+      else
+      {
+        // m_stream << m_padding << target_for_output << " = " << ss.str() << ";\n";
+        m_stream << m_padding << target_for_output << ".assign(" << ss.str() 
+                 << ", this_rewriter->m_busy_flag, this_rewriter->m_forbidden_flag, *this_rewriter->m_creation_depth);\n";
+      }
       return;
     }
     // else it is a higher order function, and it must be surrounded by "application"s. 
     assert(arity>get_direct_arity(opid));
     std::size_t used_arguments = get_direct_arity(opid);
-    std::string result=implement_body_of_cplusplus_defined_function(
+    std::string result="local_store";
+    m_stream << m_padding << implement_body_of_cplusplus_defined_function(
                                          arity,
+                                         result,
                                          ss.str(), 
                                          down_cast<function_sort>(down_cast<function_sort>(opid.sort()).codomain()),
-                                         used_arguments);
+                                         used_arguments) << ";\n";
     assert(used_arguments == arity);
    
     // If there applications surrounding the term, it may not be a normalform anymore, but its arguments
     // are in normal form. That is why rewrite_aux has as second argument true. 
-    m_stream << "rewrite_aux(" << result << ",true,this_rewriter);";
+    if (target_for_output.empty())
+    {
+      m_stream << m_padding << "data_expression result1; // TODO: optimize\n"
+               << m_padding << "rewrite_aux<true>(result1, " << result << ",this_rewriter);\n";
+    }
+    else
+    {
+      m_stream << m_padding << "rewrite_aux<true>(" << target_for_output << ", " << result << ",this_rewriter);\n";
+    }
   }
 
   void implement_strategy(
@@ -2182,7 +2311,7 @@ public:
     if (data_spec.cpp_implemented_functions().find(opid)!=data_spec.cpp_implemented_functions().end() &&
         arity>=get_direct_arity(opid))
     {
-      implement_a_cplusplus_defined_function(m_stream, arity, opid, data_spec);
+      implement_a_cplusplus_defined_function(m_stream, "result", arity, opid, data_spec);
       return;
     }
     bool added_new_parameters_in_brackets=false;
@@ -2197,7 +2326,16 @@ public:
         std::size_t arg = match_tree_A(strat.front()).variable_index();
         if (!m_used[arg])
         {
-          m_stream << m_padding << "const data_expression& arg" << arg << " = local_rewrite(arg_not_nf" << arg << ",this_rewriter);\n";
+          // m_stream << m_padding << "const data_expression& arg" << arg << " = local_rewrite(arg_not_nf" << arg << ");\n"; 
+          /* m_stream << m_padding << "data_expression& arg" << arg << " = this_rewriter->m_rewrite_stack.new_stack_position();\n"
+                   << m_padding << "local_rewrite(arg" << arg << ", arg_not_nf" << arg << ");\n"; */
+       
+          m_stream << m_padding << "data_expression& arg" << arg 
+                   << "(std::is_convertible<DATA_EXPR" << arg << ", const data_expression&>::value?(const_cast<data_expression&>(reinterpret_cast<const data_expression&>(arg_not_nf" << arg << "))):this_rewriter->m_rewrite_stack.new_stack_position());\n"
+                   << m_padding << "if constexpr (!std::is_convertible<DATA_EXPR" << arg << ", const data_expression&>::value)\n"
+                   << m_padding << "{\n"
+                   << m_padding << "  local_rewrite(arg" << arg << ", arg_not_nf" << arg << ");\n"
+                   << m_padding << "}\n";
           m_used[arg] = true;
           if (!added_new_parameters_in_brackets)
           {
@@ -2307,78 +2445,112 @@ public:
       }
       ss << ", this_rewriter(tr)\n" << m_padding << "{}\n\n";
 
-      ss << m_padding << "data_expression normal_form() const\n";
+      ss << m_padding << "data_expression& normal_form() const\n";
       ss << m_padding << "{\n";
       m_padding.indent();
 
-      ss << m_padding << "return rewrite_with_arguments_in_normal_form(" << appl_function(arity) << "(local_rewrite(m_head,this_rewriter)";
+      ss << m_padding << "data_expression& local_store=this_rewriter->m_rewrite_stack.new_stack_position();\n"
+         << m_padding << appl_function(arity) << "(local_store, [&](data_expression& r){ local_rewrite(r, m_head); }";
+      /* ss << m_padding << "this_rewriter->m_rewrite_stack.increase(1);\n"
+         << m_padding << "data_expression& local_store=this_rewriter->m_rewrite_stack.top();\n"
+         << m_padding << "stack_increment++;\n"
+         << m_padding << appl_function(arity) << "(local_store, [&](data_expression& r){ local_rewrite(r, m_head); }"; */
       for (std::size_t i = 0; i < arity; ++i)
       {
-        ss << ", local_rewrite(m_arg" << i << ",this_rewriter)";
+        ss << ", [&](data_expression& r){ local_rewrite(r, m_arg" << i << "); }";
       }
-      ss << "), this_rewriter);\n";
+      ss << ");\n";
+      ss << m_padding << "rewrite_with_arguments_in_normal_form(local_store, local_store, this_rewriter);\n"
+         << m_padding << "return local_store;\n";
 
       m_padding.unindent();
       ss << m_padding << "}\n\n";
 
+      ss << m_padding << "void normal_form(data_expression& result) const\n";
+      ss << m_padding << "{\n";
+      m_padding.indent();
+
+      ss << m_padding << appl_function(arity) << "(result, [&](data_expression& result){ local_rewrite(result, m_head); }";
+      for (std::size_t i = 0; i < arity; ++i)
+      {
+        ss << ", [&](data_expression& result){ local_rewrite(result, m_arg" << i << "); }";
+      }
+      ss << ");\n";
+      ss << m_padding << "rewrite_with_arguments_in_normal_form(result, result, this_rewriter);\n";
+
+      m_padding.unindent();
+      ss << m_padding << "}\n\n";
       m_padding.unindent();
       m_padding.unindent();
-      ss << m_padding <<  "};\n";
+      ss << m_padding <<  "};\n\n";
     }
 
   }
 
-  std::string rewr_function_finish_term(const std::size_t arity, const std::string& head, const function_sort& s, std::size_t& used_arguments)
+  void rewr_function_finish_term(std::ostream& m_stream, 
+                                 const std::size_t arity, 
+                                 const std::string& head, 
+                                 const function_sort& s)
   {
     if (arity == 0)
     {
-      return head;
+      m_stream << m_padding << "result = " << head << ";\n";
+      return;
     }
 
-    const std::size_t domain_size = s.domain().size();
-    std::stringstream ss;
-    ss << appl_function(domain_size) << "(" << head;
-
-    for (std::size_t i = 0; i < domain_size; ++i)
+    sort_expression current_sort=s;
+    std::size_t used_arguments=0;
+    while (used_arguments<arity)
     {
-      if (m_used[used_arguments + i])
-      {
-        ss << ", arg" << used_arguments + i;
+      assert(is_function_sort(current_sort)); // otherwise used_arguments == arity == 0, excluded above. 
+      const function_sort& fs = atermpp::down_cast<function_sort>(current_sort);
+      const std::size_t domain_size = fs.domain().size();
+      current_sort = fs.codomain();
+      
+      m_stream << m_padding << appl_function(domain_size) << "(result, ";
+      if (used_arguments>0)
+      {  
+        m_stream << "result";
       }
       else
       {
-        ss << ", local_rewrite(arg_not_nf" << used_arguments + i << ",this_rewriter)";
+        m_stream << head;
       }
-    }
-    ss << ")";
 
-    used_arguments += domain_size;
-    if (is_function_sort(s.codomain()))
-    {
-      return rewr_function_finish_term(arity - domain_size, ss.str(), down_cast<function_sort>(s.codomain()), used_arguments);
+      for (std::size_t i = 0; i < domain_size; ++i)
+      {
+        if (m_used[used_arguments + i])
+        {
+          m_stream << ", arg" << used_arguments + i;
+        }
+        else
+        {
+          m_stream << ", [&](data_expression& result){ local_rewrite(result, arg_not_nf" << used_arguments + i << "); }";
+        }
+      }
+      m_stream << ");\n";
+      used_arguments += domain_size;
     }
-    else
-    {
-      return ss.str();
-    }
+    assert(used_arguments==arity);
   }
 
 
   void rewr_function_finish(std::ostream& m_stream, std::size_t arity, const data::function_symbol& opid)
   {
     // Note that arity is the total arity, of all function symbols.
-    m_stream << m_padding << "return ";
     if (arity == 0)
     {
-      m_stream << m_rewriter.m_nf_cache.insert(opid) << ";\n";
+      m_stream << m_padding << "result.unprotected_assign<false>(";
+      RewriterCompilingJitty::substitution_type sigma;
+      m_stream << m_rewriter.m_nf_cache->insert(m_rewriter.jitty_rewriter(opid,sigma)) << ");\n";
     }
     else
     {
       std::stringstream ss;
-      ss << "atermpp::down_cast<data_expression>(atermpp::aterm(reinterpret_cast<atermpp::detail::_aterm*>(" << (void*)atermpp::detail::address(opid) << ")))";
-      std::size_t used_arguments = 0;
-      m_stream << rewr_function_finish_term(arity, ss.str(), down_cast<function_sort>(opid.sort()), used_arguments) << ";\n";
-      assert(used_arguments == arity);
+      ss << "this_rewriter->normal_forms_for_constants[" 
+         << atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(opid) 
+         << "]";
+      rewr_function_finish_term(m_stream, arity, ss.str(), down_cast<function_sort>(opid.sort()));
     } 
   }
 
@@ -2398,20 +2570,18 @@ public:
       m_stream << s.str() << ">\n";
       brackets.current_template_parameters = s.str();
     }
-    m_stream << m_padding << "static inline "
-             << (arity == 0 ? "const data_expression&" : "data_expression")
-             << " rewr_" << index << "_" << arity << "(";
+    m_stream << m_padding << "static inline void"
+             << " rewr_" << index << "_" << arity << "(data_expression& result";
 
     std::stringstream arguments;
     std::stringstream parameters;
     for (std::size_t i = 0; i < arity; ++i)
     {
-      parameters << (i == 0 ? "" : ", ")
-                 << "const DATA_EXPR" << i << "& arg_not_nf"
+      parameters << ", const DATA_EXPR" << i << "& arg_not_nf"
                  << i;
       arguments  << (i == 0 ? "" : ", ") << "arg_not_nf" << i;
     }
-    m_stream << parameters.str() << (parameters.str().empty()?"":", ") << "RewriterCompilingJitty* this_rewriter)\n";
+    m_stream << parameters.str() << ", RewriterCompilingJitty* this_rewriter)\n";
     brackets.current_data_arguments.push(arguments.str());
     brackets.current_data_parameters.push(parameters.str());
   }
@@ -2427,40 +2597,46 @@ public:
     bracket_level_data brackets;
     std::stack<std::string> auxiliary_code_fragments;
 
-    std::size_t index = core::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(func);
+    std::size_t index = atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(func);
     m_stream << m_padding << "// [" << index << "] " << func << ": " << func.sort() << "\n";
     rewr_function_signature(m_stream, index, arity, brackets);
-    m_stream << "\n" << m_padding << "{\n";
+    m_stream << m_padding << "{\n"
+             << m_padding << "  mcrl2::utilities::mcrl2_unused(this_rewriter); // Suppress warning\n"
+             << m_padding << "  std::size_t old_stack_size=this_rewriter->m_rewrite_stack.stack_size();\n";
     m_padding.indent();
     implement_strategy(m_stream, strategy, arity, func, brackets, auxiliary_code_fragments,data_spec);
+    m_stream << m_padding << "this_rewriter->m_rewrite_stack.reset_stack_size(old_stack_size);\n"
+             << m_padding << "return;\n";
     m_padding.unindent();
     m_stream << m_padding << "}\n\n";
 
-    m_stream << m_padding <<
-                  "static inline data_expression rewr_" << index << "_" << arity << "_term" 
-                  "(const application&" << (arity == 0 ? "" : " t") << ", RewriterCompilingJitty* this_rewriter) "
-                  "{ return rewr_" << index << "_" << arity << "(";
-    for(std::size_t i = 0; i < arity; ++i)
+    if (arity>0)
     {
-      assert(is_function_sort(func.sort()));
-      m_stream << (i == 0 ? "" : ", ");
-      m_stream << "term_not_in_normal_form(";
-      get_recursive_argument(m_stream, down_cast<function_sort>(func.sort()), i, "t", arity);
-      m_stream << ", this_rewriter)";
-    }
-    m_stream << (arity==0?"":", ") << "this_rewriter); }\n\n";
+      m_stream << m_padding <<
+                    "static inline void rewr_" << index << "_" << arity << "_term" 
+                    "(data_expression& result, const application&" << (arity == 0 ? "" : " t") << ", RewriterCompilingJitty* this_rewriter) "
+                    "{ rewr_" << index << "_" << arity << "(result";
+      for(std::size_t i = 0; i < arity; ++i)
+      {
+        assert(is_function_sort(func.sort()));
+        m_stream << ", term_not_in_normal_form(";
+        get_recursive_argument(m_stream, down_cast<function_sort>(func.sort()), i, "t", arity);
+        m_stream << ", this_rewriter)";
+      }
+      m_stream << ", this_rewriter); }\n\n";
 
-    m_stream << m_padding <<
-                  "static inline data_expression rewr_" << index << "_" << arity << "_term_arg_in_normal_form" 
-                  "(const application&" << (arity == 0 ? "" : " t") << ", RewriterCompilingJitty* this_rewriter) "
-                  "{ return rewr_" << index << "_" << arity << "(";
-    for(std::size_t i = 0; i < arity; ++i)
-    {
-      assert(is_function_sort(func.sort()));
-      m_stream << (i == 0 ? "" : ", ");
-      get_recursive_argument(m_stream, down_cast<function_sort>(func.sort()), i, "t", arity);
+      m_stream << m_padding <<
+                    "static inline void rewr_" << index << "_" << arity << "_term_arg_in_normal_form" 
+                    "(data_expression& result, const application&" << (arity == 0 ? "" : " t") << ", RewriterCompilingJitty* this_rewriter) "
+                    "{ rewr_" << index << "_" << arity << "(result";
+      for(std::size_t i = 0; i < arity; ++i)
+      {
+        assert(is_function_sort(func.sort()));
+        m_stream << ", ";
+        get_recursive_argument(m_stream, down_cast<function_sort>(func.sort()), i, "t", arity);
+      }
+      m_stream << ", this_rewriter); }\n\n";
     }
-    m_stream << (arity==0?"":", ") << "this_rewriter); }\n\n";
 
     while (!auxiliary_code_fragments.empty())
     {
@@ -2472,7 +2648,7 @@ public:
 
   void generate_delayed_normal_form_generating_function(std::ostream& m_stream, const data::function_symbol& func, std::size_t arity)
   {
-    std::size_t index = core::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(func);
+    std::size_t index = atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(func);
     m_stream << m_padding << "// [" << index << "] " << func << ": " << func.sort() << "\n";
     if (arity>0)
     {
@@ -2508,18 +2684,34 @@ public:
     {
       m_stream << (i==0?"":", ") << "m_t" << i << "(t" << i << ")";
     }
-    m_stream << (arity==0?"":", ") << "this_rewriter(tr)";
-    m_stream << (arity==0?"":"\n") << m_padding << "{}\n\n";
-    m_stream << m_padding << "data_expression normal_form() const\n";
-    m_stream << m_padding << "{\n";
-    m_stream << m_padding << "  return rewr_" << index << "_" << arity << "(";
+    m_stream << (arity==0?"":", ") << "this_rewriter(tr)"
+             << (arity==0?"":"\n") << m_padding << "{}\n\n"
+             << m_padding << "data_expression& normal_form() const\n"
+             << m_padding << "{\n"
+/*             << m_padding << "  this_rewriter->m_rewrite_stack.increase(1);\n"
+             << m_padding << "  data_expression& local_store=this_rewriter->m_rewrite_stack.top();\n"
+             << m_padding << "  stack_increment++;\n" */
+             << m_padding << "  data_expression& local_store=this_rewriter->m_rewrite_stack.new_stack_position();\n"
+             << m_padding << "  rewr_" << index << "_" << arity << "(local_store";
     for(std::size_t i = 0; i < arity; ++i)
     {
-      m_stream << (i==0?"":", ") << "m_t" << i;
+      m_stream << ", m_t" << i;
     }
 
-    m_stream << (arity==0?"":", ") << "this_rewriter);\n";
-    m_stream << m_padding << "}\n";
+    m_stream << (arity==0?"":", ") << "this_rewriter);\n"
+             << m_padding << "  return local_store;\n"
+             << m_padding << "}\n";
+
+    m_stream << m_padding << "void normal_form(data_expression& result) const\n"
+             << m_padding << "{\n"
+             << m_padding << "  rewr_" << index << "_" << arity << "(result";
+    for(std::size_t i = 0; i < arity; ++i)
+    {
+      m_stream << ", m_t" << i;
+    }
+
+    m_stream << (arity==0?"":", ") << "this_rewriter);\n"
+             << m_padding << "}\n";
 
     m_padding.unindent();
     m_padding.unindent();
@@ -2548,8 +2740,8 @@ public:
 
 void RewriterCompilingJitty::CleanupRewriteSystem()
 {
-  m_nf_cache.clear();
-  if (so_rewr_cleanup != NULL)
+  // m_nf_cache.clear();
+  if (so_rewr_cleanup != nullptr)
   {
     so_rewr_cleanup();
   }
@@ -2579,7 +2771,7 @@ static std::string generate_cpp_filename(std::size_t unique)
   {
     filedir = "./";
   }
-  time_t now = time(0);
+  time_t now = time(nullptr);
   struct tm tstruct = *localtime(&now);
 
   // The static_cast<std::size_t> is required, as the calculation does not fit into a 32 bit int, yielding a negative number. 
@@ -2612,38 +2804,6 @@ void filter_function_symbols(const function_symbol_vector& source, function_symb
   }
 }
 
-///
-/// \brief generate_make_appl_functions defines functions that create data::application terms
-///        for function symbols with more than 6 arguments.
-/// \param s The stream to which the generated C++ code is written.
-/// \param max_arity The maximum arity plus one of the functions that are to be generated.
-///
-static void generate_make_appl_functions(std::ostream& s, std::size_t max_arity)
-{
-  // The casting magic in these functions is done to avoid triggering the ATerm
-  // reference counting mechanism.
-  for (std::size_t i = 7; i < max_arity; ++i)
-  {
-    if (m_required_appl_functions.count(i)>0)
-    {
-      s << "static application make_term_with_many_arguments(const data_expression& head";
-      for (std::size_t j = 1; j <= i; ++j)
-      {
-        s << ", const data_expression& arg" << j;
-      }
-      s << ")\n{\n";
-      s << "  atermpp::detail::_aterm* buffer[" << i << "];\n";
-      for (std::size_t j=0; j<i; ++j)
-      {
-        s << "  buffer[" << j << "] = atermpp::detail::address(arg" << j + 1 << ");\n";
-      }
-      s << "  return application(head, reinterpret_cast<data_expression*>(buffer), reinterpret_cast<data_expression*>(buffer) + " << i << ");\n"
-           "}\n"
-           "\n";
-    }
-  }
-}
-
 void RewriterCompilingJitty::generate_code(const std::string& filename)
 {
   std::ofstream cpp_file(filename);
@@ -2664,7 +2824,7 @@ void RewriterCompilingJitty::generate_code(const std::string& filename)
   // jittycpreamble.h.
   ImplementTree code_generator(*this, function_symbols);
 
-  index_bound = core::index_traits<data::function_symbol, function_symbol_key_type, 2>::max_index() + 1;
+  index_bound = atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::max_index() + 1;
 
   functions_when_arguments_are_not_in_normal_form = std::vector<rewriter_function>(arity_bound * index_bound);
   functions_when_arguments_are_in_normal_form = std::vector<rewriter_function>(arity_bound * index_bound);
@@ -2683,14 +2843,28 @@ void RewriterCompilingJitty::generate_code(const std::string& filename)
                "  // A rewrite_term is a term that may or may not be in normal form. If the method\n"
                "  // normal_form is invoked, it will calculate a normal form for itself as efficiently as possible.\n"
                "  template <class REWRITE_TERM>\n"
-               "  static data_expression local_rewrite(const REWRITE_TERM& t, RewriterCompilingJitty* this_rewriter)\n"
+               "  static data_expression& local_rewrite(const REWRITE_TERM& t)\n"
                "  {\n"
                "    return t.normal_form();\n"
                "  }\n"
                "\n"
-               "  static const data_expression& local_rewrite(const data_expression& t, RewriterCompilingJitty* )\n"
+               "  // A rewrite_term is a term that may or may not be in normal form. If the method\n"
+               "  // normal_form is invoked, it will calculate a normal form for itself as efficiently as possible.\n"
+               "  template <class REWRITE_TERM>\n"
+               "  static void local_rewrite(data_expression& result,\n"
+               "                            const REWRITE_TERM& t) \n"
+               "  {\n"
+               "     t.normal_form(result);\n"
+               "  }\n"
+               "\n"
+               "  static const data_expression& local_rewrite(const data_expression& t)\n"
                "  {\n"
                "    return t;\n"
+               "  }\n"
+               "\n"
+               "  static void local_rewrite(data_expression& result, const data_expression& t)\n"
+               "  {\n"
+               "     result=t;\n"
                "  }\n"
                "\n";
 
@@ -2700,13 +2874,22 @@ void RewriterCompilingJitty::generate_code(const std::string& filename)
   rewr_code << "};\n"
                "} // namespace\n";
 
-  generate_make_appl_functions(cpp_file, arity_bound);
   code_generator.generate_delayed_application_functions(cpp_file);
 
   cpp_file << rewr_code.str();
 
   cpp_file << "void set_the_precompiled_rewrite_functions_in_a_lookup_table(RewriterCompilingJitty* this_rewriter)\n"
               "{\n";
+  cpp_file << "  assert(&this_rewriter->functions_when_arguments_are_not_in_normal_form == (void *)" << &functions_when_arguments_are_not_in_normal_form << ");  // Check that this table matches the one rewriter is actually using.\n";
+  cpp_file << "  assert(&this_rewriter->functions_when_arguments_are_in_normal_form == (void *)" << &functions_when_arguments_are_in_normal_form << ");  // Check that this table matches the one rewriter is actually using.\n";
+  cpp_file << "  for(rewriter_function& f: this_rewriter->functions_when_arguments_are_not_in_normal_form)\n"
+           << "  {\n"
+           << "    f = nullptr;\n"
+           << "  }\n";
+  cpp_file << "  for(rewriter_function& f: this_rewriter->functions_when_arguments_are_in_normal_form)\n"
+           << "  {\n"
+           << "    f = nullptr;\n"
+           << "  }\n";
 
   // Fill tables with the rewrite functions
   RewriterCompilingJitty::substitution_type sigma;
@@ -2715,7 +2898,7 @@ void RewriterCompilingJitty::generate_code(const std::string& filename)
   {
     if (!f.delayed())
     {
-      std::size_t index = core::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(f.fs());
+      std::size_t index = atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(f.fs());
       if (f.arity()>0)
       {
         cpp_file << "  this_rewriter->functions_when_arguments_are_not_in_normal_form[this_rewriter->arity_bound * "
@@ -2758,7 +2941,7 @@ void RewriterCompilingJitty::BuildRewriteSystem()
   //   $PATH environment variable.
   std::string compile_script;
   const char* env_compile_script = std::getenv("MCRL2_COMPILEREWRITER");
-  if (env_compile_script != NULL)
+  if (env_compile_script != nullptr)
   {
     compile_script = env_compile_script;
   }
@@ -2798,10 +2981,10 @@ void RewriterCompilingJitty::BuildRewriteSystem()
     throw mcrl2::runtime_error(std::string("Could not compile rewriter: ") + e.what());
   }
 
-  mCRL2log(verbose) << "compiled in " << std::round(time.seconds()) << " seconds, loading rewriter..." << std::endl;
+  mCRL2log(verbose) << "compiled in " << time.time() << "ms, loading rewriter..." << std::endl;
 
   bool (*init)(rewriter_interface*, RewriterCompilingJitty* this_rewriter);
-  rewriter_interface interface = { mcrl2::utilities::get_toolset_version(), "Unknown error when loading rewriter.", this, NULL, NULL };
+  rewriter_interface interface = { mcrl2::utilities::get_toolset_version(), "Unknown error when loading rewriter.", this, nullptr, nullptr };
   try
   {
     typedef bool rewrite_function_type(rewriter_interface*, RewriterCompilingJitty*);
@@ -2846,9 +3029,13 @@ RewriterCompilingJitty::RewriterCompilingJitty(
                           const used_data_equation_selector& equation_selector)
   : Rewriter(data_spec,equation_selector),
     jitty_rewriter(data_spec,equation_selector),
-    m_nf_cache(jitty_rewriter)
+    m_nf_cache(new normal_form_cache())
 {
-  so_rewr_cleanup = NULL;
+  thread_initialise();
+  assert(m_nf_cache->empty());
+  so_rewr_cleanup = nullptr;
+  so_rewr = nullptr;
+  rewriting_in_progress = false;
 
   made_files = false;
   rewrite_rules.clear();
@@ -2882,7 +3069,8 @@ RewriterCompilingJitty::~RewriterCompilingJitty()
   CleanupRewriteSystem();
 }
 
-data_expression RewriterCompilingJitty::rewrite(
+void RewriterCompilingJitty::rewrite(
+     data_expression& result,
      const data_expression& term,
      substitution_type& sigma)
 {
@@ -2891,10 +3079,47 @@ data_expression RewriterCompilingJitty::rewrite(
 #endif
   // Save global sigma and restore it afterwards, as rewriting might be recursive with different
   // substitutions, due to the enumerator.
+// std::cerr << "REWRITE " << term << "\n";
   substitution_type *saved_sigma=global_sigma;
   global_sigma=&sigma;
-  const data_expression& result=so_rewr(term, this);
+  if (rewriting_in_progress)
+  {
+    so_rewr(result,term, this);
+  }
+  else
+  {
+    rewriting_in_progress=true;
+    try
+    {
+      so_rewr(result,term, this);
+    }
+    catch (recalculate_term_as_stack_is_too_small&)
+    {
+      rewriting_in_progress=false; // Restart rewriting, due to a stack overflow.
+                                   // The stack is a vector, and it may be relocated in memory when
+                                   // resized. References to the stack loose their validity. 
+      m_rewrite_stack.reserve_more_space();
+      rewrite(result,term,sigma);
+// std::cerr << "REWRITE " << term << " --> " << result << "\n";
+      return;
+    }
+    rewriting_in_progress=false;
+    assert(m_rewrite_stack.stack_size()==0);
+  }
+
   global_sigma=saved_sigma;
+// std::cerr << "REWRITE " << term << " --> " << result << "\n";
+  return;
+}
+
+data_expression RewriterCompilingJitty::rewrite(
+     const data_expression& term,
+     substitution_type& sigma)
+{
+// std::cerr << "REWRITE " << term << "\n";
+  data_expression result;
+  rewrite(result, term, sigma);
+// std::cerr << "REWRITE " << term << " --> " << result << "\n";
   return result;
 }
 

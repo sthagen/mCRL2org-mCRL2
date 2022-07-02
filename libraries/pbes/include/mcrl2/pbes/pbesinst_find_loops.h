@@ -71,15 +71,13 @@ bool find_loop(const simple_structure_graph& G,
   return false;
 }
 
-inline
-void find_loops(const simple_structure_graph& G,
-                const std::unordered_set<propositional_variable_instantiation>& discovered,
-                const pbesinst_lazy_todo& todo,
-                std::array<vertex_set, 2>& S,
-                std::array<strategy_vector, 2>& tau,
-                std::size_t iteration_count,
-                const detail::structure_graph_builder& graph_builder
-)
+template <class Container>
+inline void find_loops(const simple_structure_graph& G,
+                       const Container& discovered,
+                       const pbesinst_lazy_todo& todo, std::array<vertex_set, 2>& S,
+                       std::array<strategy_vector, 2>& tau, std::size_t iteration_count,
+                       const detail::structure_graph_builder& graph_builder
+                      )
 {
   mCRL2log(log::debug) << "Apply find loops (iteration " << iteration_count << ") to graph:\n" << G << std::endl;
 
@@ -90,7 +88,20 @@ void find_loops(const simple_structure_graph& G,
 
   // compute todo_
   boost::dynamic_bitset<> todo_(n);
-  for (const propositional_variable_instantiation& X: todo.all_elements())
+  /* for (const propositional_variable_instantiation& X: todo.all_elements())  range::join does not seem to work.
+                                                                               Hence split in todo.elements() and todo.irrelevant_elements() below. 
+  {
+    structure_graph::index_type u = graph_builder.find_vertex(X);
+    todo_[u] = true;
+  } */
+
+  for (const propositional_variable_instantiation& X: todo.elements())
+  {
+    structure_graph::index_type u = graph_builder.find_vertex(X);
+    todo_[u] = true;
+  }
+
+  for (const propositional_variable_instantiation& X: todo.irrelevant_elements())
   {
     structure_graph::index_type u = graph_builder.find_vertex(X);
     todo_[u] = true;

@@ -97,6 +97,14 @@ class multi_action: public atermpp::aterm_appl
    //--- end user section multi_action ---//
 };
 
+/// \brief Make_multi_action constructs a new term into a given address.
+/// \ \param t The reference into which the new multi_action is constructed. 
+template <class... ARGUMENTS>
+inline void make_multi_action(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_TimedMultAct(), args...);
+}
+
 /// \brief list of multi_actions
 typedef atermpp::term_list<multi_action> multi_action_list;
 

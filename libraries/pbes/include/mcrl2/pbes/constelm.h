@@ -221,7 +221,10 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
   // leave functions, mostly used to build conditions and gather free variables
   void leave(const data::data_expression& x)
   {
-    push(stack_elem(x, data::optimized_not(x), data::find_free_variables(x)));
+    data::data_expression cond_not;
+    data::optimized_not(cond_not, x);
+
+    push(stack_elem(x, cond_not, data::find_free_variables(x)));
   }
 
   void leave(const not_&)
@@ -233,7 +236,12 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
   {
     stack_elem ec_right = pop();
     stack_elem ec_left = pop();
-    stack_elem ec(data::optimized_and(ec_left.Cpos, ec_right.Cpos), data::optimized_or(ec_left.Cneg, ec_right.Cneg),
+    data::data_expression cond_and;
+    data::data_expression cond_or;
+    data::optimized_and(cond_and, ec_left.Cpos, ec_right.Cpos);
+    data::optimized_or(cond_or, ec_left.Cneg, ec_right.Cneg);
+
+    stack_elem ec(cond_and, cond_or,
       utilities::detail::set_union(ec_left.FV, ec_right.FV));
     merge_conditions(ec_left, false, ec_right, false, ec, true);
     push(ec);
@@ -243,7 +251,13 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
   {
     stack_elem ec_right = pop();
     stack_elem ec_left = pop();
-    stack_elem ec(data::optimized_or(ec_left.Cpos, ec_right.Cpos), data::optimized_and(ec_left.Cneg, ec_right.Cneg),
+    data::data_expression cond_and;
+    data::data_expression cond_or;
+
+    data::optimized_and(cond_and, ec_left.Cneg, ec_right.Cneg);
+    data::optimized_or(cond_or, ec_left.Cpos, ec_right.Cpos);
+
+    stack_elem ec(cond_or, cond_and,
       utilities::detail::set_union(ec_left.FV, ec_right.FV));
     merge_conditions(ec_left, true, ec_right, true, ec, false);
     push(ec);
@@ -253,7 +267,13 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
   {
     stack_elem ec_right = pop();
     stack_elem ec_left = pop();
-    stack_elem ec(data::optimized_or(ec_left.Cneg, ec_right.Cpos), data::optimized_and(ec_left.Cpos, ec_right.Cneg),
+    data::data_expression cond_or;
+    data::data_expression cond_and;
+
+    data::optimized_or(cond_or, ec_left.Cneg, ec_right.Cpos);
+    data::optimized_and(cond_and, ec_left.Cpos, ec_right.Cneg);
+
+    stack_elem ec(cond_or, cond_and,
       utilities::detail::set_union(ec_left.FV, ec_right.FV));;
     merge_conditions(ec_left, false, ec_right, true, ec, false);
     push(ec);
@@ -270,17 +290,22 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
       // Update the conditions
       std::set<data::data_expression> new_conditions;
       for(const data::data_expression& e: cond_set)
-      {
-        new_conditions.insert(data::optimized_exists(x.variables(), e, true));
+      {        
+        data::data_expression t;
+        data::optimized_exists(t, x.variables(), e, true);
+        new_conditions.insert(t);
       }
       cond_set = std::move(new_conditions);
-      cond_set.insert(data::optimized_forall(x.variables(), ec.Cpos, true));
+      data::data_expression forall;
+      data::optimized_forall(forall, x.variables(), ec.Cpos, true);
+
+      cond_set.insert(forall);
 
       // Update FV
       conj_FV = ec.FV;
     }
-    ec.Cpos = data::optimized_forall(x.variables(), ec.Cpos, true);
-    ec.Cneg = data::optimized_exists(x.variables(), ec.Cneg, true);
+    data::optimized_forall(ec.Cpos, x.variables(), ec.Cpos, true);
+    data::optimized_exists(ec.Cneg, x.variables(), ec.Cneg, true);
     std::set<data::variable> bound_vars{x.variables().begin(), x.variables().end()};
     ec.FV = utilities::detail::set_difference(ec.FV, bound_vars);
     push(ec);
@@ -304,16 +329,21 @@ struct edge_condition_traverser: public pbes_expression_traverser<edge_condition
       std::set<data::data_expression> new_conditions;
       for(const data::data_expression& e: cond_set)
       {
-        new_conditions.insert(data::optimized_exists(x.variables(), e, true));
+        data::data_expression t;
+        data::optimized_exists(t, x.variables(), e, true);
+        new_conditions.insert(t);
       }
       cond_set = std::move(new_conditions);
-      cond_set.insert(data::optimized_forall(x.variables(), ec.Cneg, true));
+
+      data::data_expression forall;
+      data::optimized_forall(forall, x.variables(), ec.Cneg, true);
+      cond_set.insert(forall);
 
       // Update FV
       disj_FV = ec.FV;
     }
-    ec.Cpos = data::optimized_exists(x.variables(), ec.Cpos, true);
-    ec.Cneg = data::optimized_forall(x.variables(), ec.Cneg, true);
+    data::optimized_exists(ec.Cpos, x.variables(), ec.Cpos, true);
+    data::optimized_forall(ec.Cneg, x.variables(), ec.Cneg, true);
     std::set<data::variable> bound_vars{x.variables().begin(), x.variables().end()};
     ec.FV = utilities::detail::set_difference(ec.FV, bound_vars);
     push(ec);

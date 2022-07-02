@@ -220,7 +220,7 @@ static bool is_structured_sort(const mcrl2::data::data_specification &data, mcrl
 	}
 	for (size_t i = 0; i < data.mappings().size(); i++) {
 		function_symbol mapping = data.mappings()[i];
-		if (std::string(mapping.name()) == "@to_pos" && mapping.sort() == make_function_sort(sort, sort_pos::pos())) {
+		if (std::string(mapping.name()) == "@to_pos" && mapping.sort() == make_function_sort_(sort, sort_pos::pos())) {
 			return true;
 		}
 	}

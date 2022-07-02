@@ -174,6 +174,13 @@ pbes_system::srf_pbes split_conditions(const pbes_system::srf_pbes& pbes, std::s
   return result;
 }
 
+// Store information per lace worker.
+struct per_worker_information
+{
+  data::mutable_indexed_substitution<> m_sigma;
+  data::rewriter m_rewr;
+};
+
 class pbesreach_algorithm
 {
     using enumerator_element = data::enumerator_list_element_with_substitution<>;

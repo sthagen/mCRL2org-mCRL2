@@ -87,7 +87,8 @@ class trace_constructor
     std::map<lps::state, lps::state> m_backpointers;
 
     // Finds a transition s0 --a--> s1, and returns a.
-    lps::multi_action find_action(const lps::state& s0, const lps::state& s1)
+    lps::multi_action find_action(const lps::state& s0, 
+                                  const lps::state& s1)
     {
       if constexpr (Explorer::is_stochastic)
       {
@@ -677,7 +678,12 @@ struct state_space_generator
           //--- Workaround for Visual Studio 2019 ---//
           if (max_states_exceeded())
           {
-            mCRL2log(log::verbose) << "Explored the maximum number (" << options.max_states << ") of states, terminating." << std::endl;
+            static bool not_reported_yet=true;
+            if (not_reported_yet)
+            {
+              not_reported_yet=false;
+              mCRL2log(log::verbose) << "Explored the maximum number (" << options.max_states << ") of states, terminating." << std::endl;
+            }
             //--- Workaround for Visual Studio 2019 ---//
             // explorer.abort();
             static_cast<lps::abortable&>(explorer).abort();

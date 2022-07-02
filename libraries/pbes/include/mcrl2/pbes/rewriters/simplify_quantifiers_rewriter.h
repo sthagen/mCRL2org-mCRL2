@@ -26,11 +26,12 @@ struct add_simplify_quantifiers: public Builder<Derived>
   typedef Builder<Derived> super;
   using super::apply;
 
-  pbes_expression apply(const forall& x)
+  template <class T>
+  void apply(T& result, const forall& x)
   {
-    pbes_expression result;
-    pbes_expression body = super::apply(x.body());
-    auto const& variables = x.variables();
+    pbes_expression body;
+    super::apply(body, x.body());
+    const data::variable_list& variables = x.variables();
 
     if (variables.empty())
     {
@@ -38,13 +39,17 @@ struct add_simplify_quantifiers: public Builder<Derived>
     }
     else if (is_not(body))
     {
-      result = data::optimized_not(data::optimized_exists(variables, atermpp::down_cast<not_>(body).operand(), true));
+      data::optimized_exists(result, variables, atermpp::down_cast<not_>(body).operand(), true);
+      data::optimized_not(result, result);
     }
     if (is_and(body))
     {
       auto const& left = atermpp::down_cast<and_>(body).left();
       auto const& right = atermpp::down_cast<and_>(body).right();
-      result = data::optimized_and(data::optimized_forall(variables, left, true), data::optimized_forall(variables, right, true));
+      data::optimized_forall(result, variables, left, true); 
+      pbes_expression result_right;
+      data::optimized_forall(result_right, variables, right, true);
+      data::optimized_and(result, result, result_right);
     }
     else if (is_or(body))
     {
@@ -54,29 +59,31 @@ struct add_simplify_quantifiers: public Builder<Derived>
       data::variable_list rv = data::detail::set_intersection(variables, free_variables(right));
       if (lv.empty())
       {
-        result = data::optimized_or(left, data::optimized_forall_no_empty_domain(rv, right, true));
+        data::optimized_forall_no_empty_domain(result, rv, right, true);
+        data::optimized_or(result, left, result);
       }
       else if (rv.empty())
       {
-        result = data::optimized_or(right, data::optimized_forall_no_empty_domain(lv, left, true));
+        data::optimized_forall_no_empty_domain(result, lv, left, true);
+        data::optimized_or(result, result, right);
       }
       else
       {
-        result = data::optimized_forall(variables, body, true);
+        data::optimized_forall(result, variables, body, true);
       }
     }
     else
     {
-      result = data::optimized_forall(variables, body, true);
+      data::optimized_forall(result, variables, body, true);
     }
-    return result;
   }
 
-  pbes_expression apply(const exists& x)
+  template <class T>
+  void apply(T& result, const exists& x)
   {
-    pbes_expression result;
-    pbes_expression body = super::apply(x.body());
-    auto const& variables = x.variables();
+    pbes_expression body;
+    super::apply(body, x.body());
+    const data::variable_list& variables = x.variables();
 
     if (variables.empty())
     {
@@ -84,13 +91,17 @@ struct add_simplify_quantifiers: public Builder<Derived>
     }
     else if (is_not(body))
     {
-      result = data::optimized_not(data::optimized_forall(variables, atermpp::down_cast<not_>(body).operand(), true));
+      data::optimized_forall(result, variables, atermpp::down_cast<not_>(body).operand(), true);
+      data::optimized_not(result, result);
     }
     if (is_or(body))
     {
       auto const& left = atermpp::down_cast<or_>(body).left();
       auto const& right = atermpp::down_cast<or_>(body).right();
-      result = data::optimized_or(data::optimized_exists(variables, left, true), data::optimized_exists(variables, right, true));
+      data::optimized_exists(result, variables, left, true);
+      pbes_expression result_right;
+      data::optimized_exists(result_right, variables, right, true);
+      data::optimized_or(result, result, result_right);
     }
     else if (is_and(body))
     {
@@ -100,22 +111,23 @@ struct add_simplify_quantifiers: public Builder<Derived>
       data::variable_list rv = data::detail::set_intersection(variables, free_variables(right));
       if (lv.empty())
       {
-        result = data::optimized_and(left, data::optimized_exists_no_empty_domain(rv, right, true));
+        data::optimized_exists_no_empty_domain(result, rv, right, true);
+        data::optimized_and(result, left, result);
       }
       else if (rv.empty())
       {
-        result = data::optimized_and(right, data::optimized_exists_no_empty_domain(lv, left, true));
+        data::optimized_exists_no_empty_domain(result, lv, left, true);
+        data::optimized_and(result, right, result);
       }
       else
       {
-        result = data::optimized_exists(variables, body, true);
+        data::optimized_exists(result, variables, body, true);
       }
     }
     else
     {
-      result = data::optimized_exists(variables, body, true);
+      data::optimized_exists(result, variables, body, true);
     }
-    return result;
   }
 };
 
@@ -145,7 +157,9 @@ struct simplify_quantifiers_rewriter
 
   pbes_expression operator()(const pbes_expression& x) const
   {
-    return core::make_apply_builder<detail::simplify_quantifiers_builder>().apply(x);
+    pbes_expression result;
+    core::make_apply_builder<detail::simplify_quantifiers_builder>().apply(result, x);
+    return result;
   }
 };
 
@@ -165,13 +179,17 @@ struct simplify_quantifiers_data_rewriter
   pbes_expression operator()(const pbes_expression& x) const
   {
     data::no_substitution sigma;
-    return detail::make_apply_rewriter_builder<detail::simplify_quantifiers_data_rewriter_builder>(R, sigma).apply(x);
+    pbes_expression result;
+    detail::make_apply_rewriter_builder<detail::simplify_quantifiers_data_rewriter_builder>(R, sigma).apply(result, x);
+    return result;
   }
 
   template <typename SubstitutionFunction>
   pbes_expression operator()(const pbes_expression& x, SubstitutionFunction& sigma) const
   {
-    return detail::make_apply_rewriter_builder<detail::simplify_quantifiers_data_rewriter_builder>(R, sigma).apply(x);
+    pbes_expression result;
+    detail::make_apply_rewriter_builder<detail::simplify_quantifiers_data_rewriter_builder>(R, sigma).apply(result, x);
+    return result;
   }
 };
 

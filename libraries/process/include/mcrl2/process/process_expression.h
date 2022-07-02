@@ -175,6 +175,14 @@ class action: public process_expression
     }
 };
 
+/// \brief Make_action constructs a new term into a given address.
+/// \ \param t The reference into which the new action is constructed. 
+template <class... ARGUMENTS>
+inline void make_action(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Action(), args...);
+}
+
 /// \brief list of actions
 typedef atermpp::term_list<action> action_list;
 
@@ -249,6 +257,14 @@ class process_instance: public process_expression
     }
 };
 
+/// \brief Make_process_instance constructs a new term into a given address.
+/// \ \param t The reference into which the new process_instance is constructed. 
+template <class... ARGUMENTS>
+inline void make_process_instance(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Process(), args...);
+}
+
 /// \brief Test for a process_instance expression
 /// \param x A term
 /// \return True if \a x is a process_instance expression
@@ -316,6 +332,14 @@ class process_instance_assignment: public process_expression
       return atermpp::down_cast<data::assignment_list>((*this)[1]);
     }
 };
+
+/// \brief Make_process_instance_assignment constructs a new term into a given address.
+/// \ \param t The reference into which the new process_instance_assignment is constructed. 
+template <class... ARGUMENTS>
+inline void make_process_instance_assignment(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ProcessAssignment(), args...);
+}
 
 /// \brief Test for a process_instance_assignment expression
 /// \param x A term
@@ -491,6 +515,14 @@ class sum: public process_expression
     }
 };
 
+/// \brief Make_sum constructs a new term into a given address.
+/// \ \param t The reference into which the new sum is constructed. 
+template <class... ARGUMENTS>
+inline void make_sum(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Sum(), args...);
+}
+
 /// \brief Test for a sum expression
 /// \param x A term
 /// \return True if \a x is a sum expression
@@ -558,6 +590,14 @@ class block: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_block constructs a new term into a given address.
+/// \ \param t The reference into which the new block is constructed. 
+template <class... ARGUMENTS>
+inline void make_block(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Block(), args...);
+}
 
 /// \brief Test for a block expression
 /// \param x A term
@@ -627,6 +667,14 @@ class hide: public process_expression
     }
 };
 
+/// \brief Make_hide constructs a new term into a given address.
+/// \ \param t The reference into which the new hide is constructed. 
+template <class... ARGUMENTS>
+inline void make_hide(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Hide(), args...);
+}
+
 /// \brief Test for a hide expression
 /// \param x A term
 /// \return True if \a x is a hide expression
@@ -694,6 +742,14 @@ class rename: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_rename constructs a new term into a given address.
+/// \ \param t The reference into which the new rename is constructed. 
+template <class... ARGUMENTS>
+inline void make_rename(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Rename(), args...);
+}
 
 /// \brief Test for a rename expression
 /// \param x A term
@@ -763,6 +819,14 @@ class comm: public process_expression
     }
 };
 
+/// \brief Make_comm constructs a new term into a given address.
+/// \ \param t The reference into which the new comm is constructed. 
+template <class... ARGUMENTS>
+inline void make_comm(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Comm(), args...);
+}
+
 /// \brief Test for a comm expression
 /// \param x A term
 /// \return True if \a x is a comm expression
@@ -830,6 +894,14 @@ class allow: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_allow constructs a new term into a given address.
+/// \ \param t The reference into which the new allow is constructed. 
+template <class... ARGUMENTS>
+inline void make_allow(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Allow(), args...);
+}
 
 /// \brief Test for a allow expression
 /// \param x A term
@@ -899,6 +971,14 @@ class sync: public process_expression
     }
 };
 
+/// \brief Make_sync constructs a new term into a given address.
+/// \ \param t The reference into which the new sync is constructed. 
+template <class... ARGUMENTS>
+inline void make_sync(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Sync(), args...);
+}
+
 /// \brief Test for a sync expression
 /// \param x A term
 /// \return True if \a x is a sync expression
@@ -966,6 +1046,14 @@ class at: public process_expression
       return atermpp::down_cast<data::data_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_at constructs a new term into a given address.
+/// \ \param t The reference into which the new at is constructed. 
+template <class... ARGUMENTS>
+inline void make_at(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_AtTime(), args...);
+}
 
 /// \brief Test for a at expression
 /// \param x A term
@@ -1035,6 +1123,14 @@ class seq: public process_expression
     }
 };
 
+/// \brief Make_seq constructs a new term into a given address.
+/// \ \param t The reference into which the new seq is constructed. 
+template <class... ARGUMENTS>
+inline void make_seq(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Seq(), args...);
+}
+
 /// \brief Test for a seq expression
 /// \param x A term
 /// \return True if \a x is a seq expression
@@ -1102,6 +1198,14 @@ class if_then: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_if_then constructs a new term into a given address.
+/// \ \param t The reference into which the new if_then is constructed. 
+template <class... ARGUMENTS>
+inline void make_if_then(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_IfThen(), args...);
+}
 
 /// \brief Test for a if_then expression
 /// \param x A term
@@ -1176,6 +1280,14 @@ class if_then_else: public process_expression
     }
 };
 
+/// \brief Make_if_then_else constructs a new term into a given address.
+/// \ \param t The reference into which the new if_then_else is constructed. 
+template <class... ARGUMENTS>
+inline void make_if_then_else(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_IfThenElse(), args...);
+}
+
 /// \brief Test for a if_then_else expression
 /// \param x A term
 /// \return True if \a x is a if_then_else expression
@@ -1243,6 +1355,14 @@ class bounded_init: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_bounded_init constructs a new term into a given address.
+/// \ \param t The reference into which the new bounded_init is constructed. 
+template <class... ARGUMENTS>
+inline void make_bounded_init(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BInit(), args...);
+}
 
 /// \brief Test for a bounded_init expression
 /// \param x A term
@@ -1312,6 +1432,14 @@ class merge: public process_expression
     }
 };
 
+/// \brief Make_merge constructs a new term into a given address.
+/// \ \param t The reference into which the new merge is constructed. 
+template <class... ARGUMENTS>
+inline void make_merge(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Merge(), args...);
+}
+
 /// \brief Test for a merge expression
 /// \param x A term
 /// \return True if \a x is a merge expression
@@ -1380,6 +1508,14 @@ class left_merge: public process_expression
     }
 };
 
+/// \brief Make_left_merge constructs a new term into a given address.
+/// \ \param t The reference into which the new left_merge is constructed. 
+template <class... ARGUMENTS>
+inline void make_left_merge(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_LMerge(), args...);
+}
+
 /// \brief Test for a left_merge expression
 /// \param x A term
 /// \return True if \a x is a left_merge expression
@@ -1447,6 +1583,14 @@ class choice: public process_expression
       return atermpp::down_cast<process_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_choice constructs a new term into a given address.
+/// \ \param t The reference into which the new choice is constructed. 
+template <class... ARGUMENTS>
+inline void make_choice(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_Choice(), args...);
+}
 
 /// \brief Test for a choice expression
 /// \param x A term
@@ -1521,6 +1665,14 @@ class stochastic_operator: public process_expression
     }
 };
 
+/// \brief Make_stochastic_operator constructs a new term into a given address.
+/// \ \param t The reference into which the new stochastic_operator is constructed. 
+template <class... ARGUMENTS>
+inline void make_stochastic_operator(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_StochasticOperator(), args...);
+}
+
 /// \brief Test for a stochastic_operator expression
 /// \param x A term
 /// \return True if \a x is a stochastic_operator expression
@@ -1593,6 +1745,14 @@ class untyped_process_assignment: public process_expression
       return atermpp::down_cast<data::untyped_identifier_assignment_list>((*this)[1]);
     }
 };
+
+/// \brief Make_untyped_process_assignment constructs a new term into a given address.
+/// \ \param t The reference into which the new untyped_process_assignment is constructed. 
+template <class... ARGUMENTS>
+inline void make_untyped_process_assignment(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_UntypedProcessAssignment(), args...);
+}
 
 /// \brief Test for a untyped_process_assignment expression
 /// \param x A term

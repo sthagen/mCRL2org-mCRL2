@@ -102,7 +102,9 @@ class symbolic_exploration_algorithm
     {
       if (m_optimized)
       {
-        return optimized_not(x);
+        pbes_expression result;
+        optimized_not(result, x);
+        return result;
       }
       else
       {
@@ -116,7 +118,9 @@ class symbolic_exploration_algorithm
       const pbes_expression& right = y;
       if (m_optimized)
       {
-        return optimized_and(left, right);
+        pbes_expression result;
+        optimized_and(result, left, right);
+        return result;
       }
       else
       {
@@ -130,7 +134,9 @@ class symbolic_exploration_algorithm
       const pbes_expression& right = y;
       if (m_optimized)
       {
-        return optimized_or(left, right);
+        pbes_expression result;
+        optimized_or(result, left, right);
+        return result;
       }
       else
       {
@@ -144,7 +150,9 @@ class symbolic_exploration_algorithm
       const pbes_expression& right = y;
       if (m_optimized)
       {
-        return optimized_imp(left, right);
+        pbes_expression result;
+        optimized_imp(result, left, right);
+        return result;
       }
       else
       {
@@ -157,7 +165,9 @@ class symbolic_exploration_algorithm
       const pbes_expression& body = x;
       if (m_optimized)
       {
-        return optimized_forall(d, body);
+        pbes_expression result;
+        optimized_forall(result, d, body);
+        return result;
       }
       else
       {
@@ -170,7 +180,9 @@ class symbolic_exploration_algorithm
       const pbes_expression& body = x;
       if (m_optimized)
       {
-        return optimized_exists(d, body);
+        pbes_expression result;
+        optimized_exists(result, d, body);
+        return result;
       }
       else
       {

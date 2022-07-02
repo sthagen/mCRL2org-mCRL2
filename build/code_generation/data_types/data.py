@@ -663,6 +663,16 @@ ${cases}
       {
         return ${nsfunctionname}(${actsortparameters})(${actdataparameters});
       }
+
+      /// \\brief Make an application of function symbol ${namestring}.
+      /// \\param result The data expression where the ${namestring} expression is put.
+      ${sortparameterstring}
+      ${dataparameterstring}
+      inline
+      void make_${functionname}(data_expression& result, ${parameters})
+      {
+        make_application(result, ${nsfunctionname}(${actsortparameters}),${actdataparameters});
+      }
 ''')
 
         formal_sort_params = map(lambda x: 'const sort_expression& {0}'.format(fcode(x, spec)), sort_params)
@@ -1424,7 +1434,7 @@ class sort_arrow(sort_expression):
 
   def code(self, spec):
     assert(isinstance(spec, specification))
-    return "make_function_sort(%s, %s)" % (self.domain.code(spec), self.codomain.code(spec))
+    return "make_function_sort_(%s, %s)" % (self.domain.code(spec), self.codomain.code(spec))
 
 class sort_container(sort_expression):
   def __init__(self, container, element_sort):

@@ -59,6 +59,14 @@ class untyped_sort_variable: public sort_expression
 //--- end user section untyped_sort_variable ---//
 };
 
+/// \brief Make_untyped_sort_variable constructs a new term into a given address.
+/// \ \param t The reference into which the new untyped_sort_variable is constructed. 
+template <class... ARGUMENTS>
+inline void make_untyped_sort_variable(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_UntypedSortVariable(), args...);
+}
+
 /// \brief Test for a untyped_sort_variable expression
 /// \param x A term
 /// \return True if \a x is a untyped_sort_variable expression

@@ -43,6 +43,14 @@ class Rewriter
   protected:
     enumerator_identifier_generator m_generator;  //name for variables.
 
+    /** \brief The copy assignment operator is protected. Public copying is not allowed.
+    **/
+    Rewriter& operator=(const Rewriter& other) = default;
+
+    /** \brief The copy constructor operator is protected. Public copying is not allowed.
+    **/
+    Rewriter(const Rewriter& other) = default;
+
   public:
     typedef mutable_indexed_substitution<> substitution_type;
 
@@ -57,10 +65,6 @@ class Rewriter
           m_data_specification_for_enumeration(data_spec)
     {
     }
-
-    /** \brief The copy assignment operator is deleted. Copying is not allowed.
-    **/
-    Rewriter& operator=(const Rewriter& other)=delete;
 
     /** \brief Destructor. */
     virtual ~Rewriter()
@@ -84,17 +88,14 @@ class Rewriter
      * \param Term The term to be rewritten. This term should be a data_term
      * \return The normal form of Term.
      **/
-
     virtual data_expression rewrite(const data_expression& term, substitution_type& sigma) = 0;
 
     /**
-     * \brief Rewrite a list of mCRL2 data terms.
-     * \param Terms The list of terms to be rewritten. These terms
-     *              should be in the internal mCRL2 format.
-     * \return The list Terms where each element is replaced by its
-     *         normal form.
+     * \brief Rewrite an mCRL2 data term.
+     * \param Term The term to be rewritten. This term should be a data_term
+     * \return The normal form of Term.
      **/
-    /* virtual data_expression_list rewrite_list(const data_expression_list& terms, substitution_type& sigma); */
+    virtual void rewrite(data_expression& result, const data_expression& term, substitution_type& sigma) = 0;
 
     /**
      * \brief Provide the rewriter with a () operator, such that it can also
@@ -106,58 +107,131 @@ class Rewriter
       return rewrite(term,sigma);
     }
 
+    /**
+     * \brief Clone a rewriter.
+     * \return A (pointer to a) a clone of the rewriter.
+     **/
+    virtual std::shared_ptr<detail::Rewriter> clone() = 0;
+
   public:
   /* The functions below are public, because they are used in the compiling jitty rewriter */
-    data_expression existential_quantifier_enumeration(
+    void existential_quantifier_enumeration(
+         data_expression& result,
          const abstraction& t,
          substitution_type& sigma);
-    data_expression existential_quantifier_enumeration(
+    void existential_quantifier_enumeration(
+         data_expression& result,
          const variable_list& vl,
          const data_expression& t1,
          const bool t1_is_normal_form,
          substitution_type& sigma);
 
-    data_expression universal_quantifier_enumeration(
+    void universal_quantifier_enumeration(
+         data_expression& result,
          const abstraction& t,
          substitution_type& sigma);
-    data_expression universal_quantifier_enumeration(
+    void universal_quantifier_enumeration(
+         data_expression& result,
          const variable_list& vl,
          const data_expression& t1,
          const bool t1_is_normal_form,
          substitution_type& sigma);
+
+  /* The functions below exist temporarily in the transformation of the jittyc rewriter to a rewrite_stack */
+  /* They ought to be removed. */
+    data_expression existential_quantifier_enumeration(     // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+         const abstraction& t,
+         substitution_type& sigma)
+    {
+      data_expression result;
+      existential_quantifier_enumeration(result, t, sigma);
+      return result;
+    }
+    data_expression existential_quantifier_enumeration(      // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+         const variable_list& vl,
+         const data_expression& t1,
+         const bool t1_is_normal_form,
+         substitution_type& sigma)
+    {
+      data_expression result;
+      existential_quantifier_enumeration(result, vl, t1, t1_is_normal_form, sigma);
+      return result;
+    }
+
+    data_expression universal_quantifier_enumeration(         // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+         const abstraction& t,
+         substitution_type& sigma)
+    {
+      data_expression result;
+      universal_quantifier_enumeration(result, t, sigma);
+      return result;
+    }
+
+    data_expression  universal_quantifier_enumeration(          // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+         const variable_list& vl,
+         const data_expression& t1,
+         const bool t1_is_normal_form,
+         substitution_type& sigma)
+    {
+      data_expression result;
+      universal_quantifier_enumeration(result, vl, t1, t1_is_normal_form, sigma);
+      return result;
+    }
 
     // Rewrite a where expression where the subdataexpressions are in internal format.
-    // It yields a term without a where expression.
-    data_expression rewrite_where(
-                      const where_clause& term,
-                      substitution_type& sigma);
+    // It yields a term without a where expression. The result is passed back in the variable result. 
+    void rewrite_where(data_expression& result,
+                       const where_clause& term,
+                       substitution_type& sigma);
+
+    data_expression rewrite_where(const where_clause& term,    // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+                                  substitution_type& sigma);
 
     // Rewrite an expression with a lambda as outermost symbol. The expression is in internal format.
     // Bound variables are replaced by new variables to avoid a clash with variables in the right hand sides
     // of sigma.
 
-    abstraction rewrite_single_lambda(
+    void rewrite_single_lambda(
+                      data_expression& result,
                       const variable_list& vl,
                       const data_expression& body,
                       const bool body_in_normal_form,
                       substitution_type& sigma);
 
+    data_expression rewrite_single_lambda(                    // TODO: THIS SHOULD BE REMOVED IN DUE TIME. 
+                      const variable_list& vl,
+                      const data_expression& body,
+                      const bool body_in_normal_form,
+                      substitution_type& sigma)
+    { 
+      data_expression result;
+      rewrite_single_lambda(result, vl, body, body_in_normal_form, sigma);
+      return result;
+    }
+
     /// Rewrite t, assuming that the headsymbol of t, which can be nested, is a lambda term.
-    data_expression rewrite_lambda_application(
+    void rewrite_lambda_application(
+                      data_expression& result,
                       const data_expression& t,
                       substitution_type& sigma);
 
-    data_expression rewrite_lambda_application(
+    void rewrite_lambda_application(
+                      data_expression& result,
                       const abstraction& lambda_term,
                       const application& t,
                       substitution_type& sigma);
 
+    virtual void thread_initialise()
+    {
+      std::cerr << "REWRITER DOES NOT INITIALISE THREAD\n";
+    }
 
   protected:
 
-    const mcrl2::data::data_specification m_data_specification_for_enumeration;
+    mcrl2::data::data_specification m_data_specification_for_enumeration;
 
-    data_expression quantifier_enumeration(
+    void quantifier_enumeration(
+          data_expression& result,
           const variable_list& vl,
           const data_expression& t1,
           const bool t1_is_normal_form,

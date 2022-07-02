@@ -109,7 +109,7 @@ namespace mcrl2 {
       inline
       const function_symbol& cdub()
       {
-        static function_symbol cdub(cdub_name(), make_function_sort(sort_bool::bool_(), pos(), pos()));
+        static function_symbol cdub(cdub_name(), make_function_sort_(sort_bool::bool_(), pos(), pos()));
         return cdub;
       }
 
@@ -135,6 +135,17 @@ namespace mcrl2 {
       application cdub(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_pos::cdub()(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol \@cDub.
+      /// \param result The data expression where the \@cDub expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_cdub(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_pos::cdub(),arg0, arg1);
       }
 
       /// \brief Recogniser for application of \@cDub.
@@ -194,7 +205,7 @@ namespace mcrl2 {
       inline
       const function_symbol& maximum()
       {
-        static function_symbol maximum(maximum_name(), make_function_sort(pos(), pos(), pos()));
+        static function_symbol maximum(maximum_name(), make_function_sort_(pos(), pos(), pos()));
         return maximum;
       }
 
@@ -222,6 +233,17 @@ namespace mcrl2 {
         return sort_pos::maximum()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol max.
+      /// \param result The data expression where the max expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_maximum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_pos::maximum(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of max.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol maximum to a
@@ -247,7 +269,7 @@ namespace mcrl2 {
       inline
       const function_symbol& minimum()
       {
-        static function_symbol minimum(minimum_name(), make_function_sort(pos(), pos(), pos()));
+        static function_symbol minimum(minimum_name(), make_function_sort_(pos(), pos(), pos()));
         return minimum;
       }
 
@@ -275,6 +297,17 @@ namespace mcrl2 {
         return sort_pos::minimum()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol min.
+      /// \param result The data expression where the min expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_minimum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_pos::minimum(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of min.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol minimum to a
@@ -300,7 +333,7 @@ namespace mcrl2 {
       inline
       const function_symbol& succ()
       {
-        static function_symbol succ(succ_name(), make_function_sort(pos(), pos()));
+        static function_symbol succ(succ_name(), make_function_sort_(pos(), pos()));
         return succ;
       }
 
@@ -325,6 +358,16 @@ namespace mcrl2 {
       application succ(const data_expression& arg0)
       {
         return sort_pos::succ()(arg0);
+      }
+
+      /// \brief Make an application of function symbol succ.
+      /// \param result The data expression where the succ expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_succ(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_pos::succ(),arg0);
       }
 
       /// \brief Recogniser for application of succ.
@@ -352,7 +395,7 @@ namespace mcrl2 {
       inline
       const function_symbol& pos_predecessor()
       {
-        static function_symbol pos_predecessor(pos_predecessor_name(), make_function_sort(pos(), pos()));
+        static function_symbol pos_predecessor(pos_predecessor_name(), make_function_sort_(pos(), pos()));
         return pos_predecessor;
       }
 
@@ -377,6 +420,16 @@ namespace mcrl2 {
       application pos_predecessor(const data_expression& arg0)
       {
         return sort_pos::pos_predecessor()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@pospred.
+      /// \param result The data expression where the \@pospred expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_pos_predecessor(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_pos::pos_predecessor(),arg0);
       }
 
       /// \brief Recogniser for application of \@pospred.
@@ -404,7 +457,7 @@ namespace mcrl2 {
       inline
       const function_symbol& plus()
       {
-        static function_symbol plus(plus_name(), make_function_sort(pos(), pos(), pos()));
+        static function_symbol plus(plus_name(), make_function_sort_(pos(), pos(), pos()));
         return plus;
       }
 
@@ -432,6 +485,17 @@ namespace mcrl2 {
         return sort_pos::plus()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol +.
+      /// \param result The data expression where the + expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_plus(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_pos::plus(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of +.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol plus to a
@@ -457,7 +521,7 @@ namespace mcrl2 {
       inline
       const function_symbol& add_with_carry()
       {
-        static function_symbol add_with_carry(add_with_carry_name(), make_function_sort(sort_bool::bool_(), pos(), pos(), pos()));
+        static function_symbol add_with_carry(add_with_carry_name(), make_function_sort_(sort_bool::bool_(), pos(), pos(), pos()));
         return add_with_carry;
       }
 
@@ -486,6 +550,18 @@ namespace mcrl2 {
         return sort_pos::add_with_carry()(arg0, arg1, arg2);
       }
 
+      /// \brief Make an application of function symbol \@addc.
+      /// \param result The data expression where the \@addc expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_add_with_carry(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_pos::add_with_carry(),arg0, arg1, arg2);
+      }
+
       /// \brief Recogniser for application of \@addc.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol add_with_carry to a
@@ -511,7 +587,7 @@ namespace mcrl2 {
       inline
       const function_symbol& times()
       {
-        static function_symbol times(times_name(), make_function_sort(pos(), pos(), pos()));
+        static function_symbol times(times_name(), make_function_sort_(pos(), pos(), pos()));
         return times;
       }
 
@@ -539,6 +615,17 @@ namespace mcrl2 {
         return sort_pos::times()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol *.
+      /// \param result The data expression where the * expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_times(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_pos::times(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of *.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol times to a
@@ -564,7 +651,7 @@ namespace mcrl2 {
       inline
       const function_symbol& powerlog2_pos()
       {
-        static function_symbol powerlog2_pos(powerlog2_pos_name(), make_function_sort(pos(), pos()));
+        static function_symbol powerlog2_pos(powerlog2_pos_name(), make_function_sort_(pos(), pos()));
         return powerlog2_pos;
       }
 
@@ -589,6 +676,16 @@ namespace mcrl2 {
       application powerlog2_pos(const data_expression& arg0)
       {
         return sort_pos::powerlog2_pos()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@powerlog2.
+      /// \param result The data expression where the \@powerlog2 expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_powerlog2_pos(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_pos::powerlog2_pos(),arg0);
       }
 
       /// \brief Recogniser for application of \@powerlog2.

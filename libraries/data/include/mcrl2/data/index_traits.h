@@ -22,14 +22,24 @@ inline
 void on_delete_function_symbol(const atermpp::aterm& t)
 {
   const data::function_symbol& v = atermpp::down_cast<const data::function_symbol>(t);
-  core::index_traits<data::function_symbol, function_symbol_key_type, 2>::erase(std::make_pair(v.name(), v.sort()));
+#ifndef NDEBUG
+  typedef atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2> function_symbol_index_trait_type;
+  std::size_t i = function_symbol_index_trait_type::insert(std::make_pair(v.name(), v.sort()));
+  assert(i==function_symbol_index_trait_type::index(v));
+#endif
+  atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::erase(std::make_pair(v.name(), v.sort()));
 }
 
 inline
 void on_delete_variable(const atermpp::aterm& t)
 {
   const data::variable& v = atermpp::down_cast<const data::variable>(t);
-  core::index_traits<data::variable, variable_key_type, 2>::erase(std::make_pair(v.name(), v.sort()));
+#ifndef NDEBUG
+  typedef atermpp::detail::index_traits<data::variable, variable_key_type, 2> variable_index_trait_type;
+  std::size_t i=variable_index_trait_type::insert(std::make_pair(v.name(), v.sort()));
+  assert(i==variable_index_trait_type::index(v));
+#endif
+  atermpp::detail::index_traits<data::variable, variable_key_type, 2>::erase(std::make_pair(v.name(), v.sort()));
 }
 
 inline

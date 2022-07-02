@@ -81,6 +81,14 @@ class structured_sort_constructor_argument: public atermpp::aterm_appl
 //--- end user section structured_sort_constructor_argument ---//
 };
 
+/// \brief Make_structured_sort_constructor_argument constructs a new term into a given address.
+/// \ \param t The reference into which the new structured_sort_constructor_argument is constructed. 
+template <class... ARGUMENTS>
+inline void make_structured_sort_constructor_argument(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_StructProj(), args...);
+}
+
 /// \brief list of structured_sort_constructor_arguments
 typedef atermpp::term_list<structured_sort_constructor_argument> structured_sort_constructor_argument_list;
 

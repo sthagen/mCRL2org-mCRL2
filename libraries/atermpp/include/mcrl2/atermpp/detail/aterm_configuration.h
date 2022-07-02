@@ -10,25 +10,42 @@
 #ifndef MCRL2_ATERMPP_ATERM_CONFIGURATION_H
 #define MCRL2_ATERMPP_ATERM_CONFIGURATION_H
 
+#include "mcrl2/utilities/configuration.h"
+
 namespace atermpp
 {
 namespace detail
 {
 
-/// \brief Enables thread safety for the global term and function symbol pools.
+/// Enables thread safety for the global term and function symbol pools.
+#ifdef MCRL2_THREAD_SAFE 
+constexpr static bool GlobalThreadSafe = true;
+#else
 constexpr static bool GlobalThreadSafe = false;
+#endif 
+
+/// \brief Enable garbage collection.
+constexpr static bool EnableGarbageCollection = true;
+
+/// \brief Enable the block allocator for terms.
+constexpr static bool EnableBlockAllocator = false;
 
 /// \brief Enable to print garbage collection statistics.
 constexpr static bool EnableGarbageCollectionMetrics = false;
 
 /// \brief Enable to print hashtable collision, size and number of buckets.
-constexpr static bool EnableTermHashtableMetrics = false;
+constexpr static bool EnableHashtableMetrics = false;
 
 /// \brief Enable to obtain the percentage of terms found compared to allocated.
-constexpr static bool EnableTermCreationMetrics = false;
+constexpr static bool EnableCreationMetrics = false;
 
-/// \brief Enable garbage collection.
-constexpr static bool EnableGarbageCollection = true && !GlobalThreadSafe;
+/// \brief Keep track of the number of variables registered.
+constexpr static bool EnableVariableRegistrationMetrics = false;
+
+/// \brief Switch between reference counting and tracking term variables.
+/// \details This is a macro because for constexpr booleans we cannot change inheritance and remove members.
+///          Outcomment to enable the protection set approach to protect aterms. 
+// #define MCRL2_ATERMPP_REFERENCE_COUNTED
 
 } // namespace detail
 } // namespace atermpp

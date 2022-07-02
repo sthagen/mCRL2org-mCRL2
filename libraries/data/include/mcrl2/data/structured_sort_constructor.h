@@ -170,7 +170,7 @@ class structured_sort_constructor: public atermpp::aterm_appl
       {
         if (i.name() != core::empty_identifier_string())
         {
-          result.push_back(function_symbol(i.name(), make_function_sort(s, i.sort())));
+          result.push_back(function_symbol(i.name(), make_function_sort_(s, i.sort())));
         }
       }
       return result;
@@ -182,10 +182,18 @@ class structured_sort_constructor: public atermpp::aterm_appl
     /// corresponds to is treated internally.
     function_symbol recogniser_function(const sort_expression& s) const
     {
-      return function_symbol(recogniser(), make_function_sort(s, sort_bool::bool_()));
+      return function_symbol(recogniser(), make_function_sort_(s, sort_bool::bool_()));
     }
 //--- end user section structured_sort_constructor ---//
 };
+
+/// \brief Make_structured_sort_constructor constructs a new term into a given address.
+/// \ \param t The reference into which the new structured_sort_constructor is constructed. 
+template <class... ARGUMENTS>
+inline void make_structured_sort_constructor(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_StructCons(), args...);
+}
 
 /// \brief list of structured_sort_constructors
 typedef atermpp::term_list<structured_sort_constructor> structured_sort_constructor_list;

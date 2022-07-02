@@ -380,7 +380,7 @@ BOOST_AUTO_TEST_CASE(cannot_enumerate_real_default)
                 sigma,
                 [&](const enumerator_element& p)
                 {
-                  result = data::optimized_and(result, p.expression());
+                  data::optimized_and(result, result, p.expression());
                   return result == data::sort_bool::false_();
                 },
                 is_true,
@@ -448,7 +448,7 @@ BOOST_AUTO_TEST_CASE(enumerate_callback)
                   sigma,
                   [&](const enumerator_element& p)
                   {
-                    result = data::optimized_and(result, p.expression());
+                    data::optimized_and(result, result, p.expression());
                     return is_false(result);
                   },
                   is_true,
@@ -463,7 +463,7 @@ BOOST_AUTO_TEST_CASE(enumerate_callback)
                   sigma,
                   [&](const enumerator_element& p)
                   {
-                    result = data::optimized_or(result, p.expression());
+                    data::optimized_or(result, result, p.expression());
                     return is_true(result);
                   },
                   is_false,
@@ -487,8 +487,16 @@ BOOST_AUTO_TEST_CASE(enumerate_expressions_test)
   data_specification dataspec = parse_data_specification(dataspec_text);
   data::variable v = parse_variable(variable_text, dataspec);
   rewriter r(dataspec);
-  std::string result = core::detail::print_list(enumerate_expressions(v.sort(), dataspec, r));
-  std::string expected_result1 = "[ d1(e1), d1(e2), d2(e1), d2(e2) ]";
-  std::string expected_result2 = "[ d2(e2), d2(e1), d1(e2), d1(e1) ]"; // When garbage collection is frequent, this answer occurs. 
-  BOOST_CHECK(result == expected_result1 || result == expected_result2);
+
+  data::data_expression_vector result_as_vector = enumerate_expressions(v.sort(), dataspec, r);
+
+  std::set<data::data_expression> result(result_as_vector.begin(), result_as_vector.end());
+  std::set<data::data_expression> expected_result = {
+      parse_data_expression("d1(e2)", dataspec),
+      parse_data_expression("d1(e1)", dataspec),
+      parse_data_expression("d2(e2)", dataspec),
+      parse_data_expression("d2(e1)", dataspec)
+  };
+
+  BOOST_CHECK_EQUAL_COLLECTIONS(result.begin(), result.end(), expected_result.begin(), expected_result.end());
 }

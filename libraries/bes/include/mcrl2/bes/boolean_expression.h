@@ -14,7 +14,6 @@
 
 #include "mcrl2/core/detail/default_values.h"
 #include "mcrl2/core/detail/soundness_checks.h"
-#include "mcrl2/core/index_traits.h"
 #include "mcrl2/core/print.h"
 #include "mcrl2/core/term_traits.h"
 
@@ -243,6 +242,14 @@ class not_: public boolean_expression
     }
 };
 
+/// \brief Make_not_ constructs a new term into a given address.
+/// \ \param t The reference into which the new not_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_not_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BooleanNot(), args...);
+}
+
 /// \brief Test for a not expression
 /// \param x A term
 /// \return True if \a x is a not expression
@@ -310,6 +317,14 @@ class and_: public boolean_expression
       return atermpp::down_cast<boolean_expression>((*this)[1]);
     }
 };
+
+/// \brief Make_and_ constructs a new term into a given address.
+/// \ \param t The reference into which the new and_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_and_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BooleanAnd(), args...);
+}
 
 /// \brief Test for a and expression
 /// \param x A term
@@ -379,6 +394,14 @@ class or_: public boolean_expression
     }
 };
 
+/// \brief Make_or_ constructs a new term into a given address.
+/// \ \param t The reference into which the new or_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_or_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BooleanOr(), args...);
+}
+
 /// \brief Test for a or expression
 /// \param x A term
 /// \return True if \a x is a or expression
@@ -447,6 +470,14 @@ class imp: public boolean_expression
     }
 };
 
+/// \brief Make_imp constructs a new term into a given address.
+/// \ \param t The reference into which the new imp is constructed. 
+template <class... ARGUMENTS>
+inline void make_imp(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_BooleanImp(), args...);
+}
+
 /// \brief Test for a imp expression
 /// \param x A term
 /// \return True if \a x is a imp expression
@@ -508,21 +539,27 @@ class boolean_variable: public boolean_expression
 
     /// \brief Constructor.
     boolean_variable(const core::identifier_string& name)
-      : boolean_expression(atermpp::aterm_appl(core::detail::function_symbol_BooleanVariable(),
-          name,
-          atermpp::aterm_int(core::index_traits<boolean_variable, boolean_variable_key_type, 1>::insert(name)
-        )))
-    {}
+    {
+      atermpp::make_term_appl_with_index<boolean_variable,core::identifier_string>
+                      (*this,core::detail::function_symbol_BooleanVariable(), name);
+    }
 
     /// \brief Constructor.
     boolean_variable(const std::string& name)
-      : boolean_expression(atermpp::aterm_appl(core::detail::function_symbol_BooleanVariable(),
-          core::identifier_string(name),
-          atermpp::aterm_int(core::index_traits<boolean_variable, boolean_variable_key_type, 1>::insert(name)
-        )))
-    {}
+    {
+      atermpp::make_term_appl_with_index<boolean_variable,core::identifier_string>
+                      (*this,core::detail::function_symbol_BooleanVariable(), core::identifier_string(name));
+    }
 //--- end user section boolean_variable ---//
 };
+
+/// \brief Make_boolean_variable constructs a new term into a given address.
+/// \ \param t The reference into which the new boolean_variable is constructed. 
+template <class... ARGUMENTS>
+inline void make_boolean_variable(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl_with_index<boolean_variable,core::identifier_string>(t, core::detail::function_symbol_BooleanVariable(), args...);
+}
 
 /// \brief Test for a boolean_variable expression
 /// \param x A term
@@ -619,6 +656,15 @@ struct term_traits<bes::boolean_expression>
     return bes::not_(x);
   }
 
+  /// \brief Operator not
+  /// \param result Will contain not applied to x. 
+  /// \param x A term
+  static inline
+  void make_not_(bes::boolean_expression& result, const bes::boolean_expression& x)
+  {
+    bes::make_not_(result, x);
+  }
+
   /// \brief Operator and
   /// \param p A term
   /// \param q A term
@@ -627,6 +673,16 @@ struct term_traits<bes::boolean_expression>
   bes::boolean_expression and_(const bes::boolean_expression& p, const bes::boolean_expression& q)
   {
     return bes::and_(p, q);
+  }
+
+  /// \brief Operator and
+  /// \param result Operator and applied to p and q
+  /// \param p A term
+  /// \param q A term
+  static inline
+  void make_and_(bes::boolean_expression& result, const bes::boolean_expression& p, const bes::boolean_expression& q)
+  {
+    bes::make_and_(result, p, q);
   }
 
   /// \brief Operator or
@@ -638,6 +694,16 @@ struct term_traits<bes::boolean_expression>
   {
     return bes::or_(p, q);
   }
+  //
+  /// \brief Operator or
+  /// \param result Operator or applied to p and q
+  /// \param p A term
+  /// \param q A term
+  static inline
+  void make_or_(bes::boolean_expression& result, const bes::boolean_expression& p, const bes::boolean_expression& q)
+  {
+    bes::make_or_(result, p, q);
+  }
 
   /// \brief Implication
   /// \param p A term
@@ -647,6 +713,16 @@ struct term_traits<bes::boolean_expression>
   bes::boolean_expression imp(const bes::boolean_expression& p, const bes::boolean_expression& q)
   {
     return bes::imp(p, q);
+  }
+  
+  /// \brief Implication
+  /// \param result Implication applied to p and q
+  /// \param p A term
+  /// \param q A term
+  static inline
+  void make_imp(bes::boolean_expression& result, const bes::boolean_expression& p, const bes::boolean_expression& q)
+  {
+    bes::make_imp(result, p, q);
   }
 
   /// \brief Test for value true

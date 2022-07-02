@@ -139,7 +139,7 @@ namespace mcrl2 {
       inline
       const function_symbol& cnat()
       {
-        static function_symbol cnat(cnat_name(), make_function_sort(sort_pos::pos(), nat()));
+        static function_symbol cnat(cnat_name(), make_function_sort_(sort_pos::pos(), nat()));
         return cnat;
       }
 
@@ -164,6 +164,16 @@ namespace mcrl2 {
       application cnat(const data_expression& arg0)
       {
         return sort_nat::cnat()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@cNat.
+      /// \param result The data expression where the \@cNat expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_cnat(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::cnat(),arg0);
       }
 
       /// \brief Recogniser for application of \@cNat.
@@ -191,7 +201,7 @@ namespace mcrl2 {
       inline
       const function_symbol& cpair()
       {
-        static function_symbol cpair(cpair_name(), make_function_sort(nat(), nat(), natpair()));
+        static function_symbol cpair(cpair_name(), make_function_sort_(nat(), nat(), natpair()));
         return cpair;
       }
 
@@ -217,6 +227,17 @@ namespace mcrl2 {
       application cpair(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_nat::cpair()(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol \@cPair.
+      /// \param result The data expression where the \@cPair expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_cpair(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::cpair(),arg0, arg1);
       }
 
       /// \brief Recogniser for application of \@cPair.
@@ -278,7 +299,7 @@ namespace mcrl2 {
       inline
       const function_symbol& pos2nat()
       {
-        static function_symbol pos2nat(pos2nat_name(), make_function_sort(sort_pos::pos(), nat()));
+        static function_symbol pos2nat(pos2nat_name(), make_function_sort_(sort_pos::pos(), nat()));
         return pos2nat;
       }
 
@@ -303,6 +324,16 @@ namespace mcrl2 {
       application pos2nat(const data_expression& arg0)
       {
         return sort_nat::pos2nat()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Pos2Nat.
+      /// \param result The data expression where the Pos2Nat expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_pos2nat(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::pos2nat(),arg0);
       }
 
       /// \brief Recogniser for application of Pos2Nat.
@@ -330,7 +361,7 @@ namespace mcrl2 {
       inline
       const function_symbol& nat2pos()
       {
-        static function_symbol nat2pos(nat2pos_name(), make_function_sort(nat(), sort_pos::pos()));
+        static function_symbol nat2pos(nat2pos_name(), make_function_sort_(nat(), sort_pos::pos()));
         return nat2pos;
       }
 
@@ -355,6 +386,16 @@ namespace mcrl2 {
       application nat2pos(const data_expression& arg0)
       {
         return sort_nat::nat2pos()(arg0);
+      }
+
+      /// \brief Make an application of function symbol Nat2Pos.
+      /// \param result The data expression where the Nat2Pos expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_nat2pos(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::nat2pos(),arg0);
       }
 
       /// \brief Recogniser for application of Nat2Pos.
@@ -402,7 +443,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for maximum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol maximum(maximum_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol maximum(maximum_name(), make_function_sort_(s0, s1, target_sort));
         return maximum;
       }
 
@@ -429,6 +470,17 @@ namespace mcrl2 {
       application maximum(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_nat::maximum(arg0.sort(), arg1.sort())(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol max.
+      /// \param result The data expression where the max expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_maximum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::maximum(arg0.sort(), arg1.sort()),arg0, arg1);
       }
 
       /// \brief Recogniser for application of max.
@@ -468,7 +520,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for minimum with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol minimum(minimum_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol minimum(minimum_name(), make_function_sort_(s0, s1, target_sort));
         return minimum;
       }
 
@@ -497,6 +549,17 @@ namespace mcrl2 {
         return sort_nat::minimum(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol min.
+      /// \param result The data expression where the min expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_minimum(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::minimum(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of min.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol minimum to a
@@ -521,7 +584,7 @@ namespace mcrl2 {
       function_symbol succ(const sort_expression& s0)
       {
         sort_expression target_sort(sort_pos::pos());
-        function_symbol succ(succ_name(), make_function_sort(s0, target_sort));
+        function_symbol succ(succ_name(), make_function_sort_(s0, target_sort));
         return succ;
       }
 
@@ -549,6 +612,16 @@ namespace mcrl2 {
         return sort_nat::succ(arg0.sort())(arg0);
       }
 
+      /// \brief Make an application of function symbol succ.
+      /// \param result The data expression where the succ expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_succ(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::succ(arg0.sort()),arg0);
+      }
+
       /// \brief Recogniser for application of succ.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol succ to a
@@ -574,7 +647,7 @@ namespace mcrl2 {
       inline
       const function_symbol& pred()
       {
-        static function_symbol pred(pred_name(), make_function_sort(sort_pos::pos(), nat()));
+        static function_symbol pred(pred_name(), make_function_sort_(sort_pos::pos(), nat()));
         return pred;
       }
 
@@ -599,6 +672,16 @@ namespace mcrl2 {
       application pred(const data_expression& arg0)
       {
         return sort_nat::pred()(arg0);
+      }
+
+      /// \brief Make an application of function symbol pred.
+      /// \param result The data expression where the pred expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_pred(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::pred(),arg0);
       }
 
       /// \brief Recogniser for application of pred.
@@ -626,7 +709,7 @@ namespace mcrl2 {
       inline
       const function_symbol& dub()
       {
-        static function_symbol dub(dub_name(), make_function_sort(sort_bool::bool_(), nat(), nat()));
+        static function_symbol dub(dub_name(), make_function_sort_(sort_bool::bool_(), nat(), nat()));
         return dub;
       }
 
@@ -654,6 +737,17 @@ namespace mcrl2 {
         return sort_nat::dub()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@dub.
+      /// \param result The data expression where the \@dub expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_dub(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::dub(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@dub.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol dub to a
@@ -679,7 +773,7 @@ namespace mcrl2 {
       inline
       const function_symbol& dubsucc()
       {
-        static function_symbol dubsucc(dubsucc_name(), make_function_sort(nat(), sort_pos::pos()));
+        static function_symbol dubsucc(dubsucc_name(), make_function_sort_(nat(), sort_pos::pos()));
         return dubsucc;
       }
 
@@ -704,6 +798,16 @@ namespace mcrl2 {
       application dubsucc(const data_expression& arg0)
       {
         return sort_nat::dubsucc()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@dubsucc.
+      /// \param result The data expression where the \@dubsucc expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_dubsucc(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::dubsucc(),arg0);
       }
 
       /// \brief Recogniser for application of \@dubsucc.
@@ -751,7 +855,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for plus with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol plus(plus_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol plus(plus_name(), make_function_sort_(s0, s1, target_sort));
         return plus;
       }
 
@@ -780,6 +884,17 @@ namespace mcrl2 {
         return sort_nat::plus(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol +.
+      /// \param result The data expression where the + expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_plus(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::plus(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of +.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol plus to a
@@ -805,7 +920,7 @@ namespace mcrl2 {
       inline
       const function_symbol& gte_subtract_with_borrow()
       {
-        static function_symbol gte_subtract_with_borrow(gte_subtract_with_borrow_name(), make_function_sort(sort_bool::bool_(), sort_pos::pos(), sort_pos::pos(), nat()));
+        static function_symbol gte_subtract_with_borrow(gte_subtract_with_borrow_name(), make_function_sort_(sort_bool::bool_(), sort_pos::pos(), sort_pos::pos(), nat()));
         return gte_subtract_with_borrow;
       }
 
@@ -832,6 +947,18 @@ namespace mcrl2 {
       application gte_subtract_with_borrow(const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
       {
         return sort_nat::gte_subtract_with_borrow()(arg0, arg1, arg2);
+      }
+
+      /// \brief Make an application of function symbol \@gtesubtb.
+      /// \param result The data expression where the \@gtesubtb expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_gte_subtract_with_borrow(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_nat::gte_subtract_with_borrow(),arg0, arg1, arg2);
       }
 
       /// \brief Recogniser for application of \@gtesubtb.
@@ -871,7 +998,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for times with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol times(times_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol times(times_name(), make_function_sort_(s0, s1, target_sort));
         return times;
       }
 
@@ -900,6 +1027,17 @@ namespace mcrl2 {
         return sort_nat::times(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol *.
+      /// \param result The data expression where the * expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_times(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::times(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of *.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol times to a
@@ -925,7 +1063,7 @@ namespace mcrl2 {
       inline
       const function_symbol& div()
       {
-        static function_symbol div(div_name(), make_function_sort(nat(), sort_pos::pos(), nat()));
+        static function_symbol div(div_name(), make_function_sort_(nat(), sort_pos::pos(), nat()));
         return div;
       }
 
@@ -953,6 +1091,17 @@ namespace mcrl2 {
         return sort_nat::div()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol div.
+      /// \param result The data expression where the div expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_div(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::div(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of div.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol div to a
@@ -978,7 +1127,7 @@ namespace mcrl2 {
       inline
       const function_symbol& mod()
       {
-        static function_symbol mod(mod_name(), make_function_sort(nat(), sort_pos::pos(), nat()));
+        static function_symbol mod(mod_name(), make_function_sort_(nat(), sort_pos::pos(), nat()));
         return mod;
       }
 
@@ -1004,6 +1153,17 @@ namespace mcrl2 {
       application mod(const data_expression& arg0, const data_expression& arg1)
       {
         return sort_nat::mod()(arg0, arg1);
+      }
+
+      /// \brief Make an application of function symbol mod.
+      /// \param result The data expression where the mod expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_mod(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::mod(),arg0, arg1);
       }
 
       /// \brief Recogniser for application of mod.
@@ -1043,7 +1203,7 @@ namespace mcrl2 {
           throw mcrl2::runtime_error("cannot compute target sort for exp with domain sorts " + pp(s0) + ", " + pp(s1));
         }
 
-        function_symbol exp(exp_name(), make_function_sort(s0, s1, target_sort));
+        function_symbol exp(exp_name(), make_function_sort_(s0, s1, target_sort));
         return exp;
       }
 
@@ -1072,6 +1232,17 @@ namespace mcrl2 {
         return sort_nat::exp(arg0.sort(), arg1.sort())(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol exp.
+      /// \param result The data expression where the exp expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_exp(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::exp(arg0.sort(), arg1.sort()),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of exp.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol exp to a
@@ -1097,7 +1268,7 @@ namespace mcrl2 {
       inline
       const function_symbol& even()
       {
-        static function_symbol even(even_name(), make_function_sort(nat(), sort_bool::bool_()));
+        static function_symbol even(even_name(), make_function_sort_(nat(), sort_bool::bool_()));
         return even;
       }
 
@@ -1122,6 +1293,16 @@ namespace mcrl2 {
       application even(const data_expression& arg0)
       {
         return sort_nat::even()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@even.
+      /// \param result The data expression where the \@even expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_even(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::even(),arg0);
       }
 
       /// \brief Recogniser for application of \@even.
@@ -1149,7 +1330,7 @@ namespace mcrl2 {
       inline
       const function_symbol& monus()
       {
-        static function_symbol monus(monus_name(), make_function_sort(nat(), nat(), nat()));
+        static function_symbol monus(monus_name(), make_function_sort_(nat(), nat(), nat()));
         return monus;
       }
 
@@ -1177,6 +1358,17 @@ namespace mcrl2 {
         return sort_nat::monus()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@monus.
+      /// \param result The data expression where the \@monus expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_monus(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::monus(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@monus.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol monus to a
@@ -1202,7 +1394,7 @@ namespace mcrl2 {
       inline
       const function_symbol& swap_zero()
       {
-        static function_symbol swap_zero(swap_zero_name(), make_function_sort(nat(), nat(), nat()));
+        static function_symbol swap_zero(swap_zero_name(), make_function_sort_(nat(), nat(), nat()));
         return swap_zero;
       }
 
@@ -1230,6 +1422,17 @@ namespace mcrl2 {
         return sort_nat::swap_zero()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@swap_zero.
+      /// \param result The data expression where the \@swap_zero expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_swap_zero(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::swap_zero(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@swap_zero.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol swap_zero to a
@@ -1255,7 +1458,7 @@ namespace mcrl2 {
       inline
       const function_symbol& swap_zero_add()
       {
-        static function_symbol swap_zero_add(swap_zero_add_name(), make_function_sort(nat(), nat(), nat(), nat(), nat()));
+        static function_symbol swap_zero_add(swap_zero_add_name(), make_function_sort_(nat(), nat(), nat(), nat(), nat()));
         return swap_zero_add;
       }
 
@@ -1285,6 +1488,19 @@ namespace mcrl2 {
         return sort_nat::swap_zero_add()(arg0, arg1, arg2, arg3);
       }
 
+      /// \brief Make an application of function symbol \@swap_zero_add.
+      /// \param result The data expression where the \@swap_zero_add expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      /// \param arg3 A data expression.
+      inline
+      void make_swap_zero_add(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2, const data_expression& arg3)
+      {
+        make_application(result, sort_nat::swap_zero_add(),arg0, arg1, arg2, arg3);
+      }
+
       /// \brief Recogniser for application of \@swap_zero_add.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol swap_zero_add to a
@@ -1310,7 +1526,7 @@ namespace mcrl2 {
       inline
       const function_symbol& swap_zero_min()
       {
-        static function_symbol swap_zero_min(swap_zero_min_name(), make_function_sort(nat(), nat(), nat(), nat(), nat()));
+        static function_symbol swap_zero_min(swap_zero_min_name(), make_function_sort_(nat(), nat(), nat(), nat(), nat()));
         return swap_zero_min;
       }
 
@@ -1340,6 +1556,19 @@ namespace mcrl2 {
         return sort_nat::swap_zero_min()(arg0, arg1, arg2, arg3);
       }
 
+      /// \brief Make an application of function symbol \@swap_zero_min.
+      /// \param result The data expression where the \@swap_zero_min expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      /// \param arg3 A data expression.
+      inline
+      void make_swap_zero_min(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2, const data_expression& arg3)
+      {
+        make_application(result, sort_nat::swap_zero_min(),arg0, arg1, arg2, arg3);
+      }
+
       /// \brief Recogniser for application of \@swap_zero_min.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol swap_zero_min to a
@@ -1365,7 +1594,7 @@ namespace mcrl2 {
       inline
       const function_symbol& swap_zero_monus()
       {
-        static function_symbol swap_zero_monus(swap_zero_monus_name(), make_function_sort(nat(), nat(), nat(), nat(), nat()));
+        static function_symbol swap_zero_monus(swap_zero_monus_name(), make_function_sort_(nat(), nat(), nat(), nat(), nat()));
         return swap_zero_monus;
       }
 
@@ -1395,6 +1624,19 @@ namespace mcrl2 {
         return sort_nat::swap_zero_monus()(arg0, arg1, arg2, arg3);
       }
 
+      /// \brief Make an application of function symbol \@swap_zero_monus.
+      /// \param result The data expression where the \@swap_zero_monus expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      /// \param arg3 A data expression.
+      inline
+      void make_swap_zero_monus(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2, const data_expression& arg3)
+      {
+        make_application(result, sort_nat::swap_zero_monus(),arg0, arg1, arg2, arg3);
+      }
+
       /// \brief Recogniser for application of \@swap_zero_monus.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol swap_zero_monus to a
@@ -1420,7 +1662,7 @@ namespace mcrl2 {
       inline
       const function_symbol& sqrt()
       {
-        static function_symbol sqrt(sqrt_name(), make_function_sort(nat(), nat()));
+        static function_symbol sqrt(sqrt_name(), make_function_sort_(nat(), nat()));
         return sqrt;
       }
 
@@ -1445,6 +1687,16 @@ namespace mcrl2 {
       application sqrt(const data_expression& arg0)
       {
         return sort_nat::sqrt()(arg0);
+      }
+
+      /// \brief Make an application of function symbol sqrt.
+      /// \param result The data expression where the sqrt expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_sqrt(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::sqrt(),arg0);
       }
 
       /// \brief Recogniser for application of sqrt.
@@ -1472,7 +1724,7 @@ namespace mcrl2 {
       inline
       const function_symbol& sqrt_nat_aux_func()
       {
-        static function_symbol sqrt_nat_aux_func(sqrt_nat_aux_func_name(), make_function_sort(nat(), nat(), sort_pos::pos(), nat()));
+        static function_symbol sqrt_nat_aux_func(sqrt_nat_aux_func_name(), make_function_sort_(nat(), nat(), sort_pos::pos(), nat()));
         return sqrt_nat_aux_func;
       }
 
@@ -1501,6 +1753,18 @@ namespace mcrl2 {
         return sort_nat::sqrt_nat_aux_func()(arg0, arg1, arg2);
       }
 
+      /// \brief Make an application of function symbol \@sqrt_nat.
+      /// \param result The data expression where the \@sqrt_nat expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_sqrt_nat_aux_func(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_nat::sqrt_nat_aux_func(),arg0, arg1, arg2);
+      }
+
       /// \brief Recogniser for application of \@sqrt_nat.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol sqrt_nat_aux_func to a
@@ -1526,7 +1790,7 @@ namespace mcrl2 {
       inline
       const function_symbol& first()
       {
-        static function_symbol first(first_name(), make_function_sort(natpair(), nat()));
+        static function_symbol first(first_name(), make_function_sort_(natpair(), nat()));
         return first;
       }
 
@@ -1551,6 +1815,16 @@ namespace mcrl2 {
       application first(const data_expression& arg0)
       {
         return sort_nat::first()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@first.
+      /// \param result The data expression where the \@first expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_first(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::first(),arg0);
       }
 
       /// \brief Recogniser for application of \@first.
@@ -1578,7 +1852,7 @@ namespace mcrl2 {
       inline
       const function_symbol& last()
       {
-        static function_symbol last(last_name(), make_function_sort(natpair(), nat()));
+        static function_symbol last(last_name(), make_function_sort_(natpair(), nat()));
         return last;
       }
 
@@ -1603,6 +1877,16 @@ namespace mcrl2 {
       application last(const data_expression& arg0)
       {
         return sort_nat::last()(arg0);
+      }
+
+      /// \brief Make an application of function symbol \@last.
+      /// \param result The data expression where the \@last expression is put.
+      
+      /// \param arg0 A data expression.
+      inline
+      void make_last(data_expression& result, const data_expression& arg0)
+      {
+        make_application(result, sort_nat::last(),arg0);
       }
 
       /// \brief Recogniser for application of \@last.
@@ -1630,7 +1914,7 @@ namespace mcrl2 {
       inline
       const function_symbol& divmod()
       {
-        static function_symbol divmod(divmod_name(), make_function_sort(sort_pos::pos(), sort_pos::pos(), natpair()));
+        static function_symbol divmod(divmod_name(), make_function_sort_(sort_pos::pos(), sort_pos::pos(), natpair()));
         return divmod;
       }
 
@@ -1658,6 +1942,17 @@ namespace mcrl2 {
         return sort_nat::divmod()(arg0, arg1);
       }
 
+      /// \brief Make an application of function symbol \@divmod.
+      /// \param result The data expression where the \@divmod expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      inline
+      void make_divmod(data_expression& result, const data_expression& arg0, const data_expression& arg1)
+      {
+        make_application(result, sort_nat::divmod(),arg0, arg1);
+      }
+
       /// \brief Recogniser for application of \@divmod.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol divmod to a
@@ -1683,7 +1978,7 @@ namespace mcrl2 {
       inline
       const function_symbol& generalised_divmod()
       {
-        static function_symbol generalised_divmod(generalised_divmod_name(), make_function_sort(natpair(), sort_bool::bool_(), sort_pos::pos(), natpair()));
+        static function_symbol generalised_divmod(generalised_divmod_name(), make_function_sort_(natpair(), sort_bool::bool_(), sort_pos::pos(), natpair()));
         return generalised_divmod;
       }
 
@@ -1712,6 +2007,18 @@ namespace mcrl2 {
         return sort_nat::generalised_divmod()(arg0, arg1, arg2);
       }
 
+      /// \brief Make an application of function symbol \@gdivmod.
+      /// \param result The data expression where the \@gdivmod expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_generalised_divmod(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_nat::generalised_divmod(),arg0, arg1, arg2);
+      }
+
       /// \brief Recogniser for application of \@gdivmod.
       /// \param e A data expression.
       /// \return true iff e is an application of function symbol generalised_divmod to a
@@ -1737,7 +2044,7 @@ namespace mcrl2 {
       inline
       const function_symbol& doubly_generalised_divmod()
       {
-        static function_symbol doubly_generalised_divmod(doubly_generalised_divmod_name(), make_function_sort(nat(), nat(), sort_pos::pos(), natpair()));
+        static function_symbol doubly_generalised_divmod(doubly_generalised_divmod_name(), make_function_sort_(nat(), nat(), sort_pos::pos(), natpair()));
         return doubly_generalised_divmod;
       }
 
@@ -1764,6 +2071,18 @@ namespace mcrl2 {
       application doubly_generalised_divmod(const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
       {
         return sort_nat::doubly_generalised_divmod()(arg0, arg1, arg2);
+      }
+
+      /// \brief Make an application of function symbol \@ggdivmod.
+      /// \param result The data expression where the \@ggdivmod expression is put.
+      
+      /// \param arg0 A data expression.
+      /// \param arg1 A data expression.
+      /// \param arg2 A data expression.
+      inline
+      void make_doubly_generalised_divmod(data_expression& result, const data_expression& arg0, const data_expression& arg1, const data_expression& arg2)
+      {
+        make_application(result, sort_nat::doubly_generalised_divmod(),arg0, arg1, arg2);
       }
 
       /// \brief Recogniser for application of \@ggdivmod.

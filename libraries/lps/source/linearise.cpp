@@ -4129,8 +4129,10 @@ class specification_basic_type
          : m_process_body(process_body), m_pid(pid)
        {}
 
-       process_pid_pair& operator=(const process_pid_pair& other) = default;
        process_pid_pair(const process_pid_pair& other) = default;
+       process_pid_pair(process_pid_pair&& other) = default;
+       process_pid_pair& operator=(const process_pid_pair& other) = default;
+       process_pid_pair& operator=(process_pid_pair&& other) = default;
 
        const process_expression& process_body() const
        {
@@ -8676,8 +8678,8 @@ class specification_basic_type
       alphaconvert(renameable_variables, sigma, delay1.variables(), data_expression_list());
       // Additionally map the time variable of the second ultimate delay to that of the first.
       sigma[delay2.time_var()]=delay1.time_var();
-      data_expression new_constraint = optimized_and(delay1.constraint(),
-                                                     replace_variables_capture_avoiding_alt(delay2.constraint(),sigma));
+      data_expression new_constraint; 
+      optimized_and(new_constraint, delay1.constraint(), replace_variables_capture_avoiding_alt(delay2.constraint(),sigma));
       variable_list new_existential_variables = delay1.variables()+renameable_variables;
 
       // TODO: The new constraint can be simplified, as two conditions sharing the timed variable have been merged.
@@ -8741,7 +8743,7 @@ class specification_basic_type
               sigma[ultimate_delay_condition.time_var()]=actiontime1;
               const data_expression intermediateultimatedelaycondition=
                          replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),sigma);
-              condition1=optimized_and(condition1, intermediateultimatedelaycondition);
+              optimized_and(condition1, condition1, intermediateultimatedelaycondition);
             }
 
             condition1=RewriteTerm(condition1);
@@ -8791,7 +8793,7 @@ class specification_basic_type
               {
                 actiontime1=ultimate_delay_condition.time_var();
                 sumvars1.push_front(ultimate_delay_condition.time_var());
-                condition1=optimized_and(condition1,
+                optimized_and(condition1, condition1,
                                          replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),
                                                                                   sigma));
                 has_time=true;
@@ -8805,7 +8807,7 @@ class specification_basic_type
               sigma[ultimate_delay_condition.time_var()]=actiontime1;
               const data_expression intermediateultimatedelaycondition=
                          replace_variables_capture_avoiding_alt(ultimate_delay_condition.constraint(),sigma);
-              condition1=optimized_and(condition1, intermediateultimatedelaycondition);
+              optimized_and(condition1, condition1, intermediateultimatedelaycondition);
             }
 
             condition1=RewriteTerm(condition1);
@@ -9207,6 +9209,7 @@ class specification_basic_type
       {
         generateLPEmCRL(action_summands,deadlock_summands,process_instance_assignment(t).identifier(),
                         regular,pars,init,initial_stochastic_distribution,ultimate_delay_condition);
+
         objectdatatype& object=objectIndex(process_instance_assignment(t).identifier());
 
         maintain_variables_in_rhs<mutable_map_substitution<> > sigma;
@@ -9215,7 +9218,6 @@ class specification_basic_type
           sigma[a.lhs()]=a.rhs();
         }
 
-        // init=substitute_assignmentlist(init,pars,false,true,sigma);   ZZZ
         init=replace_variables_capture_avoiding_alt(init,sigma);
 
         // Make the bound variables and parameters in this process unique.
@@ -9243,7 +9245,6 @@ class specification_basic_type
           // stacks are being used.
 
           stochastic_linear_process lps(pars,deadlock_summands,action_summands);
-          // stochastic_process_initializer initializer(init,stochastic_distribution(variable_list(),real_one())); // Default distribution.
           stochastic_process_initializer initializer(init,initial_stochastic_distribution); 
 
           stochastic_specification temporary_spec(data,acts,global_variables,lps,initializer);
@@ -9263,7 +9264,6 @@ class specification_basic_type
           init=temporary_spec.initial_process().expressions();     
           pars=temporary_spec.process().process_parameters();
           assert(init.size()==pars.size());
-
           // Add all free variables in object.parameters that are not already in the parameter list
           // and are not global variables to pars. This can occur when a parameter of the process is replaced
           // by a constant, which by itself is a parameter.
@@ -9489,6 +9489,7 @@ class specification_basic_type
           }
         }
 
+        assert(init.size() == pars.size());
         return;
       }
       /* process is a mCRLdone */
@@ -9499,6 +9500,7 @@ class specification_basic_type
         object.processstatus=mCRLlin;
         generateLPEmCRLterm(action_summands, deadlock_summands, object.processbody,
                                    regular, false, pars, init, initial_stochastic_distribution, ultimate_delay_condition);
+        assert(init.size() == pars.size());
         return;
       }
 
@@ -11262,7 +11264,6 @@ mcrl2::lps::stochastic_specification mcrl2::lps::linearise(
   std::set<data::variable> global_variables;
   global_variables.insert(globals1.begin(), globals1.end());
   global_variables.insert(globals2.begin(), globals2.end());
-
   stochastic_linear_process lps(parameters,
                                 deadlock_summands,
                                 action_summands);

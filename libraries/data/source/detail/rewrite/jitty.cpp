@@ -7,10 +7,10 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 
+#define NAME std::string("rewr_jitty")
+
 #include "mcrl2/data/detail/rewrite/jitty.h"
 #include "mcrl2/data/detail/rewrite/jitty_jittyc.h"
-
-#define NAME std::string("rewr_jitty")
 
 #include <boost/config.hpp>
 
@@ -32,52 +32,10 @@ namespace data
 namespace detail
 {
 
-
-typedef atermpp::detail::_aterm* unprotected_variable;           // Variable that is not protected (so a copy should exist at some other place)
-typedef atermpp::detail::_aterm* unprotected_data_expression;    // Idem, but now a data expression.
-
-struct jitty_variable_assignment_for_a_rewrite_rule
-{
-  const variable& var;
-  const data_expression& term;
-  bool variable_is_a_normal_form;
-
-   jitty_variable_assignment_for_a_rewrite_rule(const variable& m_var,  const data_expression& m_term, bool m_nf)
-   : var(m_var),
-     term(m_term),
-     variable_is_a_normal_form(m_nf)
-  {}
-};
-
-struct jitty_assignments_for_a_rewrite_rule
-{
-  std::size_t size;
-  jitty_variable_assignment_for_a_rewrite_rule* assignment;
-
-  jitty_assignments_for_a_rewrite_rule(jitty_variable_assignment_for_a_rewrite_rule* a)
-   : size(0),
-     assignment(a)
-  {}
-
-};
-
-
-// The function symbol below is used to administrate that a term is in normal form. It is put around a term.
-// Terms with this auxiliary function symbol cannot be printed using the pretty printer for data expressions.
-
-
-static const function_symbol& this_term_is_in_normal_form()
-{
-  static const function_symbol this_term_is_in_normal_form(
-                         std::string("Rewritten@@term"),
-                         function_sort({ untyped_sort() },untyped_sort()));
-  return this_term_is_in_normal_form;
-}
-
 // The function below is intended to remove the auxiliary function this_term_is_in_normal_form from a term
 // such that it can for instance be pretty printed.
 
-data_expression remove_normal_form_function(const data_expression& t)
+data_expression RewriterJitty::remove_normal_form_function(const data_expression& t)
 {
   if (is_variable(t))
   {
@@ -99,7 +57,7 @@ data_expression remove_normal_form_function(const data_expression& t)
       return ta[0];
     }
 
-    return application(ta.head(), ta.begin(), ta.end(), remove_normal_form_function);
+    return application(ta.head(), ta.begin(), ta.end(), [&](const data_expression& t){ return remove_normal_form_function(t); });
   }
 
 
@@ -138,9 +96,9 @@ class jitty_argument_rewriter
      : m_sigma(sigma), m_r(r)
     {}
 
-  data_expression operator()(const data_expression& t)
+  void operator()(data_expression& result, const data_expression& t)
   {
-    return m_r.rewrite(t, m_sigma);
+    m_r.rewrite_aux(result, t, m_sigma);
   }
 };
 
@@ -187,7 +145,7 @@ void RewriterJitty::rebuild_strategy(const data_specification& data_spec, const 
   {
     if (equation_selector(f))
     {
-      const std::size_t i=core::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(f);
+      const std::size_t i=atermpp::detail::index_traits<data::function_symbol, function_symbol_key_type, 2>::index(f);
       make_jitty_strat_sufficiently_larger(i);
       std::map< function_symbol, data_equation_list >::const_iterator j=jitty_eqns.find(f);
       jitty_strat[i] =
@@ -203,8 +161,13 @@ void RewriterJitty::rebuild_strategy(const data_specification& data_spec, const 
 RewriterJitty::RewriterJitty(
            const data_specification& data_spec,
            const mcrl2::data::used_data_equation_selector& equation_selector):
-        Rewriter(data_spec,equation_selector)
+        Rewriter(data_spec,equation_selector),
+        this_term_is_in_normal_form_symbol(
+                         std::string("Rewritten@@term"),
+                         function_sort({ untyped_sort() },untyped_sort())),
+        rewriting_in_progress(false)
 {
+  thread_initialise();
   for (const data_equation& eq: data_spec.equations())
   {
     if (equation_selector(eq))
@@ -239,14 +202,20 @@ RewriterJitty::~RewriterJitty()
 {
 }
 
-static data_expression subst_values(
+void RewriterJitty::subst_values(
+            data_expression& result,
             const jitty_assignments_for_a_rewrite_rule& assignments,
             const data_expression& t,
             data::enumerator_identifier_generator& generator) // This generator is used for the generation of fresh variable names.
 {
   if (is_function_symbol(t))
   {
-    return t;
+    // result=t;  The following is more efficient as it avoids a call to thread local variables. Should be removed in due time. 
+    result.assign(t,
+                  this->m_busy_flag,
+                  this->m_forbidden_flag,
+                  *this->m_creation_depth);
+    return;
   }
   else if (is_variable(t))
   {
@@ -257,12 +226,23 @@ static data_expression subst_values(
         if (assignments.assignment[i].variable_is_a_normal_form)
         {
           // Variables that are in normal form get a tag that they are in normal form.
-          return application(this_term_is_in_normal_form(),assignments.assignment[i].term);  
+          make_application(result,this_term_is_in_normal_form(),assignments.assignment[i].term);  
+          return;
         }
-        return assignments.assignment[i].term;
+        // result=assignments.assignment[i].term;
+        result.assign(assignments.assignment[i].term,
+                      this->m_busy_flag,
+                      this->m_forbidden_flag,
+                      *this->m_creation_depth);
+        return;
       }
     }
-    return t;
+    // result=t;
+    result.assign(t,
+                  this->m_busy_flag,
+                  this->m_forbidden_flag,
+                  *this->m_creation_depth);
+    return;
   }
   else if (is_abstraction(t))
   {
@@ -296,11 +276,14 @@ static data_expression subst_values(
         new_variables.push_back(v);
       }
     }
-    return abstraction(binder,
+    subst_values(result,
+                 assignments,
+                 (sigma_trivial?t1.body():replace_variables(t1.body(),sigma)),
+                 generator);  
+    result=abstraction(binder,
                        variable_list(new_variables.begin(),new_variables.end()),
-                       subst_values(assignments,
-                                    (sigma_trivial?t1.body():replace_variables(t1.body(),sigma)),
-                                    generator));
+                       result);
+    return;
   }
   else if (is_where_clause(t))
   {
@@ -324,17 +307,22 @@ static data_expression subst_values(
     for(const assignment_expression& a: local_assignments)
     {
       const assignment& assignment_expr = atermpp::down_cast<assignment>(a);
-      new_assignments.push_back(assignment(assignment_expr.lhs(), subst_values(assignments,assignment_expr.rhs(),generator)));
+      subst_values(result,assignments,assignment_expr.rhs(),generator);
+      new_assignments.push_back(assignment(assignment_expr.lhs(),result));
     }
-    return where_clause(subst_values(assignments,body,generator),assignment_list(new_assignments.begin(),new_assignments.end()));
+    subst_values(result,assignments,body,generator),
+    result=where_clause(result, assignment_list(new_assignments.begin(),new_assignments.end()));
+    return;
   }
   else
   {
     const application& t1 = atermpp::down_cast<application>(t);
-    return application(t1.head(),
+    make_application(result,
+                       t1.head(),
                        t1.begin(),
                        t1.end(),
-                       [&](const data_expression& t){ return subst_values(assignments,t,generator);});
+                       [&](data_expression& result, const data_expression& t) -> void
+                               { subst_values(result,assignments,t,generator); return;});
   }
 }
 
@@ -407,7 +395,8 @@ static bool match_jitty(
 // This function applies the rewrite_cpp_code on a higher order term t with op as head symbol for
 // which the code in rewrite_cpp_code must be applied. 
 template <class ITERATOR>
-data_expression RewriterJitty::apply_cpp_code_to_higher_order_term(
+void RewriterJitty::apply_cpp_code_to_higher_order_term(
+                  data_expression& result,
                   const application& t,
                   const std::function<data_expression(const data_expression&)> rewrite_cpp_code,
                   ITERATOR begin,
@@ -416,22 +405,26 @@ data_expression RewriterJitty::apply_cpp_code_to_higher_order_term(
 {
   if (is_function_symbol(t.head()))
   {
-    return rewrite_cpp_code(application(t.head(),begin,end));
+    make_application(result, t.head(), begin, end);
+    result=rewrite_cpp_code(result);
+    return;
   }
 
   const application& ta=atermpp::down_cast<application>(t.head());
   std::size_t n_args=recursive_number_of_args(ta);
-  const data_expression rewrite_result=application(apply_cpp_code_to_higher_order_term(ta,rewrite_cpp_code,begin,begin+n_args,sigma));
-  return rewrite_aux(application(rewrite_result,
+  apply_cpp_code_to_higher_order_term(result,ta,rewrite_cpp_code,begin,begin+n_args,sigma);
+  const data_expression rewrite_result=result;  /* TODO Optimize */
+  rewrite_aux(result,application(rewrite_result,
                                  begin+n_args,
                                  end,
-                                 [](const data_expression& t){ return this_term_is_in_normal_form()(t); } ),
+                                 [&](const data_expression& t){ return application(this_term_is_in_normal_form(),t); } ),
                      sigma);
 }
 
 
-
-data_expression RewriterJitty::rewrite_aux(
+/// \brief Rewrite a term with a given substitution and put the rewritten term in result.
+void RewriterJitty::rewrite_aux(
+                      data_expression& result,
                       const data_expression& term,
                       substitution_type& sigma)
 {
@@ -442,7 +435,12 @@ data_expression RewriterJitty::rewrite_aux(
     {
       assert(terma.size()==1);
       assert(remove_normal_form_function(terma[0])==terma[0]);
-      return terma[0];
+      // result=terma[0]; the following is more efficient.
+      result.assign(terma[0],
+                    this->m_busy_flag,
+                    this->m_forbidden_flag,
+                    *this->m_creation_depth);
+      return;
     }
 
     // The variable term has the shape appl(t,t1,...,tn);
@@ -456,79 +454,111 @@ data_expression RewriterJitty::rewrite_aux(
   
     if (is_function_symbol(head) && head!=this_term_is_in_normal_form())
     {
-      return rewrite_aux_function_symbol(atermpp::down_cast<function_symbol>(head),terma,sigma);
+      // return rewrite_aux_function_symbol(atermpp::down_cast<function_symbol>(head),term,sigma);
+      rewrite_aux_function_symbol(result, atermpp::down_cast<function_symbol>(head),terma,sigma);
+      return;
     }
   
     const application& tapp=atermpp::down_cast<application>(term);
     
-    const data_expression t = rewrite_aux(tapp.head(),sigma);
+    // const data_expression t = rewrite_aux(tapp.head(),sigma);
+    m_rewrite_stack.increase(2);
+
+    const std::size_t t = 0;  // Index of variable t in the stack. 
+    rewrite_aux(m_rewrite_stack.element(t,2),tapp.head(),sigma);
+
     // Here t has the shape f(u1,....,un)(u1',...,um')....: f applied several times to arguments,
     // x(u1,....,un)(u1',...,um')....: x applied several times to arguments, or
     // binder x1,...,xn.t' where the binder is a lambda, exists or forall.
   
-    const data_expression& head1 = get_nested_head(t);
-    if (is_function_symbol(head1))
+    const std::size_t head1 = 1;  // Index of variable head1 in the stack. 
+    m_rewrite_stack.element(head1,2) = get_nested_head(m_rewrite_stack.element(t,2));
+    if (is_function_symbol(m_rewrite_stack.element(head1,2)))
     {
-      // In this case t has the shape f(u1...un)(u1'...um')....  where all u1,...,un,u1',...,um' are normal formas.
+      // In this case t (is top of the rewrite stack) has the shape f(u1...un)(u1'...um')....  where all u1,...,un,u1',...,um' are normal formas.
       // In the invocation of rewrite_aux_function_symbol these terms are rewritten to normalform again.
-      const application result(t,tapp.begin(), tapp.end()); 
-      return rewrite_aux_function_symbol(atermpp::down_cast<function_symbol>(head1),result,sigma);
+      make_application(result, m_rewrite_stack.element(t,2) , tapp.begin(), tapp.end()); 
+      rewrite_aux_function_symbol(m_rewrite_stack.element(t,2),
+                                  atermpp::down_cast<function_symbol>(m_rewrite_stack.element(head1,2)),
+                                  atermpp::down_cast<application>(result),
+                                  sigma);
+      result=m_rewrite_stack.element(t,2);
+      m_rewrite_stack.decrease(2);
+      return;
     }
-    else if (is_variable(head1))
+    else if (is_variable(m_rewrite_stack.element(head1,2)))
     {
       // return appl(t,t1,...,tn) where t1,...,tn still need to be rewritten.
       jitty_argument_rewriter r(sigma,*this);
       const bool do_not_rewrite_head=false;
-      return application(t,tapp.begin(),tapp.end(),r, do_not_rewrite_head); // Replacing r by a lambda term requires 16 more bytes on the stack. 
+      make_application(result, m_rewrite_stack.element(t,2) , tapp.begin(), tapp.end(), r, do_not_rewrite_head); // Replacing r by a lambda term requires 16 more bytes on the stack. 
+      m_rewrite_stack.decrease(2);
+      return;
     }
-    assert(is_abstraction(t));
-    const abstraction& ta=atermpp::down_cast<abstraction>(t);
+    assert(is_abstraction(m_rewrite_stack.top()));
+    const abstraction& ta=atermpp::down_cast<abstraction>(m_rewrite_stack.element(t,2) );
     const binder_type& binder(ta.binding_operator());
     if (is_lambda_binder(binder))
     {
-      return rewrite_lambda_application(ta,tapp,sigma);
+      rewrite_lambda_application(result,ta,tapp,sigma);
+      m_rewrite_stack.decrease(2);
+      return;
     }
     if (is_exists_binder(binder))
     {
       assert(term.size()==1);
-      return existential_quantifier_enumeration(ta,sigma);
+      existential_quantifier_enumeration(result,ta,sigma);
+      m_rewrite_stack.decrease(2);
+      return;
     }
     assert(is_forall_binder(binder));
     assert(term.size()==1);
-    return universal_quantifier_enumeration(ta,sigma);
+    universal_quantifier_enumeration(result,ta,sigma);
+    m_rewrite_stack.decrease(2);
+    return;
   }
   // Here term does not have the shape appl(t1,...,tn)
   if (is_function_symbol(term))
   {
     assert(term!=this_term_is_in_normal_form());
-    return rewrite_aux_const_function_symbol(atermpp::down_cast<const function_symbol>(term),sigma);
+    rewrite_aux_const_function_symbol(result,atermpp::down_cast<const function_symbol>(term),sigma);
+    return;
   }
   if (is_variable(term))
   {
-    return sigma(atermpp::down_cast<variable>(term));
+    sigma.apply(atermpp::down_cast<variable>(term),result, 
+                  this->m_busy_flag,                         // Adding the busy/forbidden/creation depth is an optimisation.
+                  this->m_forbidden_flag,
+                  *this->m_creation_depth);
+    return;
   }
   if (is_where_clause(term))
   {
     const where_clause& w = atermpp::down_cast<where_clause>(term);
-    return rewrite_where(w,sigma);
+    rewrite_where(result,w,sigma);
+    return;
   }
 
   { 
     const abstraction& ta=atermpp::down_cast<abstraction>(term);
     if (is_exists(ta))
     {
-      return existential_quantifier_enumeration(ta,sigma);
+      existential_quantifier_enumeration(result,ta,sigma);
+      return;
     }
     if (is_forall(ta))
     {
-      return universal_quantifier_enumeration(ta,sigma);
+      universal_quantifier_enumeration(result,ta,sigma);
+      return;
     }
     assert(is_lambda(ta));
-    return rewrite_single_lambda(ta.variables(),ta.body(),false,sigma);
+    rewrite_single_lambda(result,ta.variables(),ta.body(),false,sigma);
+    return;
   }
 }
 
-data_expression RewriterJitty::rewrite_aux_function_symbol(
+void RewriterJitty::rewrite_aux_function_symbol(
+                      data_expression& result, 
                       const function_symbol& op,
                       const application& term,
                       substitution_type& sigma)
@@ -537,9 +567,9 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
   assert(is_function_sort(op.sort()));
 
   const std::size_t arity=detail::recursive_number_of_args(term);
-  assert(arity!=0);
-
-  data_expression* rewritten = MCRL2_SPECIFIC_STACK_ALLOCATOR(data_expression, arity);
+  assert(arity>0);
+  // data_expression* rewritten = MCRL2_SPECIFIC_STACK_ALLOCATOR(data_expression, arity);
+  m_rewrite_stack.increase(arity+1); 
   bool* rewritten_defined = MCRL2_SPECIFIC_STACK_ALLOCATOR(bool, arity);
 
   for(std::size_t i=0; i<arity; ++i)
@@ -547,13 +577,14 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
     rewritten_defined[i]=false;
   }
 
-  const std::size_t op_value=core::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(op);
+  const std::size_t op_value=atermpp::detail::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(op);
   make_jitty_strat_sufficiently_larger(op_value);
   const strategy& strat=jitty_strat[op_value];
 
   if (!strat.rules().empty())
   {
-    jitty_assignments_for_a_rewrite_rule assignments(MCRL2_SPECIFIC_STACK_ALLOCATOR(jitty_variable_assignment_for_a_rewrite_rule, strat.number_of_variables()));
+    jitty_assignments_for_a_rewrite_rule assignments(
+             MCRL2_SPECIFIC_STACK_ALLOCATOR(jitty_variable_assignment_for_a_rewrite_rule, strat.number_of_variables()));
 
     for (const strategy_rule& rule : strat.rules())
     {
@@ -565,10 +596,13 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
           assert(!rewritten_defined[i]||i==0);
           if (!rewritten_defined[i])
           {
-            new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+            // new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+            rewrite_aux(m_rewrite_stack.element(i,arity+1),detail::get_argument_of_higher_order_term(term,i),sigma);
+            
             rewritten_defined[i]=true;
           }
-          assert(rewritten[i].defined());
+          // assert(rewritten[i].defined());
+          assert(m_rewrite_stack.element(i,arity+1).defined());
         }
         else
         {
@@ -582,14 +616,13 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
         assert(arity>0);
         if (term.head()==op) 
         { 
-          // application rewriteable_term(op,0,arity,[&rewritten, &rewritten_defined](size_t i){assert(rewritten_defined[i]); return rewritten[i];});
-          application rewriteable_term(op, &rewritten[0], &rewritten[arity]);
-          
-          for (std::size_t i=0; i<arity; i++)
-          {
-            rewritten[i].~data_expression();
-          }
-          return rule.rewrite_cpp_code()(rewriteable_term);
+          // application rewriteable_term(op, &rewritten[0], &rewritten[arity]);
+          assert(m_rewrite_stack.stack_size()>=arity+1);
+          application rewriteable_term(op, m_rewrite_stack.stack_iterator(0,arity+1),
+                                           m_rewrite_stack.stack_iterator(arity,arity+1)); /* TODO Optimize */
+          result=rule.rewrite_cpp_code()(rewriteable_term);
+          m_rewrite_stack.decrease(arity+1);
+          return;
         }
         else
         {
@@ -599,18 +632,21 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
           {
             if (!rewritten_defined[i])
             {
-              new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+              // new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+              rewrite_aux(m_rewrite_stack.element(i,arity+1),detail::get_argument_of_higher_order_term(term,i),sigma);
               rewritten_defined[i]=true;
             }
           }
-          data_expression result=apply_cpp_code_to_higher_order_term(term, rule.rewrite_cpp_code(), &rewritten[0], &rewritten[arity], sigma);
-          for (std::size_t i=0; i<arity; i++)
-          {
-            rewritten[i].~data_expression();
-          }
-          return result;
+          // return apply_cpp_code_to_higher_order_term(term,  rule.rewrite_cpp_code(), &rewritten[0], &rewritten[arity], sigma);
+          apply_cpp_code_to_higher_order_term(
+                                           result,
+                                           term,  
+                                           rule.rewrite_cpp_code(),  
+                                           m_rewrite_stack.stack_iterator(0,arity+1),
+                                           m_rewrite_stack.stack_iterator(arity,arity+1), sigma);
+          m_rewrite_stack.decrease(arity+1); 
+          return;
         }
-        
       }
       else
       {
@@ -629,7 +665,9 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
         for (std::size_t i=0; i<rule_arity; i++)
         {
           assert(i<arity);
-          if (!match_jitty(rewritten_defined[i]?rewritten[i]:detail::get_argument_of_higher_order_term(term,i),
+          if (!match_jitty(rewritten_defined[i]?
+                                 m_rewrite_stack.element(i,arity+1):
+                                 detail::get_argument_of_higher_order_term(term,i),
                            detail::get_argument_of_higher_order_term(atermpp::down_cast<application>(lhs),i),
                            assignments,rewritten_defined[i]))
           {
@@ -639,44 +677,45 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
         }
         if (matches)
         {
-          if (rule1.condition()==sort_bool::true_() || rewrite_aux(
-                   subst_values(assignments,rule1.condition(),m_generator),sigma)==sort_bool::true_())
+          bool condition_of_this_rule=false;
+          if (rule1.condition()==sort_bool::true_())
+          { 
+            condition_of_this_rule=true;
+          }
+          else
+          {
+            subst_values(m_rewrite_stack.top(),assignments,rule1.condition(),m_generator);
+            rewrite_aux(result, m_rewrite_stack.top(), sigma);
+            if (result==sort_bool::true_())
+            {
+              condition_of_this_rule=true;
+            }
+          }
+          if (condition_of_this_rule)
           {
             const data_expression& rhs=rule1.rhs();
 
             if (arity == rule_arity)
             {
-              const data_expression result=rewrite_aux(subst_values(assignments,rhs,m_generator),sigma);
-              for (std::size_t i=0; i<arity; i++)
-              {
-                if (rewritten_defined[i])
-                {
-                  rewritten[i].~data_expression();
-                }
-              }
-              return result;
+              // const data_expression result=rewrite_aux(subst_values(assignments,rhs,m_generator),sigma);
+              subst_values(m_rewrite_stack.top(),assignments,rhs,m_generator);
+              rewrite_aux(result, m_rewrite_stack.top(),sigma);
+              m_rewrite_stack.decrease(arity+1);
+              return;
             }
             else
             {
-
               assert(arity>rule_arity);
               // There are more arguments than those that have been rewritten.
               // Get those, put them in rewritten.
 
-              data_expression result=subst_values(assignments,rhs,m_generator);
-
               for(std::size_t i=rule_arity; i<arity; ++i)
               {
-                if (rewritten_defined[i])
-                {
-                  rewritten[i]=detail::get_argument_of_higher_order_term(term,i);
-                }
-                else
-                {
-                  new (&rewritten[i]) data_expression(detail::get_argument_of_higher_order_term(term,i));
-                  rewritten_defined[i]=true;
-                }
+                m_rewrite_stack.set_element(i,arity+1,detail::get_argument_of_higher_order_term(term,i));
+                rewritten_defined[i]=true;
               }
+
+              subst_values(m_rewrite_stack.top(),assignments,rhs,m_generator);
               std::size_t i = rule_arity;
               sort_expression sort = detail::residual_sort(op.sort(),i);
               while (is_function_sort(sort) && (i < arity))
@@ -684,21 +723,24 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
                 const function_sort& fsort =  atermpp::down_cast<function_sort>(sort);
                 const std::size_t end=i+fsort.domain().size();
                 assert(end-1<arity);
-                result = application(result,&rewritten[0]+i,&rewritten[0]+end);
+                // result = application(result,&rewritten[0]+i,&rewritten[0]+end);
+                assert(m_rewrite_stack.stack_size()+i>=arity+1);
+                assert(end<arity+1);
+                assert(end>=i);
+
+                make_application(m_rewrite_stack.top(),m_rewrite_stack.top(),
+                                     m_rewrite_stack.stack_iterator(i,arity+1),
+                                     m_rewrite_stack.stack_iterator(end,arity+1));
                 i=end;
                 sort = fsort.codomain();
               }
 
-              for (std::size_t i=0; i<arity; ++i)
-              {
-                if (rewritten_defined[i])
-                {
-                  rewritten[i].~data_expression();
-                }
-              }
-              return rewrite_aux(result,sigma);
+              rewrite_aux(result,m_rewrite_stack.top(),sigma);
+              m_rewrite_stack.decrease(arity+1);
+              return;
             }
           }
+          
         }
         assignments.size=0;
       }
@@ -712,52 +754,61 @@ data_expression RewriterJitty::rewrite_aux_function_symbol(
   {
     if (!rewritten_defined[i])
     {
-      new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+      // new (&rewritten[i]) data_expression(rewrite_aux(detail::get_argument_of_higher_order_term(term,i),sigma));
+      rewrite_aux(m_rewrite_stack.element(i,arity+1),detail::get_argument_of_higher_order_term(term,i),sigma);
     }
   }
 
-  //Construct this potential higher order term.
-  data_expression result=op;
-  std::size_t i = 0;
-  const sort_expression* sort = &op.sort();
-  do
+  // The while loop must always be iterated once. Therefore, the initial traversal is put before the
+  // main loop. 
+  const function_sort& fsort=atermpp::down_cast<function_sort>(op.sort());
+  const std::size_t end=fsort.domain().size();
+
+  make_application(result,op,m_rewrite_stack.stack_iterator(0,arity+1), m_rewrite_stack.stack_iterator(end,arity+1));
+  std::size_t i=end;
+  const sort_expression* sort = &fsort.codomain();
+  while (i<arity && is_function_sort(*sort))
   {
     const function_sort& fsort=atermpp::down_cast<function_sort>(*sort);
     const std::size_t end=i+fsort.domain().size();
-    assert(end-1<arity);
-    result = application(result,&rewritten[0]+i,&rewritten[0]+end);
+    assert(m_rewrite_stack.stack_size()+i>=arity+1);
+    assert(end<arity+1);
+    assert(end>=i);
+    make_application(result,result,m_rewrite_stack.stack_iterator(i,arity+1), m_rewrite_stack.stack_iterator(end,arity+1));
     i=end;
     sort = &fsort.codomain();
   }
-  while (i < arity && is_function_sort(*sort));
 
-  for (std::size_t i=0; i<arity; i++)
-  {
-    rewritten[i].~data_expression();
-  } 
-  return result; 
+  m_rewrite_stack.decrease(arity+1);
+  return; 
 }
 
-data_expression RewriterJitty::rewrite_aux_const_function_symbol(
+void RewriterJitty::rewrite_aux_const_function_symbol(
+                      data_expression& result,
                       const function_symbol& op,
                       substitution_type& sigma)
 {
   // This is special code to rewrite a function symbol. Note that the function symbol can be higher order,
   // e.g., it can be a function symbol f for which a rewrite rule f(n)=... exists. 
 
-  const std::size_t op_value=core::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(op);
+  const std::size_t op_value=atermpp::detail::index_traits<data::function_symbol,function_symbol_key_type, 2>::index(op);
   make_jitty_strat_sufficiently_larger(op_value);
 
   // Cache the rhs's as they are rewritten very often. 
-  static std::vector<data_expression> rhs_cache;
-  if (rhs_cache.size()<=op_value)
+  if (rhs_for_constants_cache.size()<=op_value)
   {
-    rhs_cache.resize(op_value+1);
+    rhs_for_constants_cache.resize(op_value+1);
   }
-  const data_expression& cached_rhs = rhs_cache[op_value];
-  if (cached_rhs!=data_expression())
+  const data_expression& cached_rhs = rhs_for_constants_cache[op_value];
+  if (!cached_rhs.is_default_data_expression())
   {
-    return cached_rhs;
+    // result=cached_rhs;
+    /* result.assign(cached_rhs,
+                  this->m_busy_flag,
+                  this->m_forbidden_flag,
+                  *this->m_creation_depth); */
+    result.unprotected_assign<false>(cached_rhs);
+    return;
   }
 
   const strategy& strat=jitty_strat[op_value];
@@ -772,9 +823,9 @@ data_expression RewriterJitty::rewrite_aux_const_function_symbol(
     }
     else if (rule.is_cpp_code())
     {
-      const data_expression result=rule.rewrite_cpp_code()(op);
-      rhs_cache[op_value]=result;
-      return result;
+      result=rule.rewrite_cpp_code()(op);  /* TODO Optimize */
+      rhs_for_constants_cache[op_value]=result;
+      return;
     }
     else
     {
@@ -787,31 +838,73 @@ data_expression RewriterJitty::rewrite_aux_const_function_symbol(
         break;
       }
 
-      if (rule1.condition()==sort_bool::true_() || rewrite_aux(rule1.condition(),sigma)==sort_bool::true_())
+      if (rule1.condition()==sort_bool::true_())
+      { 
+        rewrite_aux(result,rule1.rhs(),sigma);
+        rhs_for_constants_cache[op_value]=result;
+        return;
+      }
+      rewrite_aux(result,rule1.condition(),sigma);
+      if (result==sort_bool::true_())
       {
-        const data_expression result=rewrite_aux(rule1.rhs(),sigma);
-        rhs_cache[op_value]=result;
-        return rewrite_aux(rule1.rhs(),sigma);
+        rewrite_aux(result,rule1.rhs(),sigma);
+        rhs_for_constants_cache[op_value]=result;
+        return;
       }
     }
   }
 
-  rhs_cache[op_value]=op;
-  return op; 
+  rhs_for_constants_cache[op_value]=op;
+  result=op; 
+  return;
 }
 
-
-data_expression RewriterJitty::rewrite(
+void RewriterJitty::rewrite(
+     data_expression& result,
      const data_expression& term,
      substitution_type& sigma)
 {
 #ifdef MCRL2_DISPLAY_REWRITE_STATISTICS
   data::detail::increment_rewrite_count();
 #endif
-  const data_expression t=rewrite_aux(term, sigma);
-  assert(remove_normal_form_function(t)==t);
-  return t;
+  if (rewriting_in_progress)
+  {
+    rewrite_aux(result, term, sigma);
+  }
+  else
+  {
+    assert(m_rewrite_stack.stack_size()==0);
+    rewriting_in_progress=true;
+    try
+    {
+      rewrite_aux(result, term, sigma);
+    }
+    catch (recalculate_term_as_stack_is_too_small&)
+    {
+      rewriting_in_progress=false; // Restart rewriting, due to a stack overflow.
+                                   // The stack is a vector, and it may be relocated in memory when
+                                   // resized. References to the stack loose their validity. 
+      m_rewrite_stack.reserve_more_space();
+      rewrite(result,term,sigma);
+      return;
+    }
+    rewriting_in_progress=false;
+    assert(m_rewrite_stack.stack_size()==0);
+  }
+
+  assert(remove_normal_form_function(result)==result);
+  return;
 }
+
+data_expression RewriterJitty::rewrite(
+     const data_expression& term,
+     substitution_type& sigma)
+{
+  data_expression result;
+  rewrite(result, term, sigma);
+  return result;
+}
+
 
 rewrite_strategy RewriterJitty::getStrategy()
 {

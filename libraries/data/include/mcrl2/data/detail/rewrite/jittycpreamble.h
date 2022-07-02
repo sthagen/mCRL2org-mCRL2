@@ -35,9 +35,15 @@ extern "C" {
 // A rewrite_term is a term that may or may not be in normal form. If the method"
 // normal_form is invoked, it will calculate a normal form for itself as efficiently as possible."
 template <class REWRITE_TERM>
-static data_expression local_rewrite(const REWRITE_TERM& t)
+static data_expression& local_rewrite(const REWRITE_TERM& t)
 {
   return t.normal_form();
+}
+
+template <class REWRITE_TERM>
+static void local_rewrite(data_expression& result, const REWRITE_TERM& t)
+{
+  t.normal_form(result);
 }
 
 static const data_expression& local_rewrite(const data_expression& t)
@@ -45,25 +51,46 @@ static const data_expression& local_rewrite(const data_expression& t)
   return t;
 } 
 
+static void local_rewrite(data_expression& result, const data_expression& t)
+{
+  result=t;
+}
+
 //
 // Forward declarations
 //
 static void set_the_precompiled_rewrite_functions_in_a_lookup_table(RewriterCompilingJitty* this_rewriter);
-static data_expression rewrite_aux(const data_expression& t, const bool arguments_in_normal_form, RewriterCompilingJitty* this_rewriter);
-static inline data_expression rewrite_abstraction_aux(const abstraction& a, const data_expression& t, RewriterCompilingJitty* this_rewriter);
+
+template <bool ARGUMENTS_IN_NORMAL_FORM>
+static void rewrite_aux(data_expression& result, const data_expression& t, RewriterCompilingJitty* this_rewriter);
+static void rewrite_abstraction_aux(data_expression& result, const abstraction& a, const data_expression& t, RewriterCompilingJitty* this_rewriter);
+
+static void rewrite_with_arguments_in_normal_form(
+                        data_expression& result, 
+                        const data_expression& t, 
+                        RewriterCompilingJitty* this_rewriter)
+{
+  rewrite_aux<true>(result, t, this_rewriter);
+  return;
+}
+
 static data_expression rewrite_with_arguments_in_normal_form(const data_expression& t, RewriterCompilingJitty* this_rewriter)
 {
-  return rewrite_aux(t,true, this_rewriter);
+  data_expression result; // TODO: Optimize
+  rewrite_aux<true>(result, t, this_rewriter);
+  return result;
 }
-static data_expression rewrite(const data_expression& t, RewriterCompilingJitty* this_rewriter)
+
+static void rewrite(data_expression& result, const data_expression& t, RewriterCompilingJitty* this_rewriter)
 {
-  return rewrite_aux(t, false, this_rewriter);
+  rewrite_aux<false>(result, t, this_rewriter);
+  return;
 }
 
 //
 // Type definitions
 //
-typedef data_expression (*rewriter_function)(const application&, RewriterCompilingJitty*);
+typedef void(*rewriter_function)(data_expression&, const application&, RewriterCompilingJitty*);
 
 // A class that contains terms which are explicitly tagged to be
 // not in normal form. By invoking normal_form the normalform
@@ -79,9 +106,16 @@ class term_not_in_normal_form
        : m_term(term), this_rewriter(tr)
     {}
 
-    data_expression normal_form() const
+    data_expression& normal_form() const
     {
-      return rewrite_aux(m_term,false, this_rewriter);
+      data_expression& local_store = this_rewriter->m_rewrite_stack.new_stack_position();
+      rewrite_aux<false>(local_store, m_term, this_rewriter);
+      return local_store;
+    }
+
+    void normal_form(data_expression& result) const
+    {
+      rewrite_aux<false>(result, m_term, this_rewriter);
     }
 };
 
@@ -103,10 +137,20 @@ class delayed_abstraction
        : m_binding_operator(binding_operator), m_variables(variables), m_body(body), this_rewriter(tr)
     {}
 
-    data_expression normal_form() const
+    data_expression& normal_form() const
     {
-      const abstraction t(m_binding_operator,m_variables,local_rewrite(m_body));
-      return rewrite_abstraction_aux(t,t,this_rewriter);
+      data_expression& t = this_rewriter->m_rewrite_stack.new_stack_position();
+      make_abstraction(t, m_binding_operator, m_variables, local_rewrite(m_body));
+      data_expression& result = this_rewriter->m_rewrite_stack.new_stack_position();
+      rewrite_abstraction_aux(result, atermpp::down_cast<abstraction>(t),t,this_rewriter);
+      return result;
+    }
+
+    void normal_form(data_expression& result) const
+    {
+      local_rewrite(result, m_body);  // TODO: HERE m_body is rewritten twice, even if it is in normal form. 
+      make_abstraction(result, m_binding_operator, m_variables, result);
+      rewrite_abstraction_aux(result, atermpp::down_cast<abstraction>(result),result,this_rewriter);
     }
 };
 
@@ -121,7 +165,9 @@ struct rewrite_functor
 
   data_expression operator()(const data_expression& arg) const
   {
-    return rewrite_aux(arg,false,this_rewriter);
+    data_expression result;
+    rewrite_aux<false>(result, arg, this_rewriter);
+    return result;
   }
 };
 
@@ -129,9 +175,9 @@ struct rewrite_functor
 // Miscellaneous helper functions
 //
 static inline
-const data_expression& pass_on(const data_expression& t)
+void pass_on(data_expression& result, const data_expression& t)
 {
-  return t;
+  result=t;
 }
 
 static inline
@@ -144,7 +190,7 @@ assignment_expression_list jittyc_local_push_front(assignment_expression_list l,
 static inline
 std::size_t get_index(const function_symbol& func)
 {
-  return mcrl2::core::index_traits<function_symbol, function_symbol_key_type, 2>::index(func);
+  return atermpp::detail::index_traits<function_symbol, function_symbol_key_type, 2>::index(func);
 }
 
 static inline
@@ -163,73 +209,84 @@ uintptr_t uint_address(const atermpp::aterm& t)
 // Rewriting functions
 //
 
+template <bool ARGUMENTS_IN_NORMAL_FORM>
 static inline rewriter_function get_precompiled_rewrite_function(
              const function_symbol& f, 
              const std::size_t arity, 
-             const bool arguments_in_normal_form, 
              RewriterCompilingJitty* this_rewriter)
 {
   const std::size_t index = get_index(f);
   if (index>=this_rewriter->index_bound || arity>=this_rewriter->arity_bound)
   {
-    return NULL;
+    return nullptr;
   }
-
-  if (arguments_in_normal_form)
+  if (ARGUMENTS_IN_NORMAL_FORM)
   {
     assert(this_rewriter -> arity_bound * index + arity<this_rewriter->functions_when_arguments_are_in_normal_form.size());
     return this_rewriter->functions_when_arguments_are_in_normal_form[this_rewriter->arity_bound * index + arity]; 
   }
-  assert(this_rewriter->arity_bound * index + arity<this_rewriter->functions_when_arguments_are_not_in_normal_form.size());
-  return this_rewriter->functions_when_arguments_are_not_in_normal_form[this_rewriter->arity_bound * index + arity];
+  else
+  {
+    assert(this_rewriter->arity_bound * index + arity<this_rewriter->functions_when_arguments_are_not_in_normal_form.size());
+    return this_rewriter->functions_when_arguments_are_not_in_normal_form[this_rewriter->arity_bound * index + arity];
+  }
 }
 
 static inline 
-data_expression rewrite_abstraction_aux(const abstraction& head, const data_expression& a, RewriterCompilingJitty* this_rewriter)
+void rewrite_abstraction_aux(data_expression& result, const abstraction& head, const data_expression& a, RewriterCompilingJitty* this_rewriter)
 {
   const binder_type& binder(head.binding_operator());
   if (is_lambda_binder(binder))
   {
-    const data_expression& result=this_rewriter->rewrite_lambda_application(a, sigma(this_rewriter));
+    this_rewriter->rewrite_lambda_application(result, a, sigma(this_rewriter));
     assert(result.sort()==a.sort());
-    return result;
+    return;
   }
   if (is_exists_binder(binder))
   {
-    const data_expression& result=this_rewriter->existential_quantifier_enumeration(head, sigma(this_rewriter));
+    this_rewriter->existential_quantifier_enumeration(result, head, sigma(this_rewriter));
     assert(result.sort()==a.sort());
-    return result;
+    return;
   }
   assert(is_forall_binder(binder));
-  const data_expression& result=this_rewriter->universal_quantifier_enumeration(head, sigma(this_rewriter));
+  this_rewriter->universal_quantifier_enumeration(result, head, sigma(this_rewriter));
   assert(result.sort()==a.sort());
-  return result;
+  return;
 }
 
 
 static inline
-data_expression rewrite_appl_aux(const application& t, RewriterCompilingJitty* this_rewriter)
+void rewrite_appl_aux(data_expression& result, const application& t, RewriterCompilingJitty* this_rewriter)
 {
   const data_expression& thead=get_nested_head(t);
   if (is_function_symbol(thead))
   {
     const std::size_t arity=recursive_number_of_args(t);
-    const rewriter_function f = get_precompiled_rewrite_function(atermpp::down_cast<function_symbol>(thead),arity,false,this_rewriter);
-    if (f != NULL)
+    const rewriter_function f = get_precompiled_rewrite_function<false>(atermpp::down_cast<function_symbol>(thead),arity,this_rewriter);
+    if (f != nullptr)
     {
-      const data_expression& result=f(t,this_rewriter);
+      f(result, t,this_rewriter);
       assert(t.sort()==result.sort());
-      return result;
+      return;
     }
-    return application(t.head(), t.begin(), t.end(), rewrite_functor(this_rewriter));
+    make_application(result, t.head(), t.begin(), t.end(), rewrite_functor(this_rewriter));
+    return; 
   }
   // Here the head symbol of, which can be deeply nested, is not a function_symbol.
   const data_expression& head0 = get_nested_head(t);
-  const data_expression head = (is_variable(head0)
-                             ? sigma(this_rewriter)(down_cast<const variable>(head0))
-                             : (is_where_clause(head0)
-                               ? this_rewriter->rewrite_where(atermpp::down_cast<where_clause>(head0), sigma(this_rewriter))
-                               : head0));
+  data_expression head;
+  if (is_variable(head0))
+  { 
+    head=sigma(this_rewriter)(down_cast<const variable>(head0));
+  }
+  else if (is_where_clause(head0))
+  { 
+    this_rewriter->rewrite_where(head, atermpp::down_cast<where_clause>(head0), sigma(this_rewriter));
+  }
+  else
+  {
+    head= head0;
+  }
 
   // Reconstruct term t.
   const application t1((head0 == head) ? t : replace_nested_head(t, head));
@@ -239,45 +296,62 @@ data_expression rewrite_appl_aux(const application& t, RewriterCompilingJitty* t
   // variable, function_symbol, lambda y1,....,ym.u, forall y1,....,ym.u or exists y1,....,ym.u,
   if (is_variable(head1))
   {
-    return rewrite_all_arguments(t1, rewrite_functor(this_rewriter));
+    rewrite_all_arguments(result, t1, rewrite_functor(this_rewriter));
+    return;
   }
   else
   if (is_abstraction(head1))
   {
     const abstraction& ha=down_cast<abstraction>(head1);
-    return rewrite_abstraction_aux(ha,t1,this_rewriter);
+    rewrite_abstraction_aux(result, ha,t1,this_rewriter);
+    return;
   }
   else
   {
     assert(is_function_symbol(head1));
     const std::size_t arity = recursive_number_of_args(t1);
-    const rewriter_function f = get_precompiled_rewrite_function(down_cast<function_symbol>(head1),arity,false,this_rewriter);
-    if (f != NULL)
+    const rewriter_function f = get_precompiled_rewrite_function<false>(down_cast<function_symbol>(head1),arity,this_rewriter);
+    if (f != nullptr)
     {
-      const data_expression& result=f(t1,this_rewriter);
+      f(result, t1, this_rewriter);
       assert(t1.sort()==result.sort());
-      return result;
+      return;
     }
-    return application(head1, t1.begin(), t1.end(), rewrite_functor(this_rewriter)); 
+    make_application(result, head1, t1.begin(), t1.end(), rewrite_functor(this_rewriter)); 
+    return;
   }
 }
 
+template <bool ARGUMENTS_IN_NORMAL_FORM>
 static inline
-data_expression rewrite_aux(const data_expression& t, const bool arguments_in_normal_form, RewriterCompilingJitty* this_rewriter)
+void rewrite_aux(data_expression& result, const data_expression& t, RewriterCompilingJitty* this_rewriter)
 {
+// std::cerr << "--- " << t << "\n";
   if (is_function_symbol(t))
   {
     const std::size_t index = get_index(down_cast<function_symbol>(t));
     if (index<this_rewriter->normal_forms_for_constants.size())
     {
-      const data_expression& result = this_rewriter->normal_forms_for_constants[index];
+      // The following line is replaced by the more efficient assign, but should be reinstalled
+      // in due time, when the compiler can more efficiently handle thread local terms. 
+      // result = this_rewriter->normal_forms_for_constants[index];
+      /* result.assign(this_rewriter->normal_forms_for_constants[index], 
+                    this_rewriter->m_busy_flag,
+                    this_rewriter->m_forbidden_flag,
+                    *this_rewriter->m_creation_depth); */
+             
+      // In this case we can use an unprotected_assign as the normal_forms_for_constants will 
+      // not change anymore, while rewriting is going on. 
+      result.unprotected_assign<false>(this_rewriter->normal_forms_for_constants[index]);
+             
       if (!result.is_default_data_expression())
-      {
+      {  
         assert(t.sort()==result.sort());
-        return result;
+        return;
       }
     }
-    return t;
+    result=t;
+    return; 
   }
   else
   if (is_application_no_check(t))
@@ -287,26 +361,31 @@ data_expression rewrite_aux(const data_expression& t, const bool arguments_in_no
     if (is_function_symbol(head))
     {
       const std::size_t appl_size=appl.size();
-      const rewriter_function f = get_precompiled_rewrite_function(down_cast<function_symbol>(head), appl_size, arguments_in_normal_form,this_rewriter);
-      if (f != NULL)
+      const rewriter_function f = get_precompiled_rewrite_function<ARGUMENTS_IN_NORMAL_FORM>(down_cast<function_symbol>(head), appl_size, this_rewriter);
+      if (f != nullptr)
       {
-        const data_expression& result= f(appl,this_rewriter);
+        f(result, appl,this_rewriter);
         assert(result.sort()==t.sort());
-        return result;
+        return;
       }
-      return application(appl.head(), appl.begin(), appl.end(), rewrite_functor(this_rewriter));
+      make_application(result, appl.head(), appl.begin(), appl.end(), rewrite_functor(this_rewriter));
+      return;
     }
     else
     {
-      const data_expression& result=rewrite_appl_aux(appl,this_rewriter);
+      rewrite_appl_aux(result, appl, this_rewriter);
       assert(result.sort()==appl.sort());
-      return result;
+      return;
     }
   }
   else
   if (is_variable(t))
   {
-    return sigma(this_rewriter)(down_cast<variable>(t));
+    sigma(this_rewriter).apply(down_cast<variable>(t),result,
+                               this_rewriter->m_busy_flag,           // Adding the busy/forbidden/creation depth is an optimisation.
+                               this_rewriter->m_forbidden_flag,
+                               *this_rewriter->m_creation_depth);
+    return;
   }
   else
   if (is_abstraction(t))
@@ -315,23 +394,25 @@ data_expression rewrite_aux(const data_expression& t, const bool arguments_in_no
     const binder_type& binder(abstr.binding_operator());
     if (is_exists_binder(binder))
     {
-      const data_expression& result=this_rewriter->existential_quantifier_enumeration(abstr, sigma(this_rewriter));
+      this_rewriter->existential_quantifier_enumeration(result, abstr, sigma(this_rewriter));
       assert(result.sort()==t.sort());
-      return result;
+      return;
     }
     if (is_forall_binder(binder))
     {
-      const data_expression& result=this_rewriter->universal_quantifier_enumeration(abstr, sigma(this_rewriter));
+      this_rewriter->universal_quantifier_enumeration(result, abstr, sigma(this_rewriter));
       assert(result.sort()==t.sort());
-      return result;
+      return;
     }
     assert(is_lambda_binder(binder));
-    return this_rewriter->rewrite_single_lambda(abstr.variables(), abstr.body(), false, sigma(this_rewriter));
+    this_rewriter->rewrite_single_lambda(result, abstr.variables(), abstr.body(), false, sigma(this_rewriter));
+    return;
   }
   else
   {
     assert(is_where_clause(t));
-    return this_rewriter->rewrite_where(down_cast<where_clause>(t), sigma(this_rewriter));
+    this_rewriter->rewrite_where(result,down_cast<where_clause>(t), sigma(this_rewriter));
+    return;
   }
 }
 
@@ -351,7 +432,6 @@ bool init(rewriter_interface* i, RewriterCompilingJitty* this_rewriter)
 #endif
   i->rewrite_external = &rewrite;
   i->rewrite_cleanup = &rewrite_cleanup;
-  // this_rewriter = i->rewriter;
   set_the_precompiled_rewrite_functions_in_a_lookup_table(this_rewriter);
   i->status = "rewriter loaded successfully.";
   return true;

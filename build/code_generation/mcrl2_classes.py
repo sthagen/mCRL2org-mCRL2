@@ -24,6 +24,7 @@ import string
 # U = generate user section
 # X = it is an expression super class
 # W = do not generate swap overload
+# N = term has an additional index as last argument  TODO: Constructors must still be adapted. 
 
 CORE_CLASSES = r'''
 identifier_string() : public atermpp::aterm_string | SC | String | An identifier
@@ -71,13 +72,13 @@ untyped_identifier_assignment(const core::identifier_string& lhs, const data_exp
 '''
 
 DATA_EXPRESSION_CLASSES = r'''
-data_expression()                                                                                             : public atermpp::aterm_appl   | XCU   | DataExpr          | A data expression
-variable(const core::identifier_string& name, const sort_expression& sort)                                    : public data::data_expression | EOCUs | DataVarId         | A data variable
-function_symbol(const core::identifier_string& name, const sort_expression& sort)                             : public data::data_expression | EOCUs | OpId              | A function symbol
-application(const data_expression& head, data_expression_list const& arguments)                               : public data::data_expression | EOUSW | DataAppl          | An application of a data expression to a number of arguments
-where_clause(const data_expression& body, const assignment_expression_list& declarations)                     : public data::data_expression | EOU   | Whr               | A where expression
-abstraction(const binder_type& binding_operator, const variable_list& variables, const data_expression& body) : public data::data_expression | EO    | Binder            | An abstraction expression
-untyped_identifier(const core::identifier_string& name)                                                       : public data::data_expression | EO    | UntypedIdentifier | An untyped identifier
+data_expression()                                                                                             : public atermpp::aterm_appl   | XCU    | DataExpr          | A data expression
+variable(const core::identifier_string& name, const sort_expression& sort)                                    : public data::data_expression | EOCUsN | DataVarId         | A data variable
+function_symbol(const core::identifier_string& name, const sort_expression& sort)                             : public data::data_expression | EOCUsN | OpId              | A function symbol
+application(const data_expression& head, data_expression_list const& arguments)                               : public data::data_expression | EOUSW  | DataAppl          | An application of a data expression to a number of arguments
+where_clause(const data_expression& body, const assignment_expression_list& declarations)                     : public data::data_expression | EOU    | Whr               | A where expression
+abstraction(const binder_type& binding_operator, const variable_list& variables, const data_expression& body) : public data::data_expression | EO     | Binder            | An abstraction expression
+untyped_identifier(const core::identifier_string& name)                                                       : public data::data_expression | EO     | UntypedIdentifier | An untyped identifier
 '''
 
 ABSTRACTION_EXPRESSION_CLASSES = r'''
@@ -164,7 +165,7 @@ stochastic_process_initializer(const data::data_expression_list& expressions, co
 PROCESS_CLASSES = r'''
 action_label(const core::identifier_string& name, const data::sort_expression_list& sorts)                                                                                       : public atermpp::aterm_appl | CI   | ActId              | An action label
 process_specification(const data::data_specification& data, const process::action_label_list& action_labels, const std::set<data::variable>& global_variables, const std::vector<process::process_equation>& equations, const process_expression& init)           | SMW | ProcSpec    | A process specification
-process_identifier(const core::identifier_string& name, const data::variable_list& variables)                                                                                    : public atermpp::aterm_appl | CIUs | ProcVarId          | A process identifier
+process_identifier(const core::identifier_string& name, const data::variable_list& variables)                                                                                    : public atermpp::aterm_appl | CIUsN| ProcVarId          | A process identifier
 process_equation(const process_identifier& identifier, const data::variable_list& formal_parameters, const process_expression& expression)                                       : public atermpp::aterm_appl | CI   | ProcEqn            | A process equation
 rename_expression(core::identifier_string& source, core::identifier_string& target)                                                                                              : public atermpp::aterm_appl | CI   | RenameExpr         | A rename expression
 communication_expression(const action_name_multiset& action_name, const core::identifier_string& name)                                                                           : public atermpp::aterm_appl | CI   | CommExpr           | A communication expression
@@ -207,7 +208,7 @@ pbes(const data::data_specification& data, const std::vector<pbes_system::pbes_e
 
 PBES_EXPRESSION_CLASSES = r'''
 pbes_expression()                                                                                                       : public atermpp::aterm_appl          | XCI   | PBExpr            | A pbes expression
-propositional_variable_instantiation(const core::identifier_string& name, const data::data_expression_list& parameters) : public pbes_system::pbes_expression | ECIUs | PropVarInst       | A propositional variable instantiation
+propositional_variable_instantiation(const core::identifier_string& name, const data::data_expression_list& parameters) : public pbes_system::pbes_expression | ECIUsN| PropVarInst       | A propositional variable instantiation
 not_(const pbes_expression& operand)                                                                                    : public pbes_system::pbes_expression | EI    | PBESNot           | The not operator for pbes expressions
 and_(const pbes_expression& left, const pbes_expression& right)                                                         : public pbes_system::pbes_expression | EI    | PBESAnd           | The and operator for pbes expressions
 or_(const pbes_expression& left, const pbes_expression& right)                                                          : public pbes_system::pbes_expression | EI    | PBESOr            | The or operator for pbes expressions
@@ -229,7 +230,7 @@ not_(const boolean_expression& operand)                               : public b
 and_(const boolean_expression& left, const boolean_expression& right) : public bes::boolean_expression | EI   | BooleanAnd           | The and operator for boolean expressions
 or_(const boolean_expression& left, const boolean_expression& right)  : public bes::boolean_expression | EI   | BooleanOr            | The or operator for boolean expressions
 imp(const boolean_expression& left, const boolean_expression& right)  : public bes::boolean_expression | EI   | BooleanImp           | The implication operator for boolean expressions
-boolean_variable(const core::identifier_string& name)                 : public bes::boolean_expression | EIUs | BooleanVariable      | A boolean variable
+boolean_variable(const core::identifier_string& name)                 : public bes::boolean_expression | EIUsN| BooleanVariable      | A boolean variable
 '''
 
 BDD_EXPRESSION_CLASSES = r'''
@@ -473,7 +474,7 @@ class Constructor:
         if len(self.parameters)>0 and self.parameters.find(',')<0:     # There is only one parameter. Add explicit. 
             text = re.sub('<EXPLICIT>','explicit ',text)
         else:
-            text = re.sub('<EXPLICIT>','',text)
+           text = re.sub('<EXPLICIT>','',text)
         return text
 
     def inline_definition(self):
@@ -896,6 +897,29 @@ class Class:
         text = re.sub('<MOVE_SEMANTICS>'  , move_semantics, text)
         return text
 
+    # Generate the make_...  functions that allow the construction of a class member in situ. 
+    def make_function(self):
+        text = r'''/// \\brief Make_<CLASSNAME> constructs a new term into a given address.
+/// \\ \param t The reference into which the new <CLASSNAME> is constructed. 
+template <class... ARGUMENTS>
+inline void make_<CLASSNAME>(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl<HASINDEX>(t, core::detail::function_symbol_<ATERM>(), args...);
+}'''
+        text = re.sub('<ATERM>', self.aterm, text)
+        text = re.sub('<ARGUMENTS>', ', '.join([p.type() + ' ' + p.name() for p in self.constructor.parameters()]), text)
+        text = re.sub('<PARAMETERS>', ', '.join([p.name() for p in self.constructor.parameters()]), text)
+        if 'N' in self.modifiers():
+          if len(self.constructor.parameters()) == 1:
+              text = re.sub('<HASINDEX>', '_with_index<<CLASSNAME>,<PARAMETER_SORTS>>', text)
+          else:
+              text = re.sub('<HASINDEX>', '_with_index<<CLASSNAME>,std::pair<<PARAMETER_SORTS>>>', text)
+        else:
+          text = re.sub('<HASINDEX>', '', text)
+        text = re.sub('<CLASSNAME>', self.classname(), text)
+        text = re.sub('<PARAMETER_SORTS>',', '.join([re.sub('const ','',re.sub('&','',p.type())) for p in self.constructor.parameters()]), text)
+        return text
+
     # Returns typedefs for term lists and term vectors.
     def container_typedefs(self):
         text = r'''/// \\brief list of <CLASSNAME>s
@@ -968,6 +992,9 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                 text = re.sub('check_term', 'check_rule', text)
 
         # generate additional functions
+        # if not ('s' in self.modifiers() or 'S' in self.modifiers()):
+        if not 'S' in self.modifiers() and self.constructor.parameters():
+            text = text + '\n\n' + self.make_function()
         if 'C' in self.modifiers():
             text = text + '\n\n' + self.container_typedefs()
         if 'I' in self.modifiers():
@@ -1066,7 +1093,7 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                     dependent = True
                     # special case for arguments of a data application
                     if self.classname(True) == 'data::application' and p.name() == 'arguments':
-                        update = 'for (auto i = x.begin(); i != x.end(); ++i) { static_cast<Derived&>(*this).apply(*i); }'
+                        update = 'for (const data_expression& t: x) { static_cast<Derived&>(*this).apply(t); }'
                     else:
                         update = 'static_cast<Derived&>(*this).apply(x.%s());' % p.name()
                     # special case for stochastic distribution
@@ -1103,9 +1130,9 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
     #    return result
 
     def builder_function(self, all_classes, dependencies, modifiability_map):
-        text = r'''<RETURN_TYPE> <METHOD>(<CONST><CLASS_NAME>& x)
-{
-  static_cast<Derived&>(*this).enter(x);<VISIT_TEXT>
+        text = r'''<TEMPLATE>void <METHOD>(<RESULT><CONST><CLASS_NAME>& x)
+{ 
+  <ASSERT>static_cast<Derived&>(*this).enter(x);<VISIT_TEXT>
   static_cast<Derived&>(*this).leave(x);<RETURN_STATEMENT>
 }
 '''
@@ -1115,11 +1142,15 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
 
         method = 'apply'
         if is_modifiable_type(classname, modifiability_map):
+            template = ''
             return_type = 'void'
             const = ''
             method = 'update'
+            result = ''
+            assertion = ''
         else:
             const = 'const '
+            template = 'template <class T>'
             # We currently return the same class as we get passed as parameter.
             # The following statement was not present in previous versions of this
             # file.
@@ -1131,6 +1162,8 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
             # with it.
             if 'data::abstraction' in return_type:
                 return_type = 'data::data_expression'
+            result = 'T& result, '
+            assertion = 'assert(&result!=&x);'
 
         if is_modifiable_type(classname, modifiability_map):
             return_statement = ''
@@ -1148,7 +1181,13 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                     if is_modifiable_type(qtype, modifiability_map):
                         updates.append('static_cast<Derived&>(*this).update(x.%s());' % p.name())
                     else:
-                        updates.append('x.%s() = static_cast<Derived&>(*this).apply(x.%s());' % (p.name(), p.name()))
+                        local_type = re.sub('const ','',re.sub('&','',p.type()))
+                        if classname == 'lps::stochastic_specification' and local_type == 'process_initializer':
+                            local_type = 'stochastic_process_initializer'   # Unclear why this needs to be done. Appears to be a bug. 
+                            print 'ADAPTED', local_type
+                        local_variable = 'result_%s' % p.name()
+                        updates.append('%s %s;\nstatic_cast<Derived&>(*this).apply(%s, x.%s());\nx.%s() = %s;' \
+                                         % (local_type, local_variable, local_variable, p.name(), p.name(), local_variable))
                 else:
                     continue
             if dependent:
@@ -1167,14 +1206,14 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                         cast = 'atermpp::down_cast<%s>(x)' % c.classname(True)
                     updates.append('''if (%s(x))
 {
-  result = static_cast<Derived&>(*this).apply(%s);
+  static_cast<Derived&>(*this).apply(result, %s);
 }''' % (is_function, cast))
                 if len(updates) == 0:
                     visit_text = '// skip'
-                    return_statement = 'return x;'
+                    return_statement = 'result = x;'
                 else:
-                    visit_text = '%s result;\n' % return_type + '\nelse '.join(updates)
-                    return_statement = 'return result;'
+                    visit_text = '\nelse '.join(updates)
+                    return_statement = ''
             else:
                 updates = []
                 f = self.constructor
@@ -1185,45 +1224,53 @@ class <CLASSNAME><SUPERCLASS_DECLARATION>
                         pclass = all_classes[ptype]
                     if is_dependent_type(dependencies, ptype):
                         dependent = True
-                        updates.append('static_cast<Derived&>(*this).apply(x.%s())' % p.name())
+                        updates.append('[&](%s result){ static_cast<Derived&>(*this).apply(result, x.%s()); }' \
+                             % (re.sub('const ','',p.type()), p.name()))
                     else:
                         updates.append('x.%s()' % p.name())
                 if dependent:
                     # special case for arguments of a data application
+                    make_class_function = re.sub('::', '::make_', classname)
                     if self.classname(True) == 'data::application' and p.name() == 'arguments':
-                        visit_text = '''typedef data::data_expression (Derived::*function_pointer)(const data::data_expression&);
-function_pointer fp = &Derived::apply;
-%s result = data::application(
+                        visit_text = '''data::make_application(result,
    x.head(),
    x.begin(),
    x.end(),
-   std::bind(fp, static_cast<Derived*>(this), std::placeholders::_1)
-);''' % return_type
+   [&](data_expression& result, const data::data_expression& t){ static_cast<Derived&>(*this).apply(result,t);} );''' 
                     # special case for stochastic distribution
                     elif return_type == 'lps::stochastic_distribution':
-                        visit_text = '%s result = x; if (x.is_defined()) { result = %s(%s); }' % (return_type, classname, ', '.join(updates))
+                        visit_text = 'result = x; if (x.is_defined()) { %s(result, %s); }' % (make_class_function, ', '.join(updates))
                     else:
-                        visit_text = '%s result = %s(%s);' % (return_type, classname, ', '.join(updates))
-                    return_statement = 'return result;'
+                        visit_text = '%s(result, %s);' % (make_class_function, ', '.join(updates))
+                    return_statement = ''
                 else:
                     visit_text = '// skip'
-                    return_statement = 'return x;'
+                    return_statement = 'result = x;'
 
         # fix the layout
+        if template != '':
+            template = template + '\n'
         if return_statement != '':
             return_statement = '\n  ' + return_statement
+        if assertion != '':
+            assertion = return_statement +'\n  '
         if visit_text != '':
             visit_text = '\n' + indent_text(visit_text, '  ')
 
+        text = re.sub('<TEMPLATE>', template, text)
         text = re.sub('<RETURN_TYPE>', return_type, text)
+        text = re.sub('<RESULT>', result, text)
         text = re.sub('<CONST>', const, text)
-        text = re.sub('<CLASS_NAME>', classname, text)
         text = re.sub('<VISIT_TEXT>', visit_text, text)
+        text = re.sub('<CLASS_NAME>', classname, text)
         text = re.sub('<RETURN_STATEMENT>', return_statement, text)
         text = re.sub('<METHOD>', method, text)
+        text = re.sub('<ASSERT>', assertion, text)
         if self.constructor.is_template():
             text = 'template <typename ' + ', typename '.join(f.template_parameters()) + '>\n' + text
         return text
+
+##########################################################################################################################
 
 def extract_namespace(text):
     if text == None:

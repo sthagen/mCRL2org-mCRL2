@@ -12,7 +12,8 @@
 #ifndef MCRL2_DATA_VARIABLE_H
 #define MCRL2_DATA_VARIABLE_H
 
-#include "mcrl2/core/index_traits.h"
+#include "mcrl2/atermpp/aterm_appl.h"
+#include "mcrl2/core/identifier_string.h"
 #include "mcrl2/data/data_expression.h"
 
 namespace mcrl2
@@ -21,7 +22,7 @@ namespace mcrl2
 namespace data
 {
 
-typedef std::pair<atermpp::aterm, atermpp::aterm> variable_key_type;
+typedef std::pair<core::identifier_string, sort_expression> variable_key_type;
 
 //--- start generated class variable ---//
 /// \brief A data variable
@@ -61,23 +62,29 @@ class variable: public data_expression
 
     /// \brief Constructor.
     variable(const core::identifier_string& name, const sort_expression& sort)
-      : data_expression(atermpp::aterm_appl(core::detail::function_symbol_DataVarId(),
-          name,
-          sort,
-          atermpp::aterm_int(core::index_traits<variable, variable_key_type, 2>::insert(std::make_pair(name, sort))
-        )))
-    {}
+    {
+      atermpp::make_term_appl_with_index<variable, std::pair<core::identifier_string, sort_expression> >
+                (*this, core::detail::function_symbol_DataVarId(), name, sort);
+    }
+
 
     /// \brief Constructor.
     variable(const std::string& name, const sort_expression& sort)
-      : data_expression(atermpp::aterm_appl(core::detail::function_symbol_DataVarId(),
-          core::identifier_string(name),
-          sort,
-          atermpp::aterm_int(core::index_traits<variable, variable_key_type, 2>::insert(std::make_pair(core::identifier_string(name), sort))
-        )))
-    {}
+    {
+      atermpp::make_term_appl_with_index<variable, std::pair<core::identifier_string, sort_expression> >
+                (*this, core::detail::function_symbol_DataVarId(), core::identifier_string(name), sort);
+    }
+
 //--- end user section variable ---//
 };
+
+/// \brief Make_variable constructs a new term into a given address.
+/// \ \param t The reference into which the new variable is constructed. 
+template <class... ARGUMENTS>
+inline void make_variable(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl_with_index<variable,std::pair<core::identifier_string, sort_expression>>(t, core::detail::function_symbol_DataVarId(), args...);
+}
 
 /// \brief list of variables
 typedef atermpp::term_list<variable> variable_list;

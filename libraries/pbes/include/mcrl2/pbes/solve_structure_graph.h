@@ -12,6 +12,7 @@
 #ifndef MCRL2_PBES_SOLVE_STRUCTURE_GRAPH_H
 #define MCRL2_PBES_SOLVE_STRUCTURE_GRAPH_H
 
+#include "mcrl2/atermpp/standard_containers/vector.h"
 #include "mcrl2/data/join.h"
 #include "mcrl2/lts/lts_algorithm.h"
 #include "mcrl2/pbes/pbes_equation_index.h"
@@ -266,11 +267,11 @@ class solve_structure_graph_algorithm
       }
     }
 
-    static void insert_edge(std::vector<structure_graph::vertex>& V, structure_graph::index_type ui, structure_graph::index_type vi)
+    static void insert_edge(atermpp::vector<structure_graph::vertex>& V, structure_graph::index_type ui, structure_graph::index_type vi)
     {
       using utilities::detail::contains;
-      auto& u = V[ui];
-      auto& v = V[vi];
+      structure_graph::vertex& u = V[ui];
+      structure_graph::vertex& v = V[vi];
       if (!contains(u.successors, vi))
       {
         u.successors.push_back(vi);
@@ -287,11 +288,10 @@ class solve_structure_graph_algorithm
       log_vertex_set(G, Wdisj, "Wdisj");
 
       typedef structure_graph::vertex vertex;
-      std::vector<const vertex*> result;
       structure_graph::index_type init = G.initial_vertex();
 
       // V contains the vertices of G, but not the edges
-      std::vector<vertex> V = G.all_vertices();
+      atermpp::vector<vertex> V = G.all_vertices();
       for (vertex& v: V)
       {
         v.successors.clear();
@@ -406,9 +406,11 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       for (structure_graph::index_type vi: V)
       {
         const auto& v = G.find_vertex(vi);
-        if (is_propositional_variable_instantiation(v.formula))
+        if (is_propositional_variable_instantiation(v.formula()))
         {
-          const auto& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
+          // The variable Z below should be a reference, but this leads to crashes with the GCC compiler (March 2022).
+          // JFG: I think this is a GCC problem, which may resolve itself in due time. 
+          const auto Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula());
           std::string Zname = Z.name();
           std::smatch match;
           if (std::regex_match(Zname, match, re))
@@ -419,7 +421,6 @@ class lps_solve_structure_graph_algorithm: public solve_structure_graph_algorith
               throw mcrl2::runtime_error("Counter-example cannot be reconstructed from this LPS. Did you supply the correct file?");
             }
             lps::action_summand summand = lpsspec.process().action_summands()[summand_index];
-
             std::size_t equation_index = p_index.index(Z.name());
             const pbes_equation& eqn = p.equations()[equation_index];
             const data::variable_list& d = eqn.variable().parameters();
@@ -526,9 +527,9 @@ class lts_solve_structure_graph_algorithm: public solve_structure_graph_algorith
       for (structure_graph::index_type vi: V)
       {
         const auto& v = G.find_vertex(vi);
-        if (is_propositional_variable_instantiation(v.formula))
+        if (is_propositional_variable_instantiation(v.formula()))
         {
-          const propositional_variable_instantiation& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula);
+          const propositional_variable_instantiation& Z = atermpp::down_cast<propositional_variable_instantiation>(v.formula());
           std::string Zname = Z.name();
           std::smatch match;
           if (std::regex_match(Zname, match, re))

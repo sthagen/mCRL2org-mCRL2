@@ -65,10 +65,23 @@ public:
   typedef ExpressionType expression_type;
 
   using argument_type = variable_type;
+  using result_type = expression_type;
 
   /// \brief Default constructor
   mutable_indexed_substitution()
     : m_variables_in_rhs_set_is_defined(false)
+  {
+  }
+
+  mutable_indexed_substitution(std::vector<substitution_type> container,
+                               std::vector<std::size_t> index_table,
+                               std::stack<std::size_t> free_positions,
+                               bool variables_in_rhs_set_is_defined,
+                               std::multiset<variable> variables_in_rhs)
+      : m_container(container), m_index_table(index_table),
+        m_free_positions(free_positions),
+        m_variables_in_rhs_set_is_defined(variables_in_rhs_set_is_defined),
+        m_variables_in_rhs(variables_in_rhs)
   {
   }
 
@@ -92,7 +105,7 @@ public:
     {
       assert(e.defined());
 
-      std::size_t i = core::index_traits<data::variable, data::variable_key_type, 2>::index(m_variable);
+      std::size_t i = atermpp::detail::index_traits<data::variable, data::variable_key_type, 2>::index(m_variable);
 
       if (e != m_variable)
       {
@@ -117,13 +130,16 @@ public:
           if (m_super.m_free_positions.empty())
           {
             m_super.m_index_table[i]=m_super.m_container.size();
-            m_super.m_container.push_back(substitution_type(m_variable,e));
+            m_super.m_container.emplace_back(m_variable,e);
           }
           else
           {
             j=m_super.m_free_positions.top();
             m_super.m_index_table[i]=j;
-            m_super.m_container[j]=substitution_type(m_variable,e);
+            // m_super.m_container[j]=substitution_type(m_variable,e);
+            substitution_type& t=m_super.m_container[j]; 
+            t.first=m_variable; 
+            t.second=e;
             m_super.m_free_positions.pop();
           }
         }
@@ -142,7 +158,10 @@ public:
             }
           }
 
-          m_super.m_container[j]=substitution_type(m_variable,e);
+          // m_super.m_container[j]=substitution_type(m_variable,e);
+          substitution_type& t=m_super.m_container[j]; 
+          t.first=m_variable; 
+          t.second=e;
         }
       }
       else
@@ -187,10 +206,9 @@ public:
   /// \details This must deliver an expression, and not a reference
   ///          to an expression, as the expressions are stored in 
   ///          a vector that can be resized and moved. 
- 
   const expression_type operator()(const variable_type& v) const
   {
-    const std::size_t i = core::index_traits<data::variable, data::variable_key_type, 2>::index(v);
+    const std::size_t i = atermpp::detail::index_traits<data::variable, data::variable_key_type, 2>::index(v);
     if (i < m_index_table.size())
     {
       const std::size_t j = m_index_table[i];
@@ -204,6 +222,70 @@ public:
     // no value assigned to v;
     return v;
   }
+
+  /// \brief Application operator; applies substitution to v.
+  /// \details This must deliver an expression, and not a reference
+  ///          to an expression, as the expressions are stored in 
+  ///          a vector that can be resized and moved. 
+  /// \param   v The variable to which the subsitution is applied.
+  /// \param   target The target into which the substitution is stored. 
+  template <class ResultType>
+  void apply(const variable_type& v, ResultType& target)
+  {
+    static_assert(std::is_same<ResultType&,expression_type&>::value ||
+                  std::is_same<ResultType&,atermpp::unprotected_aterm&>::value);
+    const std::size_t i = atermpp::detail::index_traits<data::variable, data::variable_key_type, 2>::index(v);
+    if (i < m_index_table.size())
+    {
+      const std::size_t j = m_index_table[i];
+      if (j!=std::size_t(-1))
+      {
+        // the variable has an assigned value.
+        assert(j<m_container.size());
+        target=m_container[j].second;
+        return;
+      }
+    }
+    // no value assigned to v;
+    target=v;
+  }
+
+  /// \brief Application operator; applies substitution to v.
+  /// \details This must deliver an expression, and not a reference
+  ///          to an expression, as the expressions are stored in 
+  ///          a vector that can be resized and moved. 
+  /// \param   v The variable to which the subsitution is applied.
+  /// \param   target The target into which the substitution is stored. 
+  void apply(const variable_type& v, 
+             expression_type& target,
+             std::atomic<bool>* busy_flag,
+             std::atomic<bool>* forbidden_flag,
+             std::size_t creation_depth)
+
+  {
+    const std::size_t i = atermpp::detail::index_traits<data::variable, data::variable_key_type, 2>::index(v);
+    if (i < m_index_table.size())
+    {
+      const std::size_t j = m_index_table[i];
+      if (j!=std::size_t(-1))
+      {
+        // the variable has an assigned value.
+        assert(j<m_container.size());
+        // target=m_container[j].second;
+        target.assign(m_container[j].second,
+                      busy_flag,
+                      forbidden_flag,
+                      creation_depth);
+        return;
+      }
+    }
+    // no value assigned to v;
+    // target=v; Code below is more efficient, but ugly. 
+    target.assign(v,
+                  busy_flag,
+                  forbidden_flag,
+                  creation_depth);
+   }
 
   /// \brief Index operator.
   assignment operator[](variable_type const& v)
@@ -219,6 +301,18 @@ public:
     m_free_positions=std::stack<std::size_t>();
     m_variables_in_rhs_set_is_defined=false;
     m_variables_in_rhs.clear();
+  }
+
+  /// \brief Create a clone of the rewriter in which the underlying rewriter is
+  /// copied, and not passed as a shared pointer.
+  /// \details This is useful when the rewriter is used in different parallel
+  /// processes. One rewriter can only be used sequentially. \return A rewriter,
+  /// with a copy of the underlying jitty, jittyc or jittyp rewriting engine.
+  mutable_indexed_substitution<VariableType, ExpressionType> clone()
+  {
+    return mutable_indexed_substitution<VariableType, ExpressionType>(
+        m_container, m_index_table, m_free_positions,
+        m_variables_in_rhs_set_is_defined, m_variables_in_rhs);
   }
 
   /// \brief Compare substitutions

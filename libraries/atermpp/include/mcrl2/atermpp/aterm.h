@@ -163,75 +163,87 @@ public:
 };
 
 /// \brief The aterm base class that provides protection of the underlying shared terms.
+/// \details Terms are protected using one of the following two invariants:
+///          (1) A term that can be accessed is a subterm of a term with a reference count
+///              larger than 0 (when reference counting is used). Or, 
+///          (2) A term that can be accessed if it is a subterm of a term that occurs at
+///              an address which exist in the protection set of a process, or which sits
+///              in an atermpp container, which automatically is a container protection set.
+///              Furthermore, every address in a protection set contains a valid term.
+///          During garbage collection or rehashing, this situation is stable in the sense
+///          that all terms that are protected remain protected until the end of the 
+///          garbage collection or rehashing phase by the same address or term. This means
+///          that during garbage collection no terms can be deleted, for instance in an
+///          assignment, or in a destruct. 
+//               
 class aterm : public unprotected_aterm
 {
 public:
 
   /// \brief Default constructor.
-  aterm() noexcept = default;
+  aterm() noexcept;
 
   /// \brief Standard destructor.
-  ~aterm()
-  {
-    decrement_reference_count();
-  }
+  ~aterm() noexcept;
 
   /// \brief Constructor based on an internal term data structure. This is not for public use.
   /// \details Takes ownership of the passed underlying term.
   /// \param t A pointer to an internal aterm data structure.
   /// \todo Should be protected, but this cannot yet be done due to a problem
   ///       in the compiling rewriter.
-  explicit aterm(const detail::_aterm *t) noexcept
-  {
-    t->increment_reference_count();
-    m_term = t;
-  }
+  explicit aterm(const detail::_aterm *t) noexcept;
 
   /// \brief Copy constructor.
   /// \param other The aterm that is copied.
   /// \details  This class has a non-trivial destructor so explicitly define the copy and move operators.
-  aterm(const aterm& other) noexcept
-   : unprotected_aterm(other.m_term)
-  {
-    increment_reference_count();
-  }
+  aterm(const aterm& other) noexcept;
 
   /// \brief Move constructor.
   /// \param other The aterm that is moved into the new term. This term may have changed after this operation.
   /// \details This operation does not employ increments and decrements of reference counts and is therefore more
   ///          efficient than the standard copy construct.
-  aterm(aterm&& other) noexcept
-   : unprotected_aterm(other.m_term)
-  {
-    other.m_term=nullptr;
-  }
+  aterm(aterm&& other) noexcept;
 
   /// \brief Assignment operator.
   /// \param other The aterm that will be assigned.
   /// \return A reference to the assigned term.
-  aterm& operator=(const aterm& other) noexcept
-  {
-    // Increment first to prevent the same term from becoming reference zero temporarily.
-    other.increment_reference_count();
+  aterm& operator=(const aterm& other) noexcept;
 
-    // Decrement the reference from the term that is currently referred to.
-    decrement_reference_count();
+  /// \brief Assignment operator, to be used if busy and forbidden flags are explicitly available.
+  //  \detail This can be used as an optimisation, because it avoids getting access to thread local variables,
+  //          which is as it stands relatively expensive. The effect is equal to the assignment operator =. 
+  /// \param other The aterm that will be assigned.
+  aterm& assign(const aterm& other,
+                std::atomic<bool>* busy_flag,
+                std::atomic<bool>* forbidden_flag,
+                std::size_t creation_depth) noexcept;
 
-    m_term = other.m_term;
-    return *this;
-  }
+  /// \brief Assignment operator, to be used when the busy flags do not need to be set.
+  /// \details This is only safe in the parallel context when the busy flag is already
+  ///          known to be set. This is also checked by an assert. This can be used for
+  ///          instance in a lambda function that is passed in a make_.... function, as
+  ///          this unprotected assign will only be called when a term is constructed. 
+  /// \param other The aterm that will be assigned.
+  template <bool CHECK_BUSY_FLAG=true>
+  aterm& unprotected_assign(const aterm& other) noexcept;
 
   /// \brief Move assignment operator.
-  /// \brief This move assignment operator
   /// \param other The aterm that will be assigned.
   /// \return A reference to the assigned term.
-  aterm& operator=(aterm&& other) noexcept
+  aterm& operator=(aterm&& other) noexcept;
+
+#ifdef MCRL2_ATERMPP_REFERENCE_COUNTED
+  /// \brief Obtain the reference count of this term.
+  /// \detail This function is only intended for low level inspection of terms. 
+  /// \return The current reference count of this term.
+  std::size_t reference_count() const
   {
-    std::swap(m_term, other.m_term);
-    return *this;
+    return m_term->reference_count();
   }
+#endif
 
 protected:
+#ifdef MCRL2_ATERMPP_REFERENCE_COUNTED
   /// \brief Increment the reference count.
   /// \details This increments the reference count unless the term contains null.
   ///          Use with care as this destroys the reference count mechanism.
@@ -253,6 +265,7 @@ protected:
       m_term->decrement_reference_count();
     }
   }
+#endif
 };
 
 template <class Term1, class Term2>
@@ -272,16 +285,33 @@ struct is_convertible : public
 ///        and contain no additional information than a
 ///          single aterm.
 /// \param   t A term of a type inheriting from an aterm.
-/// \return  A term of type Derived.
+/// \return  A term of type const Derived&.
 template <class Derived, class Base>
 const Derived& down_cast(const Base& t,
                          typename std::enable_if<is_convertible<Base, Derived>::value &&
                                                  !std::is_base_of<Derived, Base>::value>::type* = nullptr)
 {
   static_assert(sizeof(Derived) == sizeof(aterm),
-                "aterm cast cannot be applied types derived from aterms where extra fields are added");
+                "aterm cast can only be applied ot types derived from aterms where no extra fields are added");
   assert(Derived(static_cast<const aterm&>(t)) != aterm());
   return reinterpret_cast<const Derived&>(t);
+}
+
+/// \brief A cast from one aterm based type to another, as a reference, allowing to assign to it.
+//         This can be useful when assigning to a term type that contains the derived term type. 
+/// \param   t A term of a type inheriting from an aterm.
+/// \return  A term of type Derived&.
+template <class Derived, class Base>
+Derived& reference_cast(Base& t,
+                        typename std::enable_if<is_convertible<Base, Derived>::value &&
+                                                !std::is_base_of<Derived, Base>::value>::type* = nullptr)
+{
+  static_assert(sizeof(Base) == sizeof(aterm), 
+                "aterm cast can only be applied to terms directly derived from aterms");
+  static_assert(sizeof(Derived) == sizeof(aterm),
+                "aterm cast can only be applied to types derived from aterms where no extra fields are added");
+  // We do not check types as the content of the term t is likely to be overwritten shortly. 
+  return reinterpret_cast<Derived&>(t);
 }
 
 template < typename DerivedCont, typename Base, template <typename Elem> class Cont >

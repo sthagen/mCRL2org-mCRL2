@@ -102,6 +102,7 @@ class lpsreach_algorithm
       {
         replace_constants_by_variables(result, m_rewr, m_sigma);
       }
+
       return result;
     }
 

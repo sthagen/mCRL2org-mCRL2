@@ -260,6 +260,14 @@ class not_: public action_formula
     }
 };
 
+/// \brief Make_not_ constructs a new term into a given address.
+/// \ \param t The reference into which the new not_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_not_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActNot(), args...);
+}
+
 /// \brief Test for a not expression
 /// \param x A term
 /// \return True if \a x is a not expression
@@ -327,6 +335,14 @@ class and_: public action_formula
       return atermpp::down_cast<action_formula>((*this)[1]);
     }
 };
+
+/// \brief Make_and_ constructs a new term into a given address.
+/// \ \param t The reference into which the new and_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_and_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActAnd(), args...);
+}
 
 /// \brief Test for a and expression
 /// \param x A term
@@ -396,6 +412,14 @@ class or_: public action_formula
     }
 };
 
+/// \brief Make_or_ constructs a new term into a given address.
+/// \ \param t The reference into which the new or_ is constructed. 
+template <class... ARGUMENTS>
+inline void make_or_(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActOr(), args...);
+}
+
 /// \brief Test for a or expression
 /// \param x A term
 /// \return True if \a x is a or expression
@@ -463,6 +487,14 @@ class imp: public action_formula
       return atermpp::down_cast<action_formula>((*this)[1]);
     }
 };
+
+/// \brief Make_imp constructs a new term into a given address.
+/// \ \param t The reference into which the new imp is constructed. 
+template <class... ARGUMENTS>
+inline void make_imp(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActImp(), args...);
+}
 
 /// \brief Test for a imp expression
 /// \param x A term
@@ -532,6 +564,14 @@ class forall: public action_formula
     }
 };
 
+/// \brief Make_forall constructs a new term into a given address.
+/// \ \param t The reference into which the new forall is constructed. 
+template <class... ARGUMENTS>
+inline void make_forall(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActForall(), args...);
+}
+
 /// \brief Test for a forall expression
 /// \param x A term
 /// \return True if \a x is a forall expression
@@ -599,6 +639,14 @@ class exists: public action_formula
       return atermpp::down_cast<action_formula>((*this)[1]);
     }
 };
+
+/// \brief Make_exists constructs a new term into a given address.
+/// \ \param t The reference into which the new exists is constructed. 
+template <class... ARGUMENTS>
+inline void make_exists(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActExists(), args...);
+}
 
 /// \brief Test for a exists expression
 /// \param x A term
@@ -668,6 +716,14 @@ class at: public action_formula
     }
 };
 
+/// \brief Make_at constructs a new term into a given address.
+/// \ \param t The reference into which the new at is constructed. 
+template <class... ARGUMENTS>
+inline void make_at(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActAt(), args...);
+}
+
 /// \brief Test for a at expression
 /// \param x A term
 /// \return True if \a x is a at expression
@@ -730,6 +786,14 @@ class multi_action: public action_formula
       return atermpp::down_cast<process::action_list>((*this)[0]);
     }
 };
+
+/// \brief Make_multi_action constructs a new term into a given address.
+/// \ \param t The reference into which the new multi_action is constructed. 
+template <class... ARGUMENTS>
+inline void make_multi_action(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_ActMultAct(), args...);
+}
 
 /// \brief Test for a multi_action expression
 /// \param x A term

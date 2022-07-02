@@ -65,6 +65,14 @@ class communication_expression: public atermpp::aterm_appl
     }
 };
 
+/// \brief Make_communication_expression constructs a new term into a given address.
+/// \ \param t The reference into which the new communication_expression is constructed. 
+template <class... ARGUMENTS>
+inline void make_communication_expression(atermpp::aterm_appl& t, const ARGUMENTS&... args)
+{
+  atermpp::make_term_appl(t, core::detail::function_symbol_CommExpr(), args...);
+}
+
 /// \brief list of communication_expressions
 typedef atermpp::term_list<communication_expression> communication_expression_list;
 

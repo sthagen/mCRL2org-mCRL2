@@ -12,6 +12,7 @@
 #ifndef MCRL2_DATA_REWRITER_H
 #define MCRL2_DATA_REWRITER_H
 
+#include "mcrl2/atermpp/detail/aterm_configuration.h"
 #include "mcrl2/data/detail/rewrite.h"
 #include "mcrl2/data/expression_traits.h"
 
@@ -82,7 +83,13 @@ class rewriter: public basic_rewriter<data_expression>
     // cache the empty substitution, since it is expensive to construct
     static substitution_type& empty_substitution()
     {
+#ifdef MCRL2_THREAD_SAFE 
+      static_assert(atermpp::detail::GlobalThreadSafe);
+      thread_local substitution_type result;
+#else
+      static_assert(!atermpp::detail::GlobalThreadSafe);
       static substitution_type result;
+#endif
       assert(result.empty());    // This static substitution should always become empty again after use.
       return result;
     }
@@ -93,6 +100,12 @@ class rewriter: public basic_rewriter<data_expression>
       static data_specification specification;
       return specification;
     }
+
+    /// \brief Constructor for internal use.
+    /// \param[in] r A rewriter
+    explicit rewriter(const std::shared_ptr<detail::Rewriter>& r) :
+      basic_rewriter(r)
+    {}
 
 #ifdef MCRL2_COUNT_DATA_REWRITE_CALLS
     mutable std::size_t rewrite_calls = 0;
@@ -122,18 +135,36 @@ class rewriter: public basic_rewriter<data_expression>
     {
     }
 
+    /// \brief Create a clone of the rewriter in which the underlying rewriter is copied, and not passed as a shared pointer. 
+    /// \details This is useful when the rewriter is used in different parallel processes. One rewriter can only be used sequentially. 
+    /// \return A rewriter, with a copy of the underlying jitty, jittyc or jittyp rewriting engine. 
+    rewriter clone()
+    {
+      return rewriter(m_rewriter->clone());
+    }
+
+    /// \brief Initialises this rewriter with thread dependent information. 
+    /// \details This function sets a pointer to the m_busy_flag and m_forbidden_flag of this.
+    ///          process, such that rewriter can access these faster than via the general thread.
+    ///          local mechanism. It is expected that this is not needed when compilers become.
+    ///          faster, and should be removed in due time. 
+    void thread_initialise()
+    {
+      m_rewriter->thread_initialise();
+    }
+
     /// \brief Rewrites a data expression.
-    /// \param[in] d A data expression
+    /// \param[in] d A data expression.
     /// \return The normal form of d.
     data_expression operator()(const data_expression& d) const
     {
       return (*this)(d, empty_substitution());
     }
 
-    /// \brief Rewrites the data expression d, and on the fly applies a substitution function
+    /// \brief Rewrites the data expression d, and on the fly applies a substitution function.
     /// to data variables.
-    /// \param[in] d A data expression
-    /// \param[in] sigma A substitution function
+    /// \param[in] d A data expression.
+    /// \param[in] sigma A substitution function.
     /// \return The normal form of the term.
     template <typename SubstitutionFunction>
     data_expression operator()(const data_expression& d, const SubstitutionFunction& sigma) const
@@ -147,26 +178,55 @@ class rewriter: public basic_rewriter<data_expression>
       return (*this)(d, sigma_with_iterator);
     }
 
+    /// \brief Rewrites the data expression d, and on the fly applies a substitution function.
+    /// to data variables.
+    /// \param[out] result The normal form of the term is placed in result.
+    /// \param[in] d A data expression.
+    /// \param[in] sigma A substitution function.
+    template <typename SubstitutionFunction>
+    void operator()(data_expression& result, const data_expression& d, const SubstitutionFunction& sigma) const
+    {
+      substitution_type sigma_with_iterator;
+      std::set<variable> free_variables = data::find_free_variables(d);
+      for(const variable& free_variable: free_variables)
+      {
+        sigma_with_iterator[free_variable] = sigma(free_variable);
+      }
+      (*this)(result, d, sigma_with_iterator);
+    }
+
     /// \brief Rewrites the data expression d, and on the fly applies a substitution function
     /// to data variables.
-    /// \param[in] d A data expression
-    /// \param[in] sigma A substitution function
+    /// \param[in] d A data expression.
+    /// \param[in] sigma A substitution function.
     /// \return The normal form of the term.
     //  Added bij JFG, to avoid the use of find_free_variables in the function operator() with
     //  an arbitrary SubstitionFunction, as this is prohibitively costly.
-
     data_expression operator()(const data_expression& d, substitution_type& sigma) const
+    {
+      data_expression result;
+      (*this)(result, d, sigma);
+      return result;
+    }
+
+    /// \brief Rewrites the data expression d, and on the fly applies a substitution function
+    /// to data variables.
+    /// \param[out] result The normal form of the term is put in resul is put in result
+    /// \param[in] d A data expression.
+    /// \param[in] sigma A substitutionA. function
+    //  Added bij JFG, to avoid the use of find_free_variables in the function operator() with
+    //  an arbitrary SubstitionFunction, as this is prohibitively costly.
+    void operator()(data_expression& result, const data_expression& d, substitution_type& sigma) const
     {
 #ifdef MCRL2_COUNT_DATA_REWRITE_CALLS
       rewrite_calls++;
 #endif
-# ifdef MCRL2_PRINT_REWRITE_STEPS
+#ifdef MCRL2_PRINT_REWRITE_STEPS
       mCRL2log(log::debug) << "REWRITE " << d << "\n";
-      data_expression result(m_rewriter->rewrite(d,sigma));
+#endif
+      m_rewriter->rewrite(result,d,sigma);
+#ifdef MCRL2_PRINT_REWRITE_STEPS
       mCRL2log(log::debug) << " ------------> " << result << std::endl;
-      return result;
-#else
-      return m_rewriter->rewrite(d,sigma);
 #endif
     }
 

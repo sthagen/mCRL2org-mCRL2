@@ -719,7 +719,8 @@ static std::string construct_function_definition(data::function_symbol function,
 			generator.add_identifier(j->name());
 		}
 		remove_duplicate_variables_builder remover(generator);
-		data_expression lhs = remover.apply(i->lhs());
+		data_expression lhs;
+		remover.apply(lhs, i->lhs());
 		std::vector<data_expression> conditions;
 		if (i->condition() != sort_bool::true_()) {
 			conditions.push_back(i->condition());
