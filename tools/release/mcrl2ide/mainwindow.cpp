@@ -532,7 +532,7 @@ void MainWindow::actionVerifyAllProperties()
 
 bool MainWindow::askToSaveChanges(QString context)
 {
-  if (fileSystem->isSpecificationModified() && fileSystem->projectOpened())
+  if (fileSystem->isSpecificationModified())
   {
     QMessageBox::StandardButton result =
         executeQuestionBox(this, context,
@@ -649,6 +649,23 @@ void MainWindow::changeToolButtons(bool toAbort, ProcessType processType)
     break;
   default:
     break;
+  }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+  /* Do find next or find previous if the corresponding keys are pressed */
+  if (event->matches(QKeySequence::FindNext))
+  {
+    findAndReplaceDialog->findNext(true);
+  }
+  else if (event->matches(QKeySequence::FindPrevious))
+  {
+    findAndReplaceDialog->findNext(false);
+  }
+  else
+  {
+    QMainWindow::keyPressEvent(event);
   }
 }
 
