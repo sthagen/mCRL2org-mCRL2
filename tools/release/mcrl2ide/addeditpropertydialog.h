@@ -11,6 +11,7 @@
 #define ADDEDITPROPERTYDIALOG_H
 
 #include "processsystem.h"
+#include "findandreplacedialog.h"
 
 #include <QDialog>
 #include <QRegularExpressionValidator>
@@ -34,10 +35,13 @@ class AddEditPropertyDialog : public QDialog
    * @param add Whether this should be an add (or else an edit) window
    * @param processSystem The process system (to parse formulas)
    * @param fileSystem The file system (to check property names)
+   * @param findAndReplaceDialog The find and replace dialog
    * @param parent The parent of this widget
    */
   AddEditPropertyDialog(bool add, ProcessSystem* processSystem,
-                        FileSystem* fileSystem, QWidget* parent = 0);
+                        FileSystem* fileSystem,
+                        FindAndReplaceDialog* findAndReplaceDialog,
+                        QWidget* parent = 0);
   ~AddEditPropertyDialog();
 
   /**
@@ -88,16 +92,32 @@ class AddEditPropertyDialog : public QDialog
    */
   void done(int r) override;
 
+  protected:
+  /**
+   * @brief keyPressEvent Adds key events for find next and find previous
+   * @param event The key event
+   */
+  void keyPressEvent(QKeyEvent* event) override;
+
+  /**
+   * @brief event Handles events
+   * - On closing, save the location of the dialog
+   * @return Whether the event is accepted
+   */
+  bool event(QEvent* event) override;
+
   private:
   Ui::AddEditPropertyDialog* ui;
 
   ProcessSystem* processSystem;
   FileSystem* fileSystem;
+  FindAndReplaceDialog* findAndReplaceDialog;
   QString windowTitle;
   Property oldProperty;
   int propertyParsingProcessid;
   bool lastParsingPropertyIsMucalculus;
   QRegularExpressionValidator* propertyNameValidator;
+  QByteArray geometry;
 
   /**
    * @brief checkInput Checks whether the fields are non-empty and whether the

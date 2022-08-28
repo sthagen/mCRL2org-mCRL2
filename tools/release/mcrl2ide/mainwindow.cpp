@@ -10,6 +10,7 @@
 #include "mainwindow.h"
 #include "mcrl2/utilities/platform.h"
 
+#include <QApplication>
 #include <QtGlobal>
 #include <QMenu>
 #include <QMenuBar>
@@ -31,16 +32,15 @@ MainWindow::MainWindow(const QString& inputFilePath, QWidget* parent)
 
   fileSystem = new FileSystem(specificationEditor, settings, this);
   processSystem = new ProcessSystem(fileSystem);
+  findAndReplaceDialog = new FindAndReplaceDialog(specificationEditor, this);
+  addPropertyDialog = new AddEditPropertyDialog(true, processSystem, fileSystem,
+                                                findAndReplaceDialog, this);
 
   setupMenuBar();
   setupToolbar();
   setupDocks();
 
   processSystem->setConsoleDock(consoleDock);
-
-  findAndReplaceDialog = new FindAndReplaceDialog(specificationEditor, this);
-  addPropertyDialog =
-      new AddEditPropertyDialog(true, processSystem, fileSystem, this);
 
   /* change the UI whenever a new project is opened */
   connect(fileSystem, SIGNAL(newProjectOpened()), this,
@@ -55,6 +55,9 @@ MainWindow::MainWindow(const QString& inputFilePath, QWidget* parent)
   saveAction->setEnabled(false);
   connect(specificationEditor, SIGNAL(modificationChanged(bool)), saveAction,
           SLOT(setEnabled(bool)));
+  /* update the edit menu whenever the focus changes */
+  connect(qApp, SIGNAL(focusChanged(QWidget*, QWidget*)), this,
+          SLOT(updateEditMenu(QWidget*, QWidget*)));
 
   /* change the tool buttons to start or abort a tool depending on whether
    *   processes are running */
@@ -146,40 +149,11 @@ void MainWindow::setupMenuBar()
   exitAction = fileMenu->addAction("Exit", this, SLOT(close()),
                                    QKeySequence(Qt::CTRL + Qt::Key_Q));
 
-  /* Create the Edit menu */
-  QMenu* editMenu = menuBar()->addMenu("Edit");
+  /* Create the Edit menu (actions are added in updateEditMenu()) */
+  editMenu = menuBar()->addMenu("Edit");
+  this->updateEditMenu(this, QApplication::focusWidget());
 
-  undoAction = editMenu->addAction("Undo", specificationEditor, SLOT(undo()),
-                                   QKeySequence::Undo);
-
-  redoAction = editMenu->addAction("Redo", specificationEditor, SLOT(redo()),
-                                   QKeySequence::Redo);
-
-  editMenu->addSeparator();
-
-  findAndReplaceAction =
-      editMenu->addAction("Find and Replace", this,
-                          SLOT(actionFindAndReplace()), QKeySequence::Find);
-
-  editMenu->addSeparator();
-
-  cutAction = editMenu->addAction("Cut", specificationEditor, SLOT(cut()),
-                                  QKeySequence::Cut);
-
-  copyAction = editMenu->addAction("Copy", specificationEditor, SLOT(copy()));
-  copyAction->setShortcut(QKeySequence::Copy);
-
-  pasteAction = editMenu->addAction("Paste", specificationEditor, SLOT(paste()),
-                                    QKeySequence::Paste);
-
-  deleteAction = editMenu->addAction("Delete", specificationEditor,
-                                     SLOT(deleteChar()), QKeySequence::Delete);
-
-  selectAllAction =
-      editMenu->addAction("Select All", specificationEditor, SLOT(selectAll()),
-                          QKeySequence::SelectAll);
-
-  /* Create the View Menu (actions are added in setupDocks())*/
+  /* Create the View Menu (actions are added in setupDocks()) */
   viewMenu = menuBar()->addMenu("View");
 
   /* Create the Tools menu */
@@ -279,7 +253,8 @@ void MainWindow::setDocksToDefault()
 void MainWindow::setupDocks()
 {
   /* instantiate the docks */
-  propertiesDock = new PropertiesDock(processSystem, fileSystem, this);
+  propertiesDock =
+      new PropertiesDock(processSystem, fileSystem, findAndReplaceDialog, this);
   consoleDock = new ConsoleDock(this);
 
   /* add toggleable option in the view menu for each dock */
@@ -578,6 +553,45 @@ void MainWindow::changeFileButtons(bool specificationOnlyMode)
   else
   {
     importPropertiesAction->setEnabled(false);
+  }
+}
+
+void MainWindow::updateEditMenu(QWidget*, QWidget* widget)
+{
+  /* clear the edit menu to rebuild it from scratch */
+  editMenu->clear();
+
+  /* if the widget in focus is a text editor, map all the actions to this text
+   *   editor, otherwise use the main specification editor as placeholder and
+   *   make all actions disabled */
+  QPlainTextEdit* textwidget = qobject_cast<QPlainTextEdit*>(widget);
+  bool textWidgetHasFocus = true;
+  if (textwidget == nullptr)
+  {
+    textWidgetHasFocus = false;
+    textwidget = specificationEditor;
+  }
+
+  editMenu->addAction("Undo", textwidget, SLOT(undo()), QKeySequence::Undo);
+  editMenu->addAction("Redo", textwidget, SLOT(redo()), QKeySequence::Redo);
+  editMenu->addSeparator();
+  editMenu->addAction("Find and Replace", this, SLOT(actionFindAndReplace()),
+                      QKeySequence::Find);
+  editMenu->addSeparator();
+  editMenu->addAction("Cut", textwidget, SLOT(cut()), QKeySequence::Cut);
+  editMenu->addAction("Copy", textwidget, SLOT(copy()), QKeySequence::Copy);
+  editMenu->addAction("Paste", textwidget, SLOT(paste()), QKeySequence::Paste);
+  editMenu->addAction("Delete", textwidget, SLOT(deleteChar()),
+                      QKeySequence::Delete);
+  editMenu->addAction("Select All", textwidget, SLOT(selectAll()),
+                      QKeySequence::SelectAll);
+
+  if (!textWidgetHasFocus)
+  {
+    for (QAction* action : editMenu->actions())
+    {
+      action->setEnabled(false);
+    }
   }
 }
 
