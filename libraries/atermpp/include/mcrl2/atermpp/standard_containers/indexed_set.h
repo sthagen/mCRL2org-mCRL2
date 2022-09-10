@@ -11,6 +11,7 @@
 
 #include "mcrl2/utilities/detail/container_utility.h"
 #include "mcrl2/utilities/indexed_set.h"
+#include "mcrl2/atermpp/detail/shared_guard.h"
 #include <mcrl2/atermpp/standard_containers/deque.h>
 
 
@@ -19,35 +20,50 @@ namespace atermpp
 
 /// \brief A set that assigns each element an unique index, and protects its internal terms en masse.
 template<typename Key,
+         bool ThreadSafe = false,
          typename Hash = std::hash<Key>,
          typename Equals = std::equal_to<Key>,
          typename Allocator = std::allocator<Key>,
-         bool ThreadSafe = false,
          typename KeyTable = atermpp::deque<Key > >
-class indexed_set: public mcrl2::utilities::indexed_set<Key, Hash, Equals, Allocator, ThreadSafe, KeyTable>
+class indexed_set: public mcrl2::utilities::indexed_set<Key, ThreadSafe, Hash, Equals, Allocator, KeyTable>
 {
-  typedef mcrl2::utilities::indexed_set<Key, Hash, Equals, Allocator, ThreadSafe, KeyTable> super;
-  
-  public:
-/// \brief Constructor of an empty indexed set. Starts with a hashtable of size 128.
-   indexed_set()
-   {}
+  typedef mcrl2::utilities::indexed_set<Key, ThreadSafe, Hash, Equals, Allocator, KeyTable> super;
 
-/// \brief Constructor of an empty indexed set. Starts with a hashtable of size 128.
-   indexed_set(std::size_t number_of_threads)
-     : super(number_of_threads)
-   {}
+public:
+  typedef typename super::size_type size_type;
 
-/// \brief Constructor of an empty index set. Starts with a hashtable of the indicated size. 
-/// \param initial_hashtable_size The initial size of the hashtable.
-/// \param hash The hash function.
-/// \param equals The comparison function for its elements.
+  /// \brief Constructor of an empty indexed set. Starts with a hashtable of size 128.
+  indexed_set()
+  {}
+
+  /// \brief Constructor of an empty indexed set. Starts with a hashtable of size 128.
+  indexed_set(std::size_t number_of_threads)
+    : super(number_of_threads)
+  {}
+
+  /// \brief Constructor of an empty index set. Starts with a hashtable of the indicated size. 
+  /// \param initial_hashtable_size The initial size of the hashtable.
+  /// \param hash The hash function.
+  /// \param equals The comparison function for its elements.
+
   indexed_set(std::size_t number_of_threads,
               std::size_t initial_hashtable_size,
               const typename super::hasher& hash = typename super::hasher(),
               const typename super::key_equal& equals = typename super::key_equal()) 
     : super(number_of_threads, initial_hashtable_size, hash, equals)
   {}
+  
+  void clear(std::size_t thread_index=0)
+  {
+    detail::shared_guard _;
+    super::clear(thread_index);
+  }
+
+  std::pair<size_type, bool> insert(const Key& key, std::size_t thread_index=0)
+  {
+    detail::shared_guard _;
+    return super::insert(key, thread_index);
+  }
 };
 
 } // end namespace atermppp
@@ -60,10 +76,17 @@ namespace detail {
 
 // Specialization of a function defined in mcrl2/utilities/detail/container_utility.h.
 // In utilities, atermpp is not known. 
-template <typename T>
-bool contains(const atermpp::indexed_set<T>& c, const typename atermpp::indexed_set<T>::key_type& v)
+template<typename Key,
+         bool ThreadSafe = false,
+         typename Hash = std::hash<Key>,
+         typename Equals = std::equal_to<Key>,
+         typename Allocator = std::allocator<Key>,
+         typename KeyTable = atermpp::deque<Key > >
+bool contains(const atermpp::indexed_set<Key, ThreadSafe, Hash, Equals, Allocator, KeyTable>& c, 
+              const typename atermpp::indexed_set<Key, ThreadSafe, Hash, Equals, Allocator, KeyTable>::key_type& v,
+              const std::size_t thread_index=0)
 {
-  return c.find(v) != c.end();
+  return c.find(v, thread_index) != c.end(thread_index);
 }
 
 } // namespace detail

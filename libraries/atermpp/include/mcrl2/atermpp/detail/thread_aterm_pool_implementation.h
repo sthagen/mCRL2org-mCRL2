@@ -22,9 +22,6 @@ namespace atermpp
 namespace detail
 {
 
-/// \brief A reference to the thread local term pool storage
-thread_aterm_pool& g_thread_term_pool();
-
 function_symbol thread_aterm_pool::create_function_symbol(const std::string& name, const std::size_t arity, const bool check_for_registered_functions)
 {
   if constexpr (GlobalThreadSafe) lock_shared();
@@ -46,7 +43,7 @@ void thread_aterm_pool::create_int(aterm& term, size_t val)
   if constexpr (GlobalThreadSafe) lock_shared();
   bool added = m_pool.create_int(term, val);
   if constexpr (GlobalThreadSafe) unlock_shared();
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 void thread_aterm_pool::create_term(aterm& term, const atermpp::function_symbol& sym)
@@ -54,7 +51,7 @@ void thread_aterm_pool::create_term(aterm& term, const atermpp::function_symbol&
   if constexpr (GlobalThreadSafe) lock_shared();
   bool added = m_pool.create_term(term, sym);
   if constexpr (GlobalThreadSafe) unlock_shared();
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 template<class ...Terms>
@@ -72,7 +69,7 @@ void thread_aterm_pool::create_appl(aterm& term, const function_symbol& sym, con
     --m_creation_depth;
   }
   if constexpr (GlobalThreadSafe) unlock_shared();
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 template<class Term, class INDEX_TYPE, class ...Terms>
@@ -113,7 +110,7 @@ void thread_aterm_pool::create_appl_index(aterm& term, const function_symbol& sy
   --m_creation_depth;
   if constexpr (GlobalThreadSafe) unlock_shared();
 
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 template<typename InputIterator>
@@ -130,7 +127,7 @@ void thread_aterm_pool::create_appl_dynamic(aterm& term,
 
   if constexpr (GlobalThreadSafe) unlock_shared();
   
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 template<typename InputIterator, typename ATermConverter>
@@ -147,22 +144,21 @@ void thread_aterm_pool::create_appl_dynamic(aterm& term,
   --m_creation_depth;
   if constexpr (GlobalThreadSafe) unlock_shared();
 
-  if (added) { m_pool.created_term(m_creation_depth == 0, this); }
+  if (added) { m_pool.created_term(m_lock_depth == 0, this); }
 }
 
 void thread_aterm_pool::register_variable(aterm* variable)
 {
   if constexpr (EnableVariableRegistrationMetrics) { ++m_variable_insertions; }
 
+  if constexpr (GlobalThreadSafe) lock_shared();
+    
   /* Resizing of the protection set should not interfere with garbage collection and rehashing */
   if (m_variables->must_resize())
   {
-    if constexpr (GlobalThreadSafe) lock_shared();
     m_variables->resize();
-    if constexpr (GlobalThreadSafe) unlock_shared();
   }
 
-  if constexpr (GlobalThreadSafe) lock_shared();
   auto [it, inserted] = m_variables->insert(variable);
 
   // The variable must be inserted.
@@ -185,6 +181,11 @@ void thread_aterm_pool::register_container(_aterm_container* container)
   if constexpr (EnableVariableRegistrationMetrics) { ++m_container_insertions; }
 
   if constexpr (GlobalThreadSafe) lock_shared();
+
+  if (m_containers->must_resize())
+  {
+    m_containers->resize();
+  }
   auto [it, inserted] = m_containers->insert(container);
 
   // The container must be inserted.
@@ -220,10 +221,8 @@ void thread_aterm_pool::mark()
   }
 #endif // NOT MCRL2_ATERMPP_REFERENCE_COUNTED
 
-  for (auto it = m_containers->begin(); it != m_containers->end(); ++it)
+  for (const _aterm_container* container : *m_containers)
   {
-    const _aterm_container* container = *it;
-
     if (container != nullptr)
     {
       // The container marks the contained terms itself.
@@ -248,7 +247,7 @@ void thread_aterm_pool::wait_for_busy() const
 
 void thread_aterm_pool::lock_shared()
 {
-  if (GlobalThreadSafe && m_creation_depth == 0)
+  if (GlobalThreadSafe && m_lock_depth == 0)
   {
     assert(!m_busy_flag);
     m_busy_flag.store(true);
@@ -261,6 +260,8 @@ void thread_aterm_pool::lock_shared()
       m_busy_flag = true;
     }
   }
+
+  ++m_lock_depth;
 }
 
 /// The function lock_shared that does not access thread local variables directly.
@@ -269,10 +270,10 @@ void thread_aterm_pool::lock_shared()
 /// local variables is sped up. 
 void inline lock_shared(std::atomic<bool>* busy_flag,
                         std::atomic<bool>* forbidden_flag,
-                        std::size_t creation_depth)
+                        std::size_t* lock_depth)
 {
   assert(busy_flag != nullptr && forbidden_flag != nullptr);
-  if (GlobalThreadSafe && creation_depth == 0)
+  if (GlobalThreadSafe && *lock_depth == 0)
   {
     assert(!*busy_flag);
     busy_flag->store(true);
@@ -284,12 +285,15 @@ void inline lock_shared(std::atomic<bool>* busy_flag,
       atermpp::detail::g_thread_term_pool().lock_shared();
     }
   }
+
+  *lock_depth = *lock_depth + 1;
 }
 
 
 void thread_aterm_pool::unlock_shared()
 {
-  if (GlobalThreadSafe && m_creation_depth == 0)
+  --m_lock_depth;
+  if (GlobalThreadSafe && m_lock_depth == 0)
   {
     assert(m_busy_flag);
     m_busy_flag.store(false, std::memory_order_release);
@@ -298,9 +302,10 @@ void thread_aterm_pool::unlock_shared()
 
 /// An alternative to unlock shared access.. 
 void inline unlock_shared(std::atomic<bool>* busy_flag,
-                   std::size_t creation_depth)
+                   std::size_t* lock_depth)
 {
-  if (GlobalThreadSafe && creation_depth == 0)
+  *lock_depth = *lock_depth - 1;
+  if (GlobalThreadSafe && *lock_depth == 0)
   {
     assert(*busy_flag);
     busy_flag->store(false, std::memory_order_release);

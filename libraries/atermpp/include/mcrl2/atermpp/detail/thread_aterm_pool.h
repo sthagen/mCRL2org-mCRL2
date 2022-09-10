@@ -29,8 +29,6 @@ public:
   thread_aterm_pool(aterm_pool& global_pool)
     : m_pool(global_pool)
   {
-    m_pool.register_thread_aterm_pool(*this);
-
     /// Identify the first constructor call as the main thread.
     static bool is_main_thread = true;
     if (is_main_thread)
@@ -41,6 +39,8 @@ public:
 
     m_variables = new mcrl2::utilities::hashtable<aterm*>();
     m_containers = new mcrl2::utilities::hashtable<detail::_aterm_container*>();
+    
+    m_pool.register_thread_aterm_pool(*this);
   }
 
   ~thread_aterm_pool() override
@@ -50,6 +50,7 @@ public:
 
     if (!m_is_main_thread)
     {
+      // We leak values for the global aterm pool since they contain global variables (for which initialisation order is undefined).
       delete m_variables;
       delete m_containers;
     }
@@ -128,6 +129,13 @@ public:
     return &m_forbidden_flag;
   }
 
+  /// \brief Deliver the forbidden flag to rewriters for faster access.
+  /// \details This is a performance optimisation to be deleted in due time. 
+  inline std::size_t* get_lock_depth()
+  {
+    return &m_lock_depth;
+  }
+
   /// \brief Deliver the creation_depth to rewriters for faster access.
   /// \details This is a performance optimisation to be deleted in due time. 
   inline std::size_t* get_creation_depth()
@@ -145,19 +153,23 @@ private:
   std::size_t m_variable_insertions = 0;
   std::size_t m_container_insertions = 0;
 
-  /// \brief It can happen that during create_appl with converter the converter generates new terms.
-  ///        As such these terms might only be protected after the term_appl was actually created.
   std::size_t m_creation_depth = 0;
 
   /// \brief A boolean flag indicating whether this thread is working inside the global aterm pool.
   std::atomic<bool> m_busy_flag = false;
   std::atomic<bool> m_forbidden_flag = false;
 
+  /// \brief It can happen that un/lock_shared calls are nested, so keep track of the nesting depth and only
+  ///        actually perform un/locking at the root.
+  std::size_t m_lock_depth = 0;
+
   std::stack<std::reference_wrapper<_aterm>> m_todo; ///< A reusable todo stack.
 
   bool m_is_main_thread = false;
 };
 
+/// \brief A reference to the thread local term pool storage
+thread_aterm_pool& g_thread_term_pool();
 } // namespace detail
 } // namespace atermpp
 
