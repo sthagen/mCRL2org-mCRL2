@@ -106,6 +106,7 @@ public:
   // Implementation of thread_aterm_pool_interface
   inline void mark() override;
   inline void print_local_performance_statistics() const override;
+  inline bool is_busy() const override;
   inline void wait_for_busy() const override;
   inline void set_forbidden(bool value) override;
 
@@ -114,6 +115,9 @@ public:
 
   /// \brief Called after leaving the global term pool.
   inline void unlock_shared();
+
+  /// \brief Waits for the global term pool.
+  inline void wait();
 
   /// \brief Deliver the busy flag to rewriters for faster access.
   /// \details This is a performance optimisation to be deleted in due time. 
@@ -136,13 +140,6 @@ public:
     return &m_lock_depth;
   }
 
-  /// \brief Deliver the creation_depth to rewriters for faster access.
-  /// \details This is a performance optimisation to be deleted in due time. 
-  inline std::size_t* get_creation_depth()
-  {
-    return &m_creation_depth;
-  }
-
 private:
   aterm_pool& m_pool;
 
@@ -152,8 +149,6 @@ private:
 
   std::size_t m_variable_insertions = 0;
   std::size_t m_container_insertions = 0;
-
-  std::size_t m_creation_depth = 0;
 
   /// \brief A boolean flag indicating whether this thread is working inside the global aterm pool.
   std::atomic<bool> m_busy_flag = false;
@@ -170,6 +165,7 @@ private:
 
 /// \brief A reference to the thread local term pool storage
 thread_aterm_pool& g_thread_term_pool();
+
 } // namespace detail
 } // namespace atermpp
 
