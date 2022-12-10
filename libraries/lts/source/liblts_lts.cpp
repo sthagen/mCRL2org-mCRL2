@@ -11,6 +11,8 @@
 #include "mcrl2/lts/lts_lts.h"
 #include "mcrl2/lts/lts_io.h"
 
+#include "mcrl2/atermpp/standard_containers/indexed_set.h"
+
 #include <fstream>
 #include <optional>
 
@@ -139,7 +141,8 @@ static void read_lts(atermpp::aterm_istream& stream, LTS& lts)
   std::optional<probabilistic_lts_lts_t::probabilistic_state_t> initial_state;
 
   // Ensure unique indices for the probabilistic states.
-  mcrl2::utilities::indexed_set<probabilistic_lts_lts_t::probabilistic_state_t> probabilistic_states;
+  mcrl2::utilities::indexed_set<
+    probabilistic_lts_lts_t::probabilistic_state_t> probabilistic_states;
 
   // Keep track of the number of states (derived from the transitions).
   std::size_t number_of_states = 1;

@@ -9,10 +9,10 @@
 #ifndef MCRL2_UTILITIES_UNORDERED_MAP_H
 #define MCRL2_UTILITIES_UNORDERED_MAP_H
 
-#include "mcrl2/utilities/unordered_set.h"
-
 #include <utility>
 #include <functional>
+#include "mcrl2/utilities/unordered_set.h"
+
 
 namespace mcrl2::utilities
 {
@@ -61,13 +61,9 @@ private:
     {
       return hash(pair.first);
     }
-
-    std::size_t operator()(const key_type& key, const mapped_type&) const
-    {
-      return hash(key);
-    }
-
-    std::size_t operator()(const key_type& key) const
+        
+    template<typename ...U>
+    std::size_t operator()(const key_type& key, const U&... /* args */) const
     {
       return hash(key);
     }
@@ -91,12 +87,8 @@ private:
       return equals(first.first, second.first);
     }
 
-    bool operator()(const value_type& first, const key_type& key, const mapped_type&) const
-    {
-      return equals(first.first, key);
-    }
-
-    bool operator()(const value_type& first, const key_type& key) const
+    template <typename ...U>
+    bool operator()(const value_type& first, const key_type& key, const U&... /* args */) const
     {
       return equals(first.first, key);
     }

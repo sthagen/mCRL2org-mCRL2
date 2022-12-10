@@ -304,10 +304,10 @@ template<typename InputIterator,
                                                                 typename InputIterator::value_type>::type,
                                     void>::value, void>::type*>
 bool ATERM_POOL_STORAGE::create_appl_dynamic(aterm& term,
-                                        const function_symbol& symbol,
-                                        TermConverter converter,
-                                        InputIterator it,
-                                        InputIterator end)
+                                             const function_symbol& symbol,
+                                             TermConverter converter,
+                                             InputIterator it,
+                                             InputIterator end)
 {
   // The end is only used for debugging to ensure that the arity and std::distance(it, end) match.
   mcrl2::utilities::mcrl2_unused(end);
@@ -316,9 +316,16 @@ bool ATERM_POOL_STORAGE::create_appl_dynamic(aterm& term,
   for (std::size_t i = 0; i < symbol.arity(); ++i)
   {
     assert(it != end);
+#ifdef MCRL2_ATERMPP_REFERENCE_COUNTED
     typename InputIterator::value_type t;
     converter(t,*it);
     arguments[i]=t;
+#else
+    // The construction below is possible as with protection sets the new term simply
+    // overwrites the object at arguments[i]. Note that with reference counts this leads
+    // to problems. 
+    converter(reinterpret_cast<typename InputIterator::value_type&>(arguments[i]),*it);
+#endif
     ++it;
   }
   assert(it == end);

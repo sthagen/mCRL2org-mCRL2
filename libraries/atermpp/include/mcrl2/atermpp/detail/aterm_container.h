@@ -62,7 +62,7 @@ public:
   }
 
   /// \brief Move assignment
-  _aterm_container& operator=(_aterm_container&& )
+  _aterm_container& operator=(_aterm_container&& ) noexcept
   {
     return *this;
   } 
@@ -188,14 +188,12 @@ public:
   
   const T& operator=(const T& other) noexcept
   {
-    static_assert(std::is_base_of<aterm, T>::value);
     m_t=other;
     return m_t;
   }
 
   const T& operator=(T&& other) noexcept
   {
-    static_assert(std::is_base_of<aterm, T>::value);
     m_t = std::move(other);
     return m_t;
   }
