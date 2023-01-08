@@ -109,12 +109,19 @@ public:
   inline bool is_busy() const override;
   inline void wait_for_busy() const override;
   inline void set_forbidden(bool value) override;
+  inline std::size_t protection_set_size() const override;
 
   /// \brief Called before entering the global term pool.
   inline void lock_shared();
 
   /// \brief Called after leaving the global term pool.
   inline void unlock_shared();
+
+  /// \brief Called before entering the global term pool to obtain exclusive access.
+  inline void lock();
+
+  /// \brief Called after leaving the global term pool to release exclusive access.
+  inline void unlock();
 
   /// \brief Waits for the global term pool.
   inline void wait();

@@ -31,6 +31,7 @@ public:
   using key_type = Key;
   using mapped_type = T;
   using value_type = std::pair<const Key, T>;
+  typedef value_type node_type;
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
 
@@ -44,6 +45,8 @@ public:
   using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
 
 private:
+  /// \brief True iff the hash and equals functions allow transparent lookup,
+  static constexpr bool allow_transparent = detail::is_transparent<Hash>() && detail::is_transparent<KeyEqual>();
 
   // Hashes only the keys of each pair.
   struct PairHash
@@ -63,8 +66,8 @@ private:
       return hash(pair.first);
     }
         
-    template<typename ...U>
-    std::size_t operator()(const key_type& key, const U&... /* args */) const
+    template<typename U, typename ...V, typename = std::enable_if_t<!std::is_same_v<U, std::pair<Key, T>>>>
+    std::size_t operator()(const U& key, const V&... /* args */) const 
     {
       return hash(key);
     }
@@ -88,8 +91,8 @@ private:
       return equals(first.first, second.first);
     }
 
-    template <typename ...U>
-    bool operator()(const value_type& first, const key_type& key, const U&... /* args */) const
+    template <typename U, typename...V, typename = std::enable_if_t<!std::is_same_v<U, std::pair<Key, T>>>>
+    bool operator()(const value_type& first, const U& key, const V&... /* args */) const
     {
       return equals(first.first, key);
     }
@@ -105,6 +108,7 @@ public:
   using const_iterator = typename Set::const_iterator;
   using local_iterator = typename bucket_type::iterator;
   using const_local_iterator = typename Set::const_local_iterator;
+  typedef typename std::pair<unordered_map::iterator, bool> insert_return_type;
 
   unordered_map()
     : m_set(0, PairHash(hasher()), PairEquals(key_equal()))
@@ -142,7 +146,8 @@ public:
 
   /// \brief Inserts elements.
   std::pair<iterator, bool> insert(const value_type& pair) { auto[x, y] = m_set.emplace(pair); return std::make_pair(iterator(x), y); }
-  std::pair<iterator, bool> insert(const_iterator /*hint*/, const value_type& pair) { return insert(pair);  }
+
+  std::pair<iterator, bool> insert(const_iterator hint, const value_type& pair) { return insert(hint, pair);  }
 
   template<typename ...Args>
   std::pair<iterator, bool> emplace(Args&&... args) { auto[x, y] = m_set.emplace(std::forward<Args>(args)...); return std::make_pair(iterator(x), y); }
@@ -226,7 +231,10 @@ public:
   void max_load_factor(float factor) { m_set.max_load_factor(factor); }
 
   /// \brief Resize the number buckets to at least number_of_buckets.
-  void rehash(size_type number_of_buckets);
+  void rehash(size_type number_of_buckets)
+  {
+    m_set.rehash(number_of_buckets);
+  }
 
   /// \brief Resizes the set to the given number of elements.
   void reserve(size_type count) { rehash(std::ceil(static_cast<float>(count) / max_load_factor())); }
