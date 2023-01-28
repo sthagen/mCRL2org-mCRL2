@@ -40,7 +40,7 @@
        <number>0</number>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <property name="margin" stdset="0">
+       <property name="margin">
         <number>0</number>
        </property>
        <item>
@@ -87,7 +87,6 @@
     <addaction name="actOutput"/>
     <addaction name="separator"/>
     <addaction name="actFullscreen"/>
-    <addaction name="actReset"/>
    </widget>
    <widget class="QMenu" name="menu_Tools">
     <property name="title">
@@ -95,7 +94,7 @@
     </property>
     <addaction name="actExplorationMode"/>
     <addaction name="actLayout"/>
-    <addaction name="actionAdvancedSpringlayout"/>
+    <addaction name="actReset"/>
    </widget>
    <addaction name="mnuFile"/>
    <addaction name="menu_View"/>
@@ -233,14 +232,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
-   </property>
-  </action>
-  <action name="actionAdvancedSpringlayout">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Advanced Springlayout</string>
    </property>
   </action>
  </widget>

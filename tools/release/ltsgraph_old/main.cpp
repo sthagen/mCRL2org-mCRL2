@@ -19,7 +19,7 @@ class ltsgraph_tool : public ltsgraph_base
 {
   public:
     ltsgraph_tool():
-      ltsgraph_base("LTSGraph",
+      ltsgraph_base("LTSGraph (Old)",
                     "Rimco Boudewijns and Sjoerd Cranen",
                     "visualise an LTS as a graph and manipulate its layout in 2D and 3D",
                     "Tool for visualizing a labelled transition systems as a graph, and optimizing graph layout. "
@@ -30,19 +30,17 @@ class ltsgraph_tool : public ltsgraph_base
       // Create an OpenGL 3.3 surface without depth, alpha and stencil buffers and with vsync enabled.
       QSurfaceFormat surfaceFormat = QSurfaceFormat::defaultFormat();
       surfaceFormat.setVersion(3, 3);
-      // There are no Core profile features explicitly used, but some MacOS versions require Core profile as a 'hint' to 
-      //   properly use OpenGL 3.x functionality. Removing this line will cause issues with MacOS eventually.
       surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
+      surfaceFormat.setAlphaBufferSize(1);
       surfaceFormat.setStencilBufferSize(1);
       surfaceFormat.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
       surfaceFormat.setSwapInterval(1);
 
       // Enable a surface with multisampling.
-      surfaceFormat.setSamples(16);
+      surfaceFormat.setSamples(4);
 
       // We use the GL_KHR_debug extension to provide realtime logging of OpenGL errors.
-      // Ruben: Disabled because debug logging became unusable and every text draw call produced 3 lines of output per node/label
-      surfaceFormat.setOption(QSurfaceFormat::DebugContext, true);
+      surfaceFormat.setOption(QSurfaceFormat::DebugContext);
 
       // Qt: Calling QSurfaceFormat::setDefaultFormat() before constructing the QApplication instance
       //     is mandatory on some platforms (for example, macOS) when an OpenGL core profile context is requested.
@@ -74,6 +72,7 @@ class ltsgraph_tool : public ltsgraph_base
       {
         window.delayedOpenFile(QString::fromStdString(m_input_filename));
       }
+
       return show_main_window(window);
     }
 };

@@ -26,13 +26,9 @@
 #include <QReadWriteLock>
 #include <QVector3D>
 #include <QString>
-#include <QElapsedTimer>
-#include <QPainter>
-#include <QMutex>
 
 #include <utility>
 #include <cmath>
-#include <unordered_map>
 
 namespace Graph
 {
@@ -333,105 +329,6 @@ class NodeNode : public NodeWithColor
 class Exploration;
 class Information;
 
-#define DEBUG_GRAPHS
-#ifdef DEBUG_GRAPHS
-
-
-
-struct DataView{
-  double min, max, average, std;
-  std::size_t n;
-  DataView(std::list<double>& input_list);
-};
-class DebugView{
-
-  public:
-    DebugView(std::size_t log_duration = 0, std::size_t min_interval = 0);
-
-    void push(double value);
-
-    /// @brief if more than 1 sample is compiled into 1 point on the line
-    ///        we can draw either of the following statistics
-    bool m_drawStd = false;
-
-    bool m_drawAvg = true;
-
-    bool m_drawMin = false;
-
-    bool m_drawMax = false;
-
-    void draw(QPainter& painter, QBrush& brush, QPen& pen);
-    
-    void setDrawingArea(int width, int height, int offsetX, int offsetY);
-    double getMax(){ return m_max_value; }
-    double recalcMax();
-    void setMax(double max)
-    {
-      m_max_value = max;
-    }
-    QPointF getOffset() { return QPointF(m_pad_width, m_pad_height); }
-
-    void determineScale(double max = -1);
-  private:
-    QMutex* m_lock;
-    void drawLine(QPainter& painter, std::vector<QPointF>& line,
-                  double current_value, QBrush& brush,
-                  QPen& pen);
-    
-  private:
-      std::list<std::pair<std::size_t, DataView>> m_values = std::list<std::pair<std::size_t, DataView>>();
-
-      std::list<double> m_current_interval = std::list<double>();
-      std::size_t m_current_interval_start;
-
-      QElapsedTimer m_timer = QElapsedTimer();
-
-      std::size_t m_log_duration; // The amount of time represented by a line
-      std::size_t m_min_interval; // The amount of time represented by a single point
-
-      int m_width = 200;
-      int m_height = 100;
-      int m_pad_height = 20;
-      int m_pad_width = 20;
-      double m_max_value = 50;
-
-      const double m_scale_tolerance = 0.7; // If the max value in m_values is less than m_scale_tolerance * m_max_value, we rescale m_max_value
-};
-
-struct PlotEntry
-{
-  std::string var;
-  QBrush brush;
-  QPen pen;
-};
-class GraphView
-{
-  public:
-  GraphView(int rows, int cols, QRect bounds, std::size_t log_duration, std::size_t min_interval);
-
-  void logVar(std::string name, double value);
-
-  void addVar(std::string name);
-
-  void addToPlot(int row, int col, PlotEntry entry);
-
-  void draw(QPainter& painter);
-
-  private:
-  int m_rows = 2;
-  int m_cols = 2;
-  int m_padx = 20;
-  int m_pady = 10;
-  std::size_t m_log_duration;
-  std::size_t m_min_interval;
-  QRect m_bounds;
-
-  std::vector<std::vector<PlotEntry>> m_plots;
-
-  std::unordered_map<std::string, DebugView> m_vars;
-};
-#endif
-
 /**
 @brief: This is the internal data structure that LTSGraph operates on.
 
@@ -447,16 +344,11 @@ class Graph
     friend class Exploration;
 
   private:
-    Exploration* m_exploration;                 ///< The exploration of the current graph (or null).
-    mcrl2::lts::lts_type m_type;                ///< The type of the current graph.
-    QString m_empty;                            ///< Empty string that is returned as label if none present.
-    mutable QReadWriteLock m_lock;              ///< Lock protecting the structure from being changed while rendering and simulating
-    const float m_stabilityThreshold = 0.000f;  ///< Used for checking whether the graph is stable. TODO: Allow user control 
-    bool m_stable;                              ///< When true, the graph is considered stable, spring forces should not be applied.
-    bool m_hasNewFrame = false;                 ///< Set to false when frame is rendered. Whenever new layout is applied set to true.
-    bool m_forceUpdate = false;                 ///< Some actions require forcing update -> toggleOpen for instance
-    bool m_resetPositions = false;              ///< Resets all positions on the next worker iteration
-    bool m_scrambleZPositions = false;          ///< Scrambles Z-positions on the next worker iteration
+    Exploration* m_exploration;     ///< The exploration of the current graph (or null).
+    mcrl2::lts::lts_type m_type;    ///< The type of the current graph.
+    QString m_empty;                ///< Empty string that is returned as label if none present.
+    mutable QReadWriteLock m_lock;          ///< Lock protecting the structure from being changed while rendering and simulating
+    bool m_stable;                  ///< When true, the graph is considered stable, spring forces should not be applied.
     QVector3D m_clip_min;
     QVector3D m_clip_max;
 
@@ -485,11 +377,6 @@ class Graph
   protected:
 
   public:
-
-    #define DEBUG_LOG_TEMPERATURE
-    #ifdef DEBUG_LOG_TEMPERATURE
-      GraphView gv_debug = GraphView(4, 1, {20, 20, 200, 600}, 1000, 1);
-    #endif
     Graph();
     ~Graph();
 
@@ -592,8 +479,6 @@ class Graph
      */
     const QString& stateLabelstring(std::size_t labelindex) const;
 
-    bool userIsDragging = false;
-
     /// Accessors
 
     Node& handle(std::size_t edge);
@@ -622,31 +507,13 @@ class Graph
     std::size_t explorationEdgeCount() const;        ///< Returns the number of edges in the exploration
     std::size_t explorationNodeCount() const;        ///< Returns the number of nodes in the exploration
 
-    float stabilityThreshold(){ ///< @brief Gets stability threshold
-       return m_stabilityThreshold;
-    }
-
-    bool& stable() ///< @brief Sets whether this graph is stable.
+    const bool& stable() const ///< @brief Gets whether this graph is stable.
     {
       return m_stable;
     }
-
-    void hasNewFrame(bool b) { m_hasNewFrame = b; }
-    bool& hasNewFrame(){ return m_hasNewFrame; }
-
-    bool& hasForcedUpdate()
+    bool& stable() ///< @brief Sets whether this graph is stable.
     {
-      return m_forceUpdate;
-    }
-
-    bool& resetPositions()
-    {
-      return m_resetPositions;
-    }
-
-    bool& scrambleZ()
-    {
-      return m_scrambleZPositions;
+      return m_stable;
     }
 };
 }  // namespace Graph

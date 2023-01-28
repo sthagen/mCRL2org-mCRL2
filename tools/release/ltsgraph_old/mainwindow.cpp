@@ -14,11 +14,9 @@
 #include <QSettings>
 
 #include "dimensionsdialog.h"
-#include "springlayout.h"
 
 /// \brief The number of vertices before the user is prompted to enable exploration mode.
-constexpr std::size_t MAX_NODE_COUNT    = 400;
-
+constexpr std::size_t MAX_NODE_COUNT  = 400;
 
 MainWindow::MainWindow(QWidget* parent) :
   QMainWindow(parent),
@@ -34,9 +32,7 @@ MainWindow::MainWindow(QWidget* parent) :
 
   // Create springlayout algorithm + UI
   m_layout = new Graph::SpringLayout(m_graph, *m_glwidget);
-  m_advancedwidget = new Graph::CustomQWidget(m_ui.actionAdvancedSpringlayout, nullptr); // nullptr so it is treated as a separate window
-  m_advancedwidget->setWindowFlags(Qt::WindowStaysOnTopHint);
-  Graph::SpringLayoutUi* springlayoutui = m_layout->ui(m_ui.actionAdvancedSpringlayout, m_advancedwidget, this);
+  Graph::SpringLayoutUi* springlayoutui = m_layout->ui(this);
   addDockWidget(Qt::RightDockWidgetArea, springlayoutui);
   springlayoutui->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
 
@@ -51,14 +47,11 @@ MainWindow::MainWindow(QWidget* parent) :
   addDockWidget(Qt::RightDockWidgetArea, informationui);
   informationui->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
 
-
   // Connect signals & slots
   connect(m_ui.actExit, SIGNAL(triggered()), this, SLOT(close()));
   connect(m_ui.actLayoutControl, SIGNAL(toggled(bool)), springlayoutui, SLOT(setVisible(bool)));
   connect(m_ui.actVisualization, SIGNAL(toggled(bool)), glwidgetui, SLOT(setVisible(bool)));
   connect(m_ui.actInformation, SIGNAL(toggled(bool)), informationui, SLOT(setVisible(bool)));
-  connect(m_ui.actionAdvancedSpringlayout, SIGNAL(toggled(bool)),
-          springlayoutui, SLOT(onAdvancedDialogShow(bool)));
   connect(m_ui.actOutput, SIGNAL(toggled(bool)), m_ui.dockOutput, SLOT(setVisible(bool)));
   connect(m_ui.act3D, SIGNAL(toggled(bool)), this, SLOT(on3DChanged(bool)));
   connect(m_ui.act3D, SIGNAL(toggled(bool)), this, SLOT(updateStatusBar()));
@@ -114,7 +107,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
   settings.setValue("windowState", saveState());
   settings.setValue("settings", m_layout->ui()->settings());
   settings.setValue("visualisation", m_glwidget->ui()->settings());
-  m_advancedwidget->close();
   QMainWindow::closeEvent(event);
 }
 
@@ -137,8 +129,7 @@ MainWindow::~MainWindow()
 void MainWindow::on3DChanged(bool enabled)
 {
   m_glwidget->set3D(enabled);
-  
-  m_layout->m_asa.reset();
+
   // For 3D mode there is no limit and otherwise the z-dimension is limited to 0.
   QVector3D limit{INFINITY, INFINITY, INFINITY};
   if (!enabled)
@@ -146,18 +137,21 @@ void MainWindow::on3DChanged(bool enabled)
     limit.setZ(0.0);
   }
   m_graph.clip(-limit, limit);
-  m_graph.setStable(false); // Probably no longer stable
 
   if(enabled)
   {
-    m_graph.scrambleZ() = true;
+    bool all_z_zero = true;
+    for (std::size_t i = 0; all_z_zero && i < m_graph.nodeCount(); i++)
+    {
+      all_z_zero &= std::abs(m_graph.node(i).pos().z()) < 1.0f;
+    }
+    if (all_z_zero)
+    {
+      // If all nodes are in the same plane, slightly shift them to speed-up
+      // automatic layouting
+      m_layout->randomizeZ(10.0f);
+    }
   }
-}
-
-void MainWindow::paintEvent(QPaintEvent* event){
-    setUpdatesEnabled(false);
-    QMainWindow::paintEvent(event);
-    setUpdatesEnabled(true);
 }
 
 void MainWindow::onExplore(bool enabled)
@@ -197,19 +191,18 @@ void MainWindow::openFile(const QString& fileName)
       // Disable layouting and reset viewport.
       m_ui.actLayout->setChecked(false);
 
-      //m_glwidget->pause();
+      m_glwidget->pause();
       m_glwidget->resetViewpoint(0);
-      
+
       // We limit the initial positions of the nodes.
-      QVector3D limit = QVector3D(2500.0, 2500.0f, (m_glwidget->get3D() ? 2500.0f : 0.0f));
+      QVector3D limit = QVector3D(1000.0, 1000.0f, 0.0f) / 4.0f;
 
       // The argument '-' means we should read from stdin, the lts library
       // does that when supplied an empty string as the input file name
       m_graph.load(fileName == "-" ? "" : fileName, -limit, limit);
 
-      m_layout->resetPositions();
       m_glwidget->rebuild();
-      on3DChanged(m_ui.act3D->isChecked());
+      on3DChanged(false);
 
       if (m_graph.nodeCount() > MAX_NODE_COUNT && !hadExploration)
       {
@@ -227,7 +220,7 @@ void MainWindow::openFile(const QString& fileName)
         onExplore(hadExploration);
       }
 
-      //m_glwidget->resume();
+      m_glwidget->resume();
 
       m_information->update();
       setWindowTitle(QString("LTSGraph - ") + fileName);
@@ -235,16 +228,6 @@ void MainWindow::openFile(const QString& fileName)
     }
     catch (const mcrl2::runtime_error& e)
     {
-      m_layout->resetPositions();
-
-      m_glwidget->rebuild();
-      on3DChanged(m_ui.act3D->isChecked());
-
-      onExplore(false);
-
-      m_information->update();
-      m_graph.setStable(false);
-
       QMessageBox::critical(this, "Error opening file", e.what());
       mCRL2log(mcrl2::log::error) << "Error opening file: " << e.what() << std::endl;
       setWindowTitle(QString("LTSGraph"));

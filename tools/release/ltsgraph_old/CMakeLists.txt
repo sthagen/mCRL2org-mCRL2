@@ -1,5 +1,5 @@
-add_mcrl2_tool(ltsgraph
-  MENUNAME "LTSGraph"
+add_mcrl2_tool(ltsgraph_old
+  MENUNAME "LTSGraph (Old)"
   DESCRIPTION "Visualisation tool for small state spaces (mCRL2 toolset)"
   ICON "mcrl2-green"
   SOURCES
@@ -19,11 +19,8 @@ add_mcrl2_tool(ltsgraph
     mainwindow.cpp
     mainwindow.ui
     shaders.cpp
-    layoututility.cpp
     springlayout.cpp
-    settingsmanager.cpp
     springlayout.ui
-    advancedspringlayoutdialog.ui
   DEPENDS
     Qt5::Core
     Qt5::Gui
