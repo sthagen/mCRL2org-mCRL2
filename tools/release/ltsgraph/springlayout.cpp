@@ -30,7 +30,7 @@ namespace Graph
 //
 
 #ifdef DEV_DEBUG
-std::string getName(SpringLayout::AttractionCalculation c)
+std::string getName(AttractionFunctionID c)
 {
   std::string s = "UNKNOWN";
 #define PROC_VAL(p)                                                            \
@@ -39,14 +39,14 @@ std::string getName(SpringLayout::AttractionCalculation c)
     break;
   switch (c)
   {
-    PROC_VAL(SpringLayout::AttractionCalculation::ltsgraph_attr);
-    PROC_VAL(SpringLayout::AttractionCalculation::electricalsprings_attr);
-    PROC_VAL(SpringLayout::AttractionCalculation::linearsprings_attr);
+    PROC_VAL(AttractionFunctionID::ltsgraph_attr);
+    PROC_VAL(AttractionFunctionID::electricalsprings_attr);
+    PROC_VAL(AttractionFunctionID::linearsprings_attr);
   }
 #undef PROC_VAL
   return s;
 }
-std::string getName(SpringLayout::RepulsionCalculation c)
+std::string getName(RepulsionFunctionID c)
 {
   std::string s = "UNKNOWN";
 #define PROC_VAL(p)                                                            \
@@ -55,14 +55,14 @@ std::string getName(SpringLayout::RepulsionCalculation c)
     break;
   switch (c)
   {
-    PROC_VAL(SpringLayout::RepulsionCalculation::ltsgraph_rep);
-    PROC_VAL(SpringLayout::RepulsionCalculation::electricalsprings_rep);
-    PROC_VAL(SpringLayout::RepulsionCalculation::none_rep);
+    PROC_VAL(RepulsionFunctionID::ltsgraph_rep);
+    PROC_VAL(RepulsionFunctionID::electricalsprings_rep);
+    PROC_VAL(RepulsionFunctionID::none_rep);
   }
 #undef PROC_VAL
   return s;
 }
-std::string getName(SpringLayout::ForceApplication c)
+std::string getName(ApplicationFunctionID c)
 {
   std::string s = "UNKNOWN";
 #define PROC_VAL(p)                                                            \
@@ -71,49 +71,14 @@ std::string getName(SpringLayout::ForceApplication c)
     break;
   switch (c)
   {
-    PROC_VAL(SpringLayout::ForceApplication::ltsgraph_appl);
-    PROC_VAL(SpringLayout::ForceApplication::force_directed_appl);
-    PROC_VAL(SpringLayout::ForceApplication::force_cumulative_appl);
+    PROC_VAL(ApplicationFunctionID::ltsgraph_appl);
+    PROC_VAL(ApplicationFunctionID::force_directed_appl);
   }
 #undef PROC_VAL
   return s;
 }
 #endif
 
-//
-// Utility functions
-//
-
-inline float cube(float x)
-{
-  return x * x * x;
-}
-
-inline float smoothstep(float l, float r, float x)
-{
-  if (x < l)
-    return 0;
-  if (x > r)
-    return 1;
-
-  x = (x - l) / (r - l);
-
-  return x * x * (3 - 2 * x);
-}
-
-inline void clip(float& f, float min, float max)
-{
-  if (f < min)
-  {
-    f = min;
-  }
-  else if (f > max)
-  {
-    f = max;
-  }
-}
-
-const float electricalSpringScaling = 1e-2f;
 
 void SimpleAdaptiveSimulatedAnnealing::reset()
 {
@@ -149,324 +114,7 @@ bool SimpleAdaptiveSimulatedAnnealing::calculateTemperature(float new_energy)
   return false; // Simple => no checking for stable configuration
 }
 
-float AdaptiveSimulatedAnnealing::getTemperature()
-{
-  return T;
-}
 
-AdaptiveSimulatedAnnealing::AdaptiveSimulatedAnnealing()
-{
-  m_timer.restart();
-  m_stable_timer.restart();
-}
-
-void AdaptiveSimulatedAnnealing::reset()
-{
-  if (m_reset_timer.elapsed() * 0.001f < m_reset_duration)
-  {
-    // still resetting
-    return;
-  }
-  m_reset_temperature_floor = m_temperature;
-  T = m_temperature + m_minimum_temperature;
-  m_previous_energy = -1;
-  m_progress_energy = -1;
-  m_timer.restart();
-  m_stable_timer.restart();
-  m_reset_timer.restart();
-  // mCRL2log(mcrl2::log::debug) << "Reset ASA."<< std::endl;
-}
-
-bool AdaptiveSimulatedAnnealing::calculateTemperature(float new_energy)
-{
-  // check if we are still resetting
-  if (m_reset_timer.elapsed() * 0.001f < m_reset_duration)
-  {
-    m_temperature =
-        m_reset_temperature_floor +
-        (m_reset_temperature - m_reset_temperature_floor) *
-            smoothstep(0, m_reset_duration, m_reset_timer.elapsed() * 0.001f);
-    T = m_temperature + m_minimum_temperature;
-    m_timer.restart();
-    return false;
-  }
-
-  float seconds = m_timer.elapsed() * 0.001f;
-  if (seconds < 1 / m_progress_target_per_second)
-  {
-    return false; /// TODO: Should return last returned value
-  }
-  if (m_previous_energy < 0)
-  {
-    m_previous_energy = new_energy;
-    m_progress_energy = m_previous_energy;
-    return false; ///< not yet stable
-  }
-
-  float rel_energy_delta =
-      std::abs(new_energy - m_previous_energy) / m_previous_energy;
-
-  // if (rel_energy_delta < m_stability_energy_threshold*T){
-  //   m_previous_energy = new_energy;
-  //   // don't change anything, we're stable
-  //   return m_stable_timer.elapsed()*0.001f > m_stability_time_threshold;
-  // }
-
-  m_stable_timer.restart();
-  m_timer.restart();
-
-  if (new_energy < m_previous_energy &&
-      rel_energy_delta > m_relative_change_threshold * T)
-  {
-    m_progress += seconds * m_progress_target_per_second * rel_energy_delta;
-    if (m_progress >= m_progress_threshold)
-    {
-      m_progress -= m_progress_threshold;
-      m_temperature /= m_annealing_factor;
-      m_temperature +=
-          m_annealing_term *
-          std::abs((new_energy - m_progress_energy) / (T * m_progress_energy));
-    }
-  }
-  else
-  {
-    m_progress = 0;
-    m_progress_energy = new_energy;
-    m_temperature *= m_annealing_factor;
-  }
-  // if (m_temperature < 0) m_temperature = 0;
-  // mCRL2log(mcrl2::log::debug) << "Prev E: " << m_previous_energy << " new E:
-  // " << new_energy << " m_temperature: " << m_temperature << std::endl;
-  m_previous_energy = m_energy_smoothing * new_energy +
-                      (1 - m_energy_smoothing) * m_previous_energy;
-  T = m_temperature + m_minimum_temperature;
-  return false; ///< not yet stable
-}
-
-struct AttractionFunction
-{
-  virtual QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                               const float ideal) = 0;
-  void update(){};
-  void reset(){};
-};
-namespace AttractionFunctions
-{
-struct LTSGraph : AttractionFunction
-{
-  QVector3D diff = {0, 0, 0};
-  const float scaling = 1e3f;
-  float dist = 0.0f;
-  float factor = 0.0f;
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float ideal) override
-  {
-    diff = (a - b);
-    dist = (std::max)(diff.length(), 1.0f);
-    factor = scaling * std::log(dist / (ideal + 1.0f)) / dist;
-    return diff * factor;
-  }
-};
-
-struct LinearSprings : AttractionFunction
-{
-  const float spring_constant = 1e-4f;
-  const float scaling = 1.0f / 10000;
-  QVector3D diff = {0, 0, 0};
-  float dist = 0.0f;
-  float factor = 0.0f;
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float ideal) override
-  {
-    diff = (a - b);
-    dist = diff.length() - ideal;
-    factor = spring_constant * std::max(dist, 0.0f);
-    if (dist > 0.0f)
-    {
-      factor = std::max(factor, 100 / (std::max)(dist * dist / 10000.0f, 0.1f));
-    }
-    return diff * (factor * scaling);
-  }
-};
-
-struct ElectricalSprings : AttractionFunction
-{
-  QVector3D diff = {0, 0, 0};
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float ideal) override
-  {
-    diff = (a - b);
-    return (electricalSpringScaling * diff.length() / std::max(0.0001f, ideal)) *
-           diff;
-  }
-};
-
-struct SimpleSpring : AttractionFunction
-{
-  QVector3D diff = {0, 0, 0};
-  const float spring_constant = 1e-4f;
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float ideal) override
-  {
-    diff = a - b;
-    return spring_constant * (diff.length() - ideal) * diff;
-  }
-};
-}; // namespace AttractionFunctions
-
-struct RepulsionFunction
-{
-  virtual QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                               const float ideal) = 0;
-  virtual void update(){};
-  virtual void reset(){};
-};
-
-namespace RepulsionFunctions
-{
-struct LTSGraph : RepulsionFunction
-{
-  QVector3D diff;
-  float r;
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float natlength) override
-  {
-    diff = a - b;
-    r = cube(natlength);
-    r /= cube((std::max)(diff.length() * 0.5f, natlength * 0.1f));
-    diff = diff * r + QVector3D(fast_frand(-0.01f, 0.01f),
-                                fast_frand(-0.01f, 0.01f),
-                                fast_frand(-0.01f, 0.01f));
-    return diff;
-  }
-};
-
-struct ElectricalSpring : RepulsionFunction
-{
-  QVector3D diff;
-  QVector3D operator()(const QVector3D& a, const QVector3D& b,
-                       const float K) override
-  {
-    diff = a - b;
-    return ((electricalSpringScaling * K * K) /
-            std::max(diff.lengthSquared(), 0.00001f)) *
-           diff;
-  }
-};
-
-struct None : RepulsionFunction
-{
-  QVector3D ZERO = {0, 0, 0};
-  QVector3D operator()(const QVector3D&, const QVector3D&,
-                       const float) override
-  {
-    return ZERO;
-  }
-};
-}; // namespace RepulsionFunctions
-
-struct ApplicationFunction
-{
-  float* temperature = nullptr;
-  virtual void operator()(QVector3D& pos, const QVector3D& f,
-                          const float speed) = 0;
-  virtual void update(){};
-  virtual void reset(){};
-};
-
-namespace ApplicationFunctions
-{
-struct LTSGraph : ApplicationFunction
-{
-  const float scaling = 0.01f;
-  const float limit = 1e4f;
-  void operator()(QVector3D& pos, const QVector3D& f,
-                  const float speed) override
-  {
-    if (scaling * std::abs(f.x()) >= limit ||
-        scaling * std::abs(f.y()) >= limit ||
-        scaling * std::abs(f.z()) >= limit)
-      return;
-    pos += f * (speed * scaling * *temperature);
-  }
-};
-
-struct ForceDirected : ApplicationFunction
-{
-  const float scaling = 2.0f;
-  const float stability_param = 0.1f;
-  // precompute
-  const float thres = scaling * stability_param;
-  // easing such that at threshold translation is 50% of stepsize
-  const float ease_width = .1f;
-  const float ease_floor =
-      1e-06f; // Always keep ease_floor force applied. May cause jitter
-  // precompute
-  const float one_minus_ease_floor = 1 - ease_floor;
-  void operator()(QVector3D& pos, const QVector3D& f,
-                  const float speed) override
-  {
-
-    float amplitude = speed * scaling * (*temperature);
-    float threshold = speed * thres;
-    threshold /= *temperature;
-    float L = f.length();
-    if (L < (1 + ease_width) * threshold)
-    {
-      // smoothstep the amplitude
-      amplitude *= ease_floor + one_minus_ease_floor *
-                                    smoothstep(threshold * (1 - ease_width),
-                                               threshold * (1 + ease_width), L);
-    }
-    if (L == 0)
-      return;
-    pos += (amplitude / L) * f;
-  }
-};
-
-struct ForceDirectedAnnealing : ApplicationFunction
-{
-  const float scaling = 2.0f;
-  // Annealing parameters
-  const int anneal_iterations = 1;
-  const float anneal_cooling_factor = 0.98f;
-  const float anneal_start_temperature = 100.0f;
-  // Annealing variables
-  float m_anneal_temperature = 1.0f;
-  int iterations = 0;
-  void operator()(QVector3D& pos, const QVector3D& f,
-                  const float speed) override
-  {
-    pos += (speed * scaling * m_anneal_temperature) * f.normalized();
-  }
-  void update() override
-  {
-    if (++iterations >= anneal_iterations)
-    {
-      m_anneal_temperature *= anneal_cooling_factor;
-      iterations = 0;
-    }
-  }
-  void reset() override
-  {
-    m_anneal_temperature = anneal_start_temperature;
-  }
-};
-
-struct ForceCumulative : ApplicationFunction
-{
-  ForceCumulative()
-  {
-    //mCRL2log(mcrl2::log::warning)
-    //    << "Cumulative force not impemented yet." << std::endl;
-  }
-  void operator()(QVector3D& pos, const QVector3D& f,
-                  const float speed) override
-  {
-    pos += (speed)*f.normalized();
-  }
-};
-}; // namespace ApplicationFunctions
 //
 // SpringLayout
 //
@@ -478,38 +126,39 @@ SpringLayout::SpringLayout(Graph& graph, GLWidget& glwidget)
       m_node_tree2D(0, {0, 0}, {0, 0}),
       m_handle_tree2D(0, {0, 0}, {0, 0}),
       m_trans_tree2D(0, {0, 0}, {0, 0}),
-      m_speed(0.001f), m_attraction(0.13f), m_repulsion(50.0f),
-      m_natLength(50.0f), m_controlPointWeight(0.001f), m_graph(graph),
-      m_ui(nullptr), m_glwidget(glwidget), 
+      m_speed(0.001f), m_attraction(0.13f), 
+      m_repulsion(50.0f),
+      m_natLength(50.0f), 
+      m_controlPointWeight(0.001f), 
+      m_graph(graph),
+      m_ui(nullptr), 
       attrFuncMap({
-          {AttractionCalculation::ltsgraph_attr,
+          {AttractionFunctionID::ltsgraph_attr,
            new AttractionFunctions::LTSGraph()},
-          {AttractionCalculation::electricalsprings_attr,
+          {AttractionFunctionID::electricalsprings_attr,
            new AttractionFunctions::ElectricalSprings()},
-          {AttractionCalculation::linearsprings_attr,
+          {AttractionFunctionID::linearsprings_attr,
            new AttractionFunctions::LinearSprings()},
       }),
-      m_attrFunc(attrFuncMap[AttractionCalculation::ltsgraph_attr]),
-      m_option_attractionCalculation(AttractionCalculation::ltsgraph_attr),
+      m_attrFunc(attrFuncMap[AttractionFunctionID::ltsgraph_attr]),
+      m_option_attractionCalculation(AttractionFunctionID::ltsgraph_attr),
       repFuncMap({
-          {RepulsionCalculation::ltsgraph_rep,
+          {RepulsionFunctionID::ltsgraph_rep,
            new RepulsionFunctions::LTSGraph()},
-          {RepulsionCalculation::electricalsprings_rep,
+          {RepulsionFunctionID::electricalsprings_rep,
            new RepulsionFunctions::ElectricalSpring()},
-          {RepulsionCalculation::none_rep, new RepulsionFunctions::None()},
+          {RepulsionFunctionID::none_rep, new RepulsionFunctions::None()},
       }),
-      m_repFunc(repFuncMap[RepulsionCalculation::ltsgraph_rep]),
-      m_option_repulsionCalculation(RepulsionCalculation::ltsgraph_rep),
-      applFuncMap({
-          {ForceApplication::ltsgraph_appl,
+      m_repFunc(repFuncMap[RepulsionFunctionID::ltsgraph_rep]),
+      m_option_repulsionCalculation(RepulsionFunctionID::ltsgraph_rep),
+      applFuncMap({{ApplicationFunctionID::ltsgraph_appl,
            new ApplicationFunctions::LTSGraph()},
-          {ForceApplication::force_directed_appl,
-           new ApplicationFunctions::ForceDirected()},
-          {ForceApplication::force_cumulative_appl,
-           new ApplicationFunctions::ForceCumulative()},
+                   {ApplicationFunctionID::force_directed_appl,
+           new ApplicationFunctions::ForceDirected()}
       }),
-      m_applFunc(applFuncMap[ForceApplication::ltsgraph_appl]),
-      m_option_forceApplication(ForceApplication::ltsgraph_appl)
+      m_applFunc(applFuncMap[ApplicationFunctionID::ltsgraph_appl]),
+      m_option_forceApplication(ApplicationFunctionID::ltsgraph_appl),
+      m_glwidget(glwidget) 
 {
   m_graph.gv_debug.addVar("Temperature");
   m_graph.gv_debug.addVar("Energy");
@@ -537,15 +186,10 @@ SpringLayout::SpringLayout(Graph& graph, GLWidget& glwidget)
   srand(time(nullptr));
   drift_timer.restart();
   m_annealing_temperature = m_useAnnealing ? m_asa.T : m_no_annealing_temperature;
-  applFuncMap[ForceApplication::force_directed_appl]->temperature =
+  applFuncMap[ApplicationFunctionID::force_directed_appl]->temperature =
       &m_annealing_temperature;
-  applFuncMap[ForceApplication::ltsgraph_appl]->temperature =
+  applFuncMap[ApplicationFunctionID::ltsgraph_appl]->temperature =
       &m_annealing_temperature;
-  applFuncMap[ForceApplication::force_cumulative_appl]->temperature =
-      &m_annealing_temperature;
-
-
-
 }
 
 SpringLayout::~SpringLayout()
@@ -579,18 +223,22 @@ SpringLayoutUi* SpringLayout::ui(QAction* advancedDialogAction, CustomQWidget* a
     settings->registerVar(advanced_ui.chk_debugDraw, false, true);
     settings->registerVar(advanced_ui.chk_enableTree, true, true);
 
-    settings->registerVar(advanced_ui.cmb_appl, (int)ForceApplication::force_directed_appl,
+    settings->registerVar(advanced_ui.cmb_appl,
+                          (int)ApplicationFunctionID::force_directed_appl,
                           true);
     settings->registerVar(advanced_ui.cmb_attr,
-                          (int)AttractionCalculation::ltsgraph_attr, true);
+                          (int)AttractionFunctionID::ltsgraph_attr, true);
     settings->registerVar(advanced_ui.cmb_rep,
-                          (int)RepulsionCalculation::ltsgraph_rep, true);
+                          (int)RepulsionFunctionID::ltsgraph_rep, true);
 
-    settings->registerVar(advanced_ui.txt_cooling_factor, QString::number(0.98),
+    settings->registerVar(advanced_ui.txt_cooling_factor, QString::number(m_asa.getCoolingFactor()),
                           true);
-    settings->registerVar(advanced_ui.txt_heating_factor, QString::number(1.2), true);
-    settings->registerVar(advanced_ui.txt_progress_threshold, QString::number(5),
+    settings->registerVar(advanced_ui.txt_heating_factor, QString::number(m_asa.getHeatingFactor()), true);
+    settings->registerVar(advanced_ui.txt_progress_threshold, QString::number(m_asa.getProgressThreshold()),
                           true);
+
+    settings->registerVar(advanced_ui.txt_stab_thres, QString::number(m_stabilityThreshold), true);
+    settings->registerVar(advanced_ui.txt_stab_iters, QString::number(m_stabilityMaxCount), true);
 
     m_ui->m_ui.dispHandleWeight->setText(
         QString::number(m_controlPointWeight, 'g', 3));
@@ -599,7 +247,7 @@ SpringLayoutUi* SpringLayout::ui(QAction* advancedDialogAction, CustomQWidget* a
   return m_ui;
 }
 
-void SpringLayout::setAttractionCalculation(AttractionCalculation c)
+void SpringLayout::setAttractionCalculation(AttractionFunctionID c)
 {
   if (attrFuncMap.find(c) == attrFuncMap.end())
   {
@@ -608,7 +256,7 @@ void SpringLayout::setAttractionCalculation(AttractionCalculation c)
         << "\". Cause may be invalid settings were loaded or selected function "
            "is not implemented."
         << std::endl;
-    c = SpringLayout::AttractionCalculation::electricalsprings_attr;
+    c = AttractionFunctionID::electricalsprings_attr;
     mCRL2log(mcrl2::log::debug) << "Setting default attraction calculation \""
                                 << getName(c) << "\"." << std::endl;
   }
@@ -624,12 +272,12 @@ void SpringLayout::setAttractionCalculation(AttractionCalculation c)
 #endif
 }
 
-SpringLayout::AttractionCalculation SpringLayout::attractionCalculation()
+AttractionFunctionID SpringLayout::attractionCalculation()
 {
   return m_option_attractionCalculation;
 }
 
-void SpringLayout::setRepulsionCalculation(RepulsionCalculation c)
+void SpringLayout::setRepulsionCalculation(RepulsionFunctionID c)
 {
   if (repFuncMap.find(c) == repFuncMap.end())
   {
@@ -638,7 +286,7 @@ void SpringLayout::setRepulsionCalculation(RepulsionCalculation c)
         << "\". Cause may be invalid settings were loaded or selected function "
            "is not implemented."
         << std::endl;
-    c = SpringLayout::RepulsionCalculation::electricalsprings_rep;
+    c = RepulsionFunctionID::electricalsprings_rep;
     mCRL2log(mcrl2::log::debug) << "Setting default repulsion calculation \""
                                 << getName(c) << "\"." << std::endl;
   }
@@ -654,12 +302,12 @@ void SpringLayout::setRepulsionCalculation(RepulsionCalculation c)
 #endif
 }
 
-SpringLayout::RepulsionCalculation SpringLayout::repulsionCalculation()
+RepulsionFunctionID SpringLayout::repulsionCalculation()
 {
   return m_option_repulsionCalculation;
 }
 
-void SpringLayout::setForceApplication(SpringLayout::ForceApplication c)
+void SpringLayout::setForceApplication(ApplicationFunctionID c)
 {
   if (applFuncMap.find(c) == applFuncMap.end())
   {
@@ -668,7 +316,7 @@ void SpringLayout::setForceApplication(SpringLayout::ForceApplication c)
         << "\". Cause may be invalid settings were loaded or selected function "
            "is not implemented."
         << std::endl;
-    c = SpringLayout::ForceApplication::force_directed_appl;
+    c = ApplicationFunctionID::force_directed_appl;
     mCRL2log(mcrl2::log::debug) << "Setting default force application \""
                                 << getName(c) << "\"." << std::endl;
   }
@@ -684,7 +332,7 @@ void SpringLayout::setForceApplication(SpringLayout::ForceApplication c)
 #endif
 }
 
-SpringLayout::ForceApplication SpringLayout::forceApplication()
+ApplicationFunctionID SpringLayout::forceApplication()
 {
   return m_option_forceApplication;
 }
@@ -730,60 +378,6 @@ QVector3D SpringLayout::approxRepulsionForce<Quadtree>(const QVector3D& a,
   return force;
 }
 
-const std::size_t max_slice = 50;
-/// @brief Takes average of at most @c max_slice values, or recursively computes
-/// average by splitting
-/// @param i Start index
-/// @param j End index (exclusive)
-/// This method avoids precision loss due to adding up too much before division
-///  Downside: more divisions. Upside: more accuracy.
-static QVector3D slicedAverage(Graph& graph, std::size_t i, std::size_t j)
-{
-  std::size_t n = j - i;
-  if (n > max_slice)
-  {
-    // split
-    std::size_t m = i + n / 2;
-    double recip = 1.0 / n;
-    return (m - i) * recip * slicedAverage(graph, i, m) +
-           (j - m) * recip * slicedAverage(graph, m, j);
-  }
-  else
-  {
-    double x = 0, y = 0, z = 0;
-    auto node = [&graph](std::size_t k) {
-      return graph.node(graph.hasExploration() ? graph.explorationNode(k) : k);
-    };
-    for (std::size_t k = i; k < j; ++k)
-    {
-      x += node(k).pos().x();
-      y += node(k).pos().y();
-      z += node(k).pos().z();
-    }
-    return QVector3D(x / n, y / n, z / n);
-  }
-}
-
-static float slicedAverageSqrMagnitude(std::vector<QVector3D>& forces,
-                                       std::size_t i, std::size_t j)
-{
-  std::size_t n = j - i;
-  if (n > max_slice)
-  {
-    // split
-    std::size_t m = i + n / 2;
-    double recip = 1.0 / n;
-    return (m - i) * recip * slicedAverageSqrMagnitude(forces, i, m) +
-           (j - m) * recip * slicedAverageSqrMagnitude(forces, m, j);
-  }
-  else
-  {
-    double sum = 0;
-    for (std::size_t k = i; k < j; ++k)
-      sum += forces[k].lengthSquared();
-    return sum / n;
-  }
-}
 
 int iterations = 0;
 
@@ -955,7 +549,6 @@ void SpringLayout::repulsionAccumulation<SpringLayout::TreeMode::quadtree>(
   {
     std::size_t n = sel ? m_graph.explorationEdge(i) : i;
 
-    Edge e = m_graph.edge(n);
     m_handle_tree2D.insert((QVector2D)m_graph.handle(n).pos());
     m_trans_tree2D.insert((QVector2D)m_graph.transitionLabel(n).pos());
   }
@@ -1173,7 +766,7 @@ void SpringLayout::forceAccumulation(bool sel, std::size_t nodeCount,
     attractionAccumulation<ThreadingMode::normal>(sel, nodeCount, edgeCount);
     break;
   }
-  if (m_option_repulsionCalculation != RepulsionCalculation::none_rep)
+  if (m_option_repulsionCalculation != RepulsionFunctionID::none_rep)
   {
     switch (treeMode)
     {
@@ -1195,7 +788,7 @@ void SpringLayout::apply()
   assert(m_attrFunc);
   assert(m_repFunc);
   assert(m_attrFunc);
-  if (!m_graph.stable())
+  if (!m_graph.stable() || m_graph.hasForcedUpdate())
   {
     m_graph.lock(GRAPH_LOCK_TRACE); // enter critical section
     if (m_graph.hasForcedUpdate())
@@ -1264,8 +857,6 @@ void SpringLayout::apply()
 
     QVector3D clipmin = m_graph.getClipMin();
     QVector3D clipmax = m_graph.getClipMax();
-    float nodeSumForces = 0;
-    float edgeSumForces = 0;
     bool new_anchored = false;
     float use_speed = m_speed * std::log2f(nodeCount) * 0.25f;
     for (std::size_t i = 0; i < nodeCount; ++i)
@@ -1275,7 +866,6 @@ void SpringLayout::apply()
       if (!m_graph.node(n).anchored())
       {
         (*m_applFunc)(m_graph.node(n).pos_mutable(), m_nforces[i], use_speed);
-        nodeSumForces += m_nforces[i].lengthSquared();
         clipVector(m_graph.node(n).pos_mutable(), clipmin, clipmax);
       }
       else
@@ -1285,7 +875,7 @@ void SpringLayout::apply()
     }
 
     float drift_secs = drift_timer.elapsed() * 0.001f; // seconds
-    QVector3D center_of_mass = slicedAverage(m_graph, 0, m_graph.hasExploration() ? m_graph.explorationNodeCount() : m_graph.nodeCount());
+    QVector3D center_of_mass = slicedAverage(m_graph);
     if (new_anchored ^ any_anchored)
     {
       // changed
@@ -1325,7 +915,6 @@ void SpringLayout::apply()
         (*m_applFunc)(m_graph.stateLabel(n).pos_mutable(), m_sforces[i],
                       use_speed);
         m_graph.stateLabel(n).pos_mutable() -= center_of_mass;
-        nodeSumForces += m_sforces[i].lengthSquared();
         clipVector(m_graph.stateLabel(n).pos_mutable(), clipmin, clipmax);
       }
     }
@@ -1338,7 +927,6 @@ void SpringLayout::apply()
       {
         (*m_applFunc)(m_graph.handle(n).pos_mutable(), m_hforces[i], use_speed);
         m_graph.handle(n).pos_mutable() -= center_of_mass;
-        edgeSumForces += m_hforces[i].lengthSquared();
         clipVector(m_graph.handle(n).pos_mutable(), clipmin, clipmax);
       }
       if (!m_graph.transitionLabel(n).anchored())
@@ -1346,11 +934,10 @@ void SpringLayout::apply()
         (*m_applFunc)(m_graph.transitionLabel(n).pos_mutable(), m_lforces[i],
                       use_speed);
         m_graph.transitionLabel(n).pos_mutable() -= center_of_mass;
-        edgeSumForces += m_lforces[i].lengthSquared();
         clipVector(m_graph.transitionLabel(n).pos_mutable(), clipmin, clipmax);
       }
     }
-    double energy = slicedAverageSqrMagnitude(m_nforces, 0, m_nforces.size());
+    double energy = slicedAverageSqrMagnitude(m_nforces);
     double min = 1e15;
     double max = -1e15;
     for (auto f : m_nforces)
@@ -1383,6 +970,25 @@ void SpringLayout::apply()
     m_applFunc->update();
     m_repFunc->update();
     m_attrFunc->update();
+
+    float stability =
+        std::abs((m_previous_energy - energy) / m_previous_energy);
+    if (stability <= m_stabilityThreshold && (center_of_mass == QVector3D(0, 0, 0) || any_anchored))
+    {
+      m_stabilityCounter++;
+      if (m_stabilityCounter >= m_stabilityMaxCount)
+      {
+          m_graph.setStable(true);
+          mCRL2log(mcrl2::log::debug) << "The graph is now stable." << std::endl;
+          m_ui->m_ui.lblStable->setText("Stable");
+      }
+    }
+    else
+    {
+      m_stabilityCounter = 0;
+      m_ui->m_ui.lblStable->setText("");
+    }
+    m_previous_energy = energy;
 
     notifyNewFrame();
     m_graph.unlock(GRAPH_LOCK_TRACE);
@@ -1428,7 +1034,6 @@ void SpringLayout::randomizeZ(float z)
 
 void SpringLayout::notifyNewFrame()
 {
-  m_has_new_frame = true;
   m_graph.hasNewFrame(true);
 }
 
@@ -1596,13 +1201,18 @@ class WorkerThread : public QThread
 
   void run() override
   {
-    if (m_layout.isStable())
-      msleep(50); // We don't want to keep looping if the layout is stable
-    while (!m_stopped && !m_layout.isStable())
+    while (!m_stopped)
     {
-      m_layout.apply();
-      m_counter++;
-      debugLogging();
+      if (m_layout.isStable())
+      {
+        msleep(50); // We don't want to keep computing if the layout is stable
+      }
+      else
+      {
+          m_layout.apply();
+          m_counter++;
+          debugLogging();
+      }
     }
   }
 
@@ -1640,7 +1250,10 @@ class WorkerThread : public QThread
 
 SpringLayoutUi::SpringLayoutUi(SpringLayout& layout,
                                CustomQWidget* advancedDialogWidget, QWidget* parent)
-    : QDockWidget(parent), m_layout(layout), m_ui_advanced_dialog(advancedDialogWidget), m_thread(nullptr)
+    : QDockWidget(parent), 
+      m_layout(layout), 
+      m_thread(nullptr),
+      m_ui_advanced_dialog(advancedDialogWidget) 
 {
   m_ui.setupUi(this);
   m_ui_advanced.setupUi(m_ui_advanced_dialog);
@@ -1686,6 +1299,11 @@ SpringLayoutUi::SpringLayoutUi(SpringLayout& layout,
           &SpringLayoutUi::onHeatingFactorChanged);
   connect(m_ui_advanced.txt_cooling_factor, &QLineEdit::textChanged, this,
           &SpringLayoutUi::onCoolingFactorChanged);
+
+  connect(m_ui_advanced.txt_stab_thres, &QLineEdit::textChanged, this,
+          &SpringLayoutUi::onStabilityThresholdChanged);
+  connect(m_ui_advanced.txt_stab_iters, &QLineEdit::textChanged, this,
+          &SpringLayoutUi::onStabilityIterationsChanged);
  
   connect(m_ui_advanced.cmd_reset_positions, &QPushButton::pressed, this,
           &SpringLayoutUi::onResetPositionsPressed);
@@ -1726,7 +1344,8 @@ void SpringLayoutUi::setSettings(QByteArray state)
   layoutRulesChanged();
 }
 
-// TODO: Add logging
+
+
 void SpringLayoutUi::onProgressThresholdChanged(const QString& text)
 {
   bool success;
@@ -1760,6 +1379,31 @@ void SpringLayoutUi::onCoolingFactorChanged(const QString& text)
     m_layout.m_asa.setCoolingFactor(num);
     mCRL2log(mcrl2::log::debug)
         << "Setting cooling factor to: " << num << std::endl;
+  }
+}
+
+void SpringLayoutUi::onStabilityThresholdChanged(const QString& text)
+{
+  bool success;
+  float num = text.toFloat(&success);
+  if (success && num > 0)
+  {
+    m_layout.m_stabilityThreshold = num;
+    mCRL2log(mcrl2::log::debug)
+        << "Setting stability threshold to: " << num << std::endl;
+  }
+}
+
+void SpringLayoutUi::onStabilityIterationsChanged(const QString& text)
+{
+  bool success;
+  float num = text.toInt(&success);
+  if (success && num > 0)
+  {
+    m_layout.m_stabilityMaxCount = num;
+    mCRL2log(mcrl2::log::debug)
+        << "Setting stability iterations to: " << num << std::endl;
+
   }
 }
 
@@ -1811,8 +1455,7 @@ void SpringLayoutUi::onNatLengthChanged(int value)
 
 void SpringLayoutUi::onAttractionCalculationChanged(int value)
 {
-  m_layout.setAttractionCalculation(
-      static_cast<SpringLayout::AttractionCalculation>(value));
+  m_layout.setAttractionCalculation(static_cast<AttractionFunctionID>(value));
   m_ui_advanced.cmb_attr->setCurrentIndex(
       (int)m_layout.attractionCalculation());
   layoutRulesChanged();
@@ -1822,7 +1465,7 @@ void SpringLayoutUi::onAttractionCalculationChanged(int value)
 void SpringLayoutUi::onRepulsionCalculationChanged(int value)
 {
   m_layout.setRepulsionCalculation(
-      static_cast<SpringLayout::RepulsionCalculation>(value));
+      static_cast<RepulsionFunctionID>(value));
   m_ui_advanced.cmb_rep->setCurrentIndex((int)m_layout.repulsionCalculation());
   layoutRulesChanged();
   update();
@@ -1830,8 +1473,7 @@ void SpringLayoutUi::onRepulsionCalculationChanged(int value)
 
 void SpringLayoutUi::onForceApplicationChanged(int value)
 {
-  m_layout.setForceApplication(
-      static_cast<SpringLayout::ForceApplication>(value));
+  m_layout.setForceApplication(static_cast<ApplicationFunctionID>(value));
   m_ui_advanced.cmb_appl->setCurrentIndex((int)m_layout.forceApplication());
   layoutRulesChanged();
   update();

@@ -110,7 +110,7 @@ std::size_t Graph::stateLabelCount() const
 
 std::size_t Graph::initialState() const
 {
-  return m_initialState;
+  return nodeCount() > 0 ? m_initialState : -1;
 }
 
 void Graph::clear()
@@ -157,6 +157,7 @@ void Graph::load(const QString& filename, const QVector3D& min,
     m_hasNewFrame = true;
     m_forceUpdate = true;
     m_resetPositions = true;
+
     unlockForWrite(m_lock, GRAPH_LOCK_TRACE);
     throw e;
   }
@@ -237,9 +238,9 @@ std::size_t Graph::add_probabilistic_state(
     const typename lts_t::probabilistic_state_t& probabilistic_state,
     const QVector3D& min, const QVector3D& max)
 {
-  if (probabilistic_state.size() == 1)
+  if (probabilistic_state.size() <= 1)
   {
-    return probabilistic_state.begin()->state();
+    return probabilistic_state.get();
   }
   else
   {
@@ -712,11 +713,7 @@ bool Graph::isClosable(std::size_t index)
 
 void Graph::setStable(bool stable)
 {
-  lockForRead(m_lock, GRAPH_LOCK_TRACE);
-
   m_stable = stable;
-
-  unlockForRead(m_lock, GRAPH_LOCK_TRACE);
 }
 
 bool Graph::isBridge(std::size_t index) const
@@ -906,7 +903,11 @@ void DebugView::setDrawingArea(int width, int height, int offsetX, int offsetY)
 }
 
 GraphView::GraphView(int rows, int cols, QRect bounds, std::size_t log_duration, std::size_t min_interval)
-: m_rows(rows), m_cols(cols), m_bounds(bounds), m_log_duration(log_duration), m_min_interval(min_interval)
+   : m_rows(rows), 
+     m_cols(cols), 
+     m_log_duration(log_duration), 
+     m_min_interval(min_interval),
+     m_bounds(bounds)
 {
     m_plots = std::vector<std::vector<PlotEntry>>(rows*cols);
 }

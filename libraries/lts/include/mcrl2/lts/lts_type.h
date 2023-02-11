@@ -40,6 +40,9 @@ enum lts_type
   lts_aut,                   /**< Ald&eacute;baran format (CADP) */
   lts_fsm,                   /**< FSM format */
   lts_dot,                   /**< GraphViz format */
+  lts_lts_probabilistic,     
+  lts_aut_probabilistic,
+  lts_fsm_probabilistic,
   lts_type_min=lts_none,
   lts_type_max=lts_dot
 };

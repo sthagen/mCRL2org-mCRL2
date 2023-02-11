@@ -9,7 +9,7 @@
 
 #include "glscene.h"
 
-#include "utility.h"
+#include "layoututility.h"
 #include "bezier.h"
 
 #include <QElapsedTimer>
@@ -247,7 +247,7 @@ void GLScene::initialize()
       << recommended_max_buffer_size / 4 << std::endl;
   // To be safe we divide by 4 since a mat4 is technically 4 vec4s stacked
   // together
-  m_batch_size = static_cast<std::size_t>(recommended_max_buffer_size / 4);
+  m_batch_size = static_cast<std::size_t>(recommended_max_buffer_size / 16);
 
   m_vaoNode.create();
   m_vaoNode.bind();
@@ -452,7 +452,11 @@ void GLScene::project2D()
   mCRL2log(mcrl2::log::debug)
       << "Rot^-1 Rot (e_z): " << _debug_e_z.x() << "," << _debug_e_z.y() << ","
       << _debug_e_z.z() << std::endl;
-  QVector3D forward = (m_camera.center() - eye).normalized();
+  QVector3D forward = (-m_camera.center() - eye).normalized();
+
+  mCRL2log(mcrl2::log::debug)
+      << "Forward: " << forward.x() << ", " << forward.y() << ", "
+      << forward.z() << std::endl;
 
   auto perp_distance = [&](const QVector3D& u)
   { return QVector3D::dotProduct(u, forward); };
@@ -494,7 +498,7 @@ void GLScene::project2D()
     }
   };
   auto transform = [&](const QVector3D& x)
-  { return cam_rotate(project(x) - reference_point) - m_camera.center(); };
+  { return cam_rotate(project(x) - reference_point); };
   for (std::size_t i = 0; i < nodeCount; i++)
   {
     std::size_t n = m_graph.hasExploration() ? m_graph.explorationNode(i) : i;
@@ -515,16 +519,31 @@ void GLScene::project2D()
     m_graph.handle(n).pos_mutable() = transform(m_graph.handle(n).pos());
     m_graph.handle(n).pos_mutable().setZ(0);
   }
-  QVector3D new_cam_pos = cam_rotate(eye - reference_point);
+
+  QVector3D center_of_mass = slicedAverage(m_graph);
+  for (std::size_t i = 0; i < nodeCount; i++)
+  {
+    std::size_t n = m_graph.hasExploration() ? m_graph.explorationNode(i) : i;
+    m_graph.node(n).pos_mutable() -= center_of_mass;
+
+    m_graph.stateLabel(n).pos_mutable() -= center_of_mass;
+  }
+  for (std::size_t i = 0; i < edgeCount; i++)
+  {
+    std::size_t n = m_graph.hasExploration() ? m_graph.explorationEdge(i) : i;
+    m_graph.transitionLabel(n).pos_mutable() -= center_of_mass;
+
+    m_graph.handle(n).pos_mutable() -= center_of_mass;
+  }
+
   m_graph.unlock(GRAPH_LOCK_TRACE);
-  //m_camera.reset();
   m_camera.reset();
+  m_camera.translate(center_of_mass);
   m_camera.m_zoom *= std::abs(plane_dist)/m_camera.m_zoom;
 }
 
 void GLScene::render()
 {
-
   m_fbo->bind();
   QElapsedTimer render_timer;
   render_timer.restart();

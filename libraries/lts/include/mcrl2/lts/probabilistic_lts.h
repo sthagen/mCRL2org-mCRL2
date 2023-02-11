@@ -60,6 +60,10 @@ class probabilistic_lts: public lts<STATE_LABEL_T, ACTION_LABEL_T, LTS_BASE>
     typedef typename super::labels_size_type      labels_size_type     ;
     typedef typename super::transitions_size_type transitions_size_type;
 
+    /** \brief An indicator that this is a probabilistic lts. 
+    */
+    static constexpr bool is_probabilistic_lts=true;
+
   protected:
 
     std::vector<PROBABILISTIC_STATE_T> m_probabilistic_states;
@@ -84,19 +88,38 @@ class probabilistic_lts: public lts<STATE_LABEL_T, ACTION_LABEL_T, LTS_BASE>
     probabilistic_lts()
     {}
 
-    /** \brief Creates a copy of the supplied LTS.
-     * \param[in] l The LTS to copy. */
-    probabilistic_lts(const probabilistic_lts& l)
-      : super(l),
-        m_probabilistic_states(l.m_probabilistic_states)
-    {}
+    /** \brief Standard copy constructor. 
+     * \param[in] other The LTS to copy. */
+    probabilistic_lts(const probabilistic_lts& other) = default;
+
+    /** \brief Standard move constructor. 
+     * \param[in] other The LTS to copy. */
+    probabilistic_lts(probabilistic_lts&& other) = default;
+
+    /** \brief Standard assignment operator.
+     * \param[in] other The LTS to assign. */
+    probabilistic_lts& operator=(const probabilistic_lts& other) = default;
+
+    /** \brief Standard assignment move operator.
+     * \param[in] other The LTS to assign. */
+    probabilistic_lts& operator=(probabilistic_lts&& other) = default;
+
+    /** \brief Standard equality operator.
+     * \param[in] other The LTS to compare this probabilistic lts with. */
+    bool operator==(const probabilistic_lts& other) const
+    {
+      return super::operator==(static_cast<const super&>(other)) &&
+             m_probabilistic_states==other.m_probabilistic_states &&
+             m_init_probabilistic_state==other.m_init_probabilistic_state;
+    }
 
     /** \brief Swap this lts with the supplied supplied LTS.
      * \param[in] l The LTS to swap. */
-    void swap(probabilistic_lts& l)
+    void swap(probabilistic_lts& other)
     {
-      super::swap(l);
-      m_probabilistic_states.swap(l.m_probabilistic_states);
+      super::swap(other);
+      m_probabilistic_states.swap(other.m_probabilistic_states);
+      m_init_probabilistic_state.swap(other.m_init_probabilistic_state);
     }
 
     /** \brief Gets the initial state number of this LTS.
