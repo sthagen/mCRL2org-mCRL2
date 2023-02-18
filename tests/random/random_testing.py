@@ -178,7 +178,6 @@ class Lps2ltsAlgorithmsTest(ProcessTauTest):
                 options.append('--tau={}'.format(tau_actions))
         self.add_command_line_options('t2', options)
         self.add_command_line_options('t3', options)
-        self.add_command_line_options('t4', options)
 
 
 class LpsConstelmTest(ProcessTest):
