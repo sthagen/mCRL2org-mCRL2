@@ -14,9 +14,9 @@
 #include "graph.h"
 #include "visutils.h"
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 
-class Visualizer : public QGLWidget
+class Visualizer : public QOpenGLWidget
 {
   Q_OBJECT
 
@@ -27,6 +27,7 @@ class Visualizer : public QGLWidget
       Graph *m_graph);
     virtual ~Visualizer() {}
 
+    virtual void initializeGL();
     virtual void paintGL();
 
     QSizeF worldSize();
@@ -53,20 +54,19 @@ class Visualizer : public QGLWidget
     virtual void handleMouseLeaveEvent() { }
     virtual void handleKeyEvent(QKeyEvent* e);
 
-    virtual void enterEvent(QEvent *event) { handleMouseEnterEvent(); QGLWidget::enterEvent(event); }
-    virtual void leaveEvent(QEvent *event) { handleMouseLeaveEvent(); QGLWidget::leaveEvent(event); }
-    virtual void keyPressEvent(QKeyEvent *event) { handleKeyEvent(event); QGLWidget::keyPressEvent(event); }
-    virtual void keyReleaseEvent(QKeyEvent *event) { handleKeyEvent(event); QGLWidget::keyReleaseEvent(event); }
-    virtual void wheelEvent(QWheelEvent *event) { handleWheelEvent(event); QGLWidget::wheelEvent(event); }
-    virtual void mouseMoveEvent(QMouseEvent *event) { handleMouseEvent(event); QGLWidget::mouseMoveEvent(event); }
-    virtual void mousePressEvent(QMouseEvent *event) { handleMouseEvent(event); QGLWidget::mousePressEvent(event); }
-    virtual void mouseReleaseEvent(QMouseEvent *event) { handleMouseEvent(event); QGLWidget::mouseReleaseEvent(event); }
-    virtual void resizeEvent(QResizeEvent *event) { handleSizeEvent(); QGLWidget::resizeEvent(event); }
+    virtual void enterEvent(QEvent *event) { handleMouseEnterEvent(); QOpenGLWidget::enterEvent(event); }
+    virtual void leaveEvent(QEvent *event) { handleMouseLeaveEvent(); QOpenGLWidget::leaveEvent(event); }
+    virtual void keyPressEvent(QKeyEvent *event) { handleKeyEvent(event); QOpenGLWidget::keyPressEvent(event); }
+    virtual void keyReleaseEvent(QKeyEvent *event) { handleKeyEvent(event); QOpenGLWidget::keyReleaseEvent(event); }
+    virtual void wheelEvent(QWheelEvent *event) { handleWheelEvent(event); QOpenGLWidget::wheelEvent(event); }
+    virtual void mouseMoveEvent(QMouseEvent *event) { handleMouseEvent(event); QOpenGLWidget::mouseMoveEvent(event); }
+    virtual void mousePressEvent(QMouseEvent *event) { handleMouseEvent(event); QOpenGLWidget::mousePressEvent(event); }
+    virtual void mouseReleaseEvent(QMouseEvent *event) { handleMouseEvent(event); QOpenGLWidget::mouseReleaseEvent(event); }
+    virtual void resizeEvent(QResizeEvent *event) { handleSizeEvent(); QOpenGLWidget::resizeEvent(event); }
 
     QSize sizeHint() const { return QSize(200,200); } // Reimplement to change preferred size
   public slots:
-    void updateGL(bool inSelectMode);
-    void updateGL() { updateGL(false); } // Overloaded virtual; refrain compiler from complaining
+    void updateSelection();
 
   protected:
     // -- protected utility functions -------------------------------
@@ -86,6 +86,8 @@ class Visualizer : public QGLWidget
     void genCushTex();
 
     // -- hit detection ---------------------------------------------
+    bool m_gl_initialized = false;
+    QOpenGLFramebufferObject* m_hit_FBO;
     virtual void processHits(
       GLint hits,
       GLuint buffer[]) = 0;
