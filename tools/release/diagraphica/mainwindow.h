@@ -42,6 +42,7 @@ class MainWindow : public QMainWindow
     void updateAttributeOperations();
     void updateValues();
     void updateValueOperations();
+    void updateValueSelection(int count);
     void openFile();
     void saveFile();
     void saveFileAs();
@@ -55,6 +56,7 @@ class MainWindow : public QMainWindow
     void modeSelected(QAction* action);
 
     void showAttributeContextMenu(const QPoint &position);
+    void showDomainContextMenu(const QPoint& position);
 
     void clusterNodes();
     void viewTrace();
@@ -69,6 +71,7 @@ class MainWindow : public QMainWindow
     void ungroupValues();
     void renameValue();
     void moveValue(int index, int newPosition);
+    void updateValue();
 
     void routeCluster(Cluster *cluster, QList<Cluster *> clusterSet, QList<Attribute *> attributes);
     void toSimulator() { m_simulator->initFrameCurr(m_routingCluster, 
