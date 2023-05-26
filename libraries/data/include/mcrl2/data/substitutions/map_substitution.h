@@ -26,6 +26,8 @@ struct map_substitution
 {
   typedef typename AssociativeContainer::key_type variable_type;
   typedef typename AssociativeContainer::mapped_type expression_type;
+  using argument_type = variable_type;
+  using result_type = expression_type;
 
   const AssociativeContainer& m_map;
 
@@ -67,6 +69,17 @@ map_substitution<AssociativeContainer>
 make_map_substitution(const AssociativeContainer& m)
 {
   return map_substitution<AssociativeContainer>(m);
+}
+
+template <typename AssociativeContainer>
+std::set<data::variable> substitution_variables(const map_substitution<AssociativeContainer>& sigma)
+{
+  std::set<data::variable> result;
+  for (const auto& [key, value]: sigma.m_map)
+  {
+    data::find_free_variables(value, std::inserter(result, result.end()));
+  }
+  return result;
 }
 
 template <typename AssociativeContainer>

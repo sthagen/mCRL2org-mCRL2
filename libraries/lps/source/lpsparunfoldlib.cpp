@@ -1,4 +1,4 @@
-// Author(s): Frank Stappers, Jeroen Keiren
+// Author(s): Frank Stappers, Jeroen Keiren, Thomas Neele
 // Copyright: see the accompanying file COPYING or copy at
 // https://github.com/mCRL2org/mCRL2/blob/master/COPYING
 //
@@ -13,6 +13,7 @@
 *        complex data types by simpler ones.
 */
 
+#include <iterator>
 #include "mcrl2/lps/lpsparunfoldlib.h"
 #include "mcrl2/lps/replace.h"
 
@@ -20,6 +21,7 @@ using namespace mcrl2;
 using namespace mcrl2::core;
 using namespace mcrl2::data;
 using namespace mcrl2::log;
+using mcrl2::lps::lpsparunfold;
 
 /* Remarks
 - replace on vectors does not work
@@ -27,857 +29,809 @@ using namespace mcrl2::log;
 - alias::name() [basic_sort] results in a basic sort, differs form basic_sort::name() [string]
 */
 
-lpsparunfold::lpsparunfold(mcrl2::lps::stochastic_specification spec,
-    std::map< mcrl2::data::sort_expression , lspparunfold::unfold_cache_element > *cache,
-    bool add_distribution_laws
-)
-  :
-    m_cache(cache),
-    m_data_specification(spec.data()),
-    m_representative_generator(m_data_specification),
-    m_lps(spec.process()),
-    m_glob_vars(spec.global_variables()),
-    m_init_process(spec.initial_process()),
-    m_action_label_list(spec.action_labels()),
-    m_add_distribution_laws(add_distribution_laws)
+namespace mcrl2::lps::detail
 {
-  mCRL2log(debug) << "Processing" << std::endl;
 
-  m_identifier_generator.add_identifiers(mcrl2::lps::find_identifiers(spec));
-
-  for (const sort_expression& s:  m_data_specification.sorts())
-  {
-    if (is_basic_sort(s))
-    {
-      sort_names.insert((basic_sort(s)).name());
-    }
-  };
-
-  m_identifier_generator.add_identifiers(sort_names);
-
-  {
-    std::size_t size = mapping_and_constructor_names.size();
-    for (const function_symbol& f: m_data_specification.constructors())
-    {
-      mapping_and_constructor_names.insert(f.name());
-    };
-    mCRL2log(debug) << "- Specification has " <<   mapping_and_constructor_names.size() - size << " constructors" << std::endl;
-  }
-
-  {
-    std::size_t size = mapping_and_constructor_names.size();
-    for (const function_symbol& f: m_data_specification.mappings())
-    {
-      mapping_and_constructor_names.insert(f.name());
-    };
-    mCRL2log(debug) << "- Specification has " <<  mapping_and_constructor_names.size() - size << " mappings " << std::endl;
-  }
-
-  m_identifier_generator.add_identifiers(mapping_and_constructor_names);
-}
-
-mcrl2::data::basic_sort lpsparunfold::generate_fresh_basic_sort(const std::string& str)
+unfold_cache_element& unfold_data_manager::get_cache_element(const data::sort_expression& sort)
 {
-  //Generate a fresh Basic Sort
-  mcrl2::core::identifier_string nstr = m_identifier_generator(str);
-  mCRL2log(verbose) << "Generated fresh sort \"" <<  std::string(nstr) << "\" for \"" <<  str << "\"" << std::endl;
-  sort_names.insert(nstr);
-  return basic_sort(std::string(nstr));
-}
+  assert(sort != data::sort_expression());
 
-mcrl2::core::identifier_string lpsparunfold::generate_fresh_constructor_and_mapping_name(std::string str)
-{
-  //Generate a fresh name for a constructor of mapping
-
-  str.resize(std::remove_if(str.begin(), str.end(), &char_filter) - str.begin());
-
-  mcrl2::core::identifier_string nstr = m_identifier_generator(str);
-  mCRL2log(debug) << "Generated a fresh mapping: " <<  std::string(nstr) << std::endl;
-  mapping_and_constructor_names.insert(nstr);
-  return nstr;
-}
-
-function_symbol_vector lpsparunfold::determine_affected_constructors()
-{
-  function_symbol_vector t = m_data_specification.constructors(m_unfold_process_parameter);
-  function_symbol_vector k = function_symbol_vector(t.begin(), t.end());
-
-  mCRL2log(debug) << "k:\t";
-  mCRL2log(verbose) << "" <<  unfold_parameter_name  << " has " <<  k.size() << " constructor function(s)" << std::endl;
-
-  for (const function_symbol& f: k)
-  {
-    mCRL2log(debug) << "\t" <<  f << std::endl;
-  }
-  return k;
-}
-
-
-function_symbol_vector lpsparunfold::new_constructors(mcrl2::data::function_symbol_vector affected_constructors)
-{
-  using namespace mcrl2::data;
-
-  function_symbol_vector elements_of_new_sorts;
-
-  for (const function_symbol& func: affected_constructors)
-  {
-
-    std::string prefix = "c_";
-    mcrl2::core::identifier_string fresh_name = generate_fresh_constructor_and_mapping_name(prefix.append(func.name()));
-    const data::function_symbol f(fresh_name , fresh_basic_sort);
-    elements_of_new_sorts.push_back(f);
-    m_data_specification.add_constructor(f);
-    mCRL2log(debug) << "\t" << data::function_symbol(fresh_name , fresh_basic_sort) << std::endl;
-    mapping_and_constructor_names.insert(fresh_name);
-
-  }
-  mCRL2log(debug) << "- Created " <<  elements_of_new_sorts.size() << " fresh \" c_ \" constructor(s)" << std::endl;
-  return elements_of_new_sorts;
-}
-
-mcrl2::data::function_symbol lpsparunfold::create_case_function(std::size_t k)
-{
-  mcrl2::data::function_symbol fs;
-  std::string str = "C_";
-  str.append(fresh_basic_sort.name()).append("_");
-  mcrl2::core::identifier_string idstr = generate_fresh_constructor_and_mapping_name(str);
-  mcrl2::data::sort_expression_vector fsl;
-  fsl.push_back(fresh_basic_sort);
-  for (std::size_t i = 0; i < k; ++i)
-  {
-    fsl.push_back(m_unfold_process_parameter);
-  }
-
-  fs = data::function_symbol(idstr , mcrl2::data::function_sort(fsl, m_unfold_process_parameter));
-
-  mCRL2log(debug) << "- Created C map: " << fs << std::endl;
-
-  return fs;
-}
-
-mcrl2::data::function_symbol lpsparunfold::create_determine_function()
-{
-  mcrl2::data::function_symbol fs;
-  std::string str = "Det_";
-  str.append(std::string(fresh_basic_sort.name()).append("_"));
-  mcrl2::core::identifier_string idstr = generate_fresh_constructor_and_mapping_name(str);
-  mcrl2::data::sort_expression_list fsl;
-  fs = data::function_symbol(idstr , mcrl2::data::make_function_sort_(m_unfold_process_parameter , fresh_basic_sort));
-  mCRL2log(debug) << "\t" <<  fs << std::endl;
-
-  return fs;
-}
-
-mcrl2::data::function_symbol_vector lpsparunfold::create_projection_functions(function_symbol_vector affected_constructors)
-{
-  mcrl2::data::function_symbol_vector sfs;
-  std::string str = "pi_";
-  str.append(std::string(fresh_basic_sort.name()).append("_"));
-
-  std::set<mcrl2::data::sort_expression> processed;
-  for (const function_symbol& f: affected_constructors)
-  {
-    if (is_function_sort(f.sort()))
-    {
-      function_sort fs = function_sort(f.sort());
-      const sort_expression_list& sel  = fs.domain();
-      for (sort_expression_list::const_iterator j = sel.begin(); j != sel.end(); j++)
-      {
-        mcrl2::core::identifier_string idstr = generate_fresh_constructor_and_mapping_name(str);
-        data::function_symbol map(idstr , mcrl2::data::make_function_sort_(m_unfold_process_parameter , *j));
-        m_data_specification.add_mapping(map);
-        sfs.push_back(map);
-        processed.insert(*j);
-      }
-    }
-  }
-  for (const function_symbol& f: sfs)
-  {
-    mCRL2log(debug) << "\t" << f << std::endl;
-  }
-  return sfs;
-}
-
-void lpsparunfold::add_new_equation(const data_expression& lhs, const data_expression& rhs)
-{
-  mCRL2log(verbose) << "- Added equation " <<  data::pp(data_equation(lhs, rhs)) << std::endl;
-  std::set< variable > svars = find_all_variables(lhs);
-  std::set< variable > tmp_var = find_all_variables(rhs);
-  svars.insert(tmp_var.begin(), tmp_var.end());
-  m_data_specification.add_equation(data_equation(variable_list(svars.begin(), svars.end()), lhs, rhs));
-}
-
-std::map<function_symbol, data_expression_vector> lpsparunfold::create_arguments_map(const function_symbol_vector& affected_constructors)
-{
-  std::string dstr = "d";
-  std::map<function_symbol, data_expression_vector> result;
-
-  // The two data structures below are used to allow the reuse of variables names.
-  std::map< sort_expression, variable_vector > sort_vars;  /* Mapping for Sort |-> [Variable] */
-  std::map< sort_expression, std::size_t > sort_index;          /* Mapping for counting the number of unique Sorts of an equation */
-
-  for (const function_symbol& f: affected_constructors)
-  {
-    data_expression_vector arguments;
-    if (is_function_sort(f.sort()))
-    {
-      const function_sort& fs = atermpp::down_cast<function_sort>(f.sort());
-      for (const sort_expression& sort: fs.domain())
-      {
-        if (sort_vars[sort].size() == sort_index[sort])
-        {
-          variable v(m_identifier_generator(dstr), sort);
-          sort_vars[sort].push_back(v);
-        }
-        variable y = sort_vars[sort].at(sort_index[sort]);
-        sort_index[sort] = sort_index[sort]+1;
-        arguments.push_back(y);
-      }
-    }
-    result[f]=arguments;
-  }
-  return result;
-}
-
-void lpsparunfold::create_data_equations(
-                const function_symbol_vector& projection_functions,
-                const data::function_symbol& case_function,
-                function_symbol_vector elements_of_new_sorts,
-                const function_symbol_vector& affected_constructors,
-                const data::function_symbol& determine_function)
-{
-  variable_vector vars;        /* Equation variables  */
-  std::set<mcrl2::core::identifier_string> var_names; /* var_names */
-
-  std::string cstr = "c";
-
-  /* Creating variable for detector function */
-  mcrl2::core::identifier_string istr = m_identifier_generator(cstr);
-  variable v = variable(istr, fresh_basic_sort);
-  vars.push_back(v);
-
-  /* Create Equations */
-  if (m_add_distribution_laws)
-  {
-    mCRL2log(verbose) << "Adding equations with additional distribution laws..." << std::endl;
-  }
-  else
-  {
-    mCRL2log(verbose) << "Adding equations..." << std::endl;
-  }
-
-  generate_case_functions(elements_of_new_sorts, case_function);
-
-  const std::map<function_symbol, data_expression_vector> constructors_argument_map=create_arguments_map(affected_constructors);
-
-  std::size_t element_of_new_sort_index = 0;
-  std::size_t projection_function_index = 0;
-  for (const function_symbol& f: affected_constructors)
-  {
-    /* Creating an equation for the detector function */
-    data_expression_vector function_arguments=constructors_argument_map.at(f);
-    data_expression lhs = (function_arguments.empty()?application(determine_function, f):
-                                       application(determine_function , application(f, function_arguments.begin(), function_arguments.end())));
-    add_new_equation(lhs, elements_of_new_sorts[element_of_new_sort_index]);
-
-    if (is_function_sort(f.sort()))
-    {
-      function_sort fs = function_sort(f.sort());
-
-      /* Equations for projection functions */
-      for(const data_expression& arg: function_arguments)
-      {
-        data_expression lhs = application(projection_functions.at(projection_function_index),
-                                          application(f, function_arguments.begin(), function_arguments.end()));
-        add_new_equation(lhs,arg);
-
-        // Add default values if the projection functions are applied to constructors they are not intended for.
-        // The advantage of this is that this simplifies expressions, and it allows to sometimes remove more variables
-        // using constant elimination.
-        for(const function_symbol& alternative_f: affected_constructors)
-        {
-          if (alternative_f!=f && f.sort().target_sort()==alternative_f.sort().target_sort())
-          {
-            data_expression_vector arguments_of_alternative_f = constructors_argument_map.at(alternative_f);
-            data_expression lhs;
-            if (arguments_of_alternative_f.empty())
-            {
-              lhs = application(projection_functions.at(projection_function_index),alternative_f);
-            }
-            else
-            {
-              lhs = application(projection_functions.at(projection_function_index),
-                                application(alternative_f,
-                                            arguments_of_alternative_f.begin(),
-                                            arguments_of_alternative_f.end()));
-            }
-            try
-            {
-              data_expression rhs = m_representative_generator(lhs.sort());
-              add_new_equation(lhs,rhs);
-            }
-            catch (mcrl2::runtime_error& e)
-            {
-              mCRL2log(debug) << "Failed to generate equation " << lhs << "= ... as no default term of sort " << lhs.sort() <<
-                                 " could be generated.\n" << e.what() << "\n";
-            }
-          }
-        }
-
-        if (m_add_distribution_laws)
-        {
-          /* Add additional distribution laws for projection function pi over if
-
-             pi(if(b,x,y))=if(b,pi(x),pi(y));
-          */
-          sort_expression if_arg_sort(function_sort(projection_functions.at(projection_function_index).sort()).domain().front());
-          data::function_symbol if_function_symbol("if", make_function_sort_(sort_bool::bool_(), if_arg_sort, if_arg_sort , if_arg_sort));
-          m_data_specification.add_equation(create_distribution_law_over_case(projection_functions.at(projection_function_index), if_function_symbol, false));
-          /* Add additional distribution laws for projection function pi over case
-
-             pi(C(projection_function_index,x1,x2,...))=C(projection_function_index,pi(x1),pi(x2),...);
-          */
-          const data_equation equation=create_distribution_law_over_case(projection_functions.at(projection_function_index), case_function, true);
-          m_data_specification.add_equation(equation);
-
-          /* Create additional case function */
-          generate_case_functions(elements_of_new_sorts, atermpp::down_cast<function_symbol>(application(equation.rhs()).head()));
-        }
-        projection_function_index++;
-      }
-    }
-    element_of_new_sort_index++;
-  }
-
-  if (m_add_distribution_laws)
-  {
-    /*  Add additional distribution laws for Det over if
-
-               Det(if(b,x,y))=if(b,Det(x),Det(y));
-    */
-    sort_expression if_arg_sort(function_sort(determine_function.sort()).domain().front());
-    data::function_symbol if_function_symbol("if", make_function_sort_(sort_bool::bool_(), if_arg_sort, if_arg_sort , if_arg_sort));
-    m_data_specification.add_equation(create_distribution_law_over_case(determine_function, if_function_symbol, false));
-
-    /*  Add additional distribution laws for Det over case
-
-        Det(C(e,x1,x2,...))=C(e,Det(x1),Det(x2),...);
-    */
-    m_data_specification.add_equation(create_distribution_law_over_case(determine_function, case_function, true));
-  }
-}
-
-mcrl2::core::identifier_string lpsparunfold::generate_fresh_process_parameter_name(std::string str, std::set<mcrl2::core::identifier_string>& process_parameter_names)
-{
-  mcrl2::core::identifier_string idstr = m_identifier_generator(str.append("_pp"));
-  process_parameter_names.insert(idstr);
-  return idstr;
-}
-
-void lpsparunfold::unfold_summands(mcrl2::lps::stochastic_action_summand_vector& summands, const mcrl2::data::function_symbol& determine_function, const mcrl2::data::function_symbol_vector& projection_functions)
-{
-  for (mcrl2::lps::stochastic_action_summand& summand: summands)
-  {
-    mcrl2::data::assignment_list ass = summand.assignments();
-    //Create new left-hand assignment_list & right-hand assignment_list
-    mcrl2::data::variable_vector new_ass_left;
-    mcrl2::data::data_expression_vector new_ass_right;
-    for (const mcrl2::data::assignment& k: ass)
-    {
-      if (proc_par_to_proc_par_inj.find(k.lhs()) != proc_par_to_proc_par_inj.end())
-      {
-        for (const mcrl2::data::variable& v: proc_par_to_proc_par_inj[ k . lhs() ])
-        {
-          new_ass_left.push_back(v);
-        }
-
-        mcrl2::data::data_expression_vector ins = unfold_constructor(k.rhs(), determine_function, projection_functions);
-        //Replace unfold parameters in affected assignments
-        new_ass_right.insert(new_ass_right.end(), ins.begin(), ins.end());
-      }
-      else
-      {
-        new_ass_left.push_back(k.lhs());
-        new_ass_right.push_back(k.rhs());
-      }
-    }
-
-    assert(new_ass_left.size() == new_ass_right.size());
-    mcrl2::data::assignment_vector new_ass;
-    while (!new_ass_left.empty())
-    {
-      new_ass.push_back(mcrl2::data::assignment(new_ass_left.front(), new_ass_right.front()));
-      new_ass_left.erase(new_ass_left.begin());
-      new_ass_right.erase(new_ass_right.begin());
-    }
-    summand.assignments() = mcrl2::data::assignment_list(new_ass.begin(), new_ass.end());
-  }
-}
-
-mcrl2::lps::stochastic_linear_process lpsparunfold::update_linear_process(const function_symbol& case_function , function_symbol_vector affected_constructors, const function_symbol& determine_function, std::size_t parameter_at_index, const function_symbol_vector& projection_functions)
-{
-  /* Get process parameters from lps */
-  mcrl2::data::variable_list lps_proc_pars =  m_lps.process_parameters();
-
-  /* Get process_parameters names from lps */
-  std::set<mcrl2::core::identifier_string> process_parameter_names;
-  for (const mcrl2::data::variable& v: lps_proc_pars)
-  {
-    process_parameter_names.insert(v.name());
-  }
-
-  mCRL2log(verbose) << "Updating LPS..." << std::endl;
-  /* Create new process parameters */
-  mcrl2::data::variable_vector new_process_parameters;
-  for (mcrl2::data::variable_list::iterator i = lps_proc_pars.begin();
-       i != lps_proc_pars.end();
-       ++i)
-  {
-    if (static_cast<std::size_t>(std::distance(lps_proc_pars.begin(), i)) == parameter_at_index)
-    {
-      mCRL2log(verbose) << "Unfolding parameter " << i->name() << " at index " << std::distance(lps_proc_pars.begin(), i) << "..." << std::endl;
-      mcrl2::data::variable_vector process_parameters_injection;
-
-      /* Generate fresh process parameter for new Sort */
-      mcrl2::core::identifier_string idstr = generate_fresh_process_parameter_name(unfold_parameter_name, process_parameter_names);
-      process_parameters_injection.push_back(mcrl2::data::variable(idstr , fresh_basic_sort));
-
-      mCRL2log(verbose) << "- Created process parameter " <<  data::pp(process_parameters_injection.back()) << " of type " <<  data::pp(fresh_basic_sort) << "" << std::endl;
-
-      for (mcrl2::data::function_symbol_vector::iterator j = affected_constructors.begin()
-           ; j != affected_constructors.end()
-           ; ++j)
-      {
-        bool processed = false;
-        if (is_function_sort(j -> sort()))
-        {
-          sort_expression_list dom = function_sort(j -> sort()).domain();
-          for (sort_expression_list::iterator k = dom.begin(); k != dom.end(); ++k)
-          {
-            mcrl2::core::identifier_string idstr = generate_fresh_process_parameter_name(unfold_parameter_name, process_parameter_names);
-            process_parameters_injection.push_back(mcrl2::data::variable(idstr ,  *k));
-            mCRL2log(verbose) << "- Injecting process parameter: " <<  idstr << "::" <<  *k << std::endl;
-          }
-          processed = true;
-        }
-
-        if (is_basic_sort(j -> sort()))
-        {
-          mCRL2log(debug) << "- No processed parameter are injected for basic sort: " <<  *j << std::endl;
-          processed = true;
-        }
-
-        if (is_structured_sort(j -> sort()))
-        {
-          processed = true;
-        }
-
-        if (is_container_sort(j -> sort()))
-        {
-          processed = true;
-        }
-        if (!processed)
-        {
-          mCRL2log(mcrl2::log::debug) << *j << " is not processed" << std::endl;
-          mCRL2log(mcrl2::log::debug) << *j << std::endl;
-          abort();
-        }
-      }
-      new_process_parameters.insert(new_process_parameters.end(), process_parameters_injection.begin(), process_parameters_injection.end());
-
-      /* store mapping: process parameter -> process parameter injection:
-         Required for process parameter replacement in summands
-      */
-      proc_par_to_proc_par_inj[*i] = process_parameters_injection;
-
-    }
-    else
-    {
-      new_process_parameters.push_back(*i);
-    }
-  }
-  mCRL2log(debug) << "- New LPS process parameters: " <<  mcrl2::data::pp(new_process_parameters) << std::endl;
-
-  //Prepare parameter substitution
-  std::map<mcrl2::data::variable, mcrl2::data::data_expression> parsub = parameter_substitution(proc_par_to_proc_par_inj, affected_constructors, case_function);
-
-  // TODO: avoid unnecessary copies of the LPS
-  mcrl2::lps::stochastic_linear_process new_lps;
-  new_lps.action_summands() = m_lps.action_summands();
-  new_lps.deadlock_summands() = m_lps.deadlock_summands();
-
-  // update the summands in new_lps
-  unfold_summands(new_lps.action_summands(), determine_function, projection_functions);
-
-  // Replace occurrences of unfolded parameters by the corresponding case function
-  mutable_map_substitution< std::map< mcrl2::data::variable , mcrl2::data::data_expression > > s{parsub};
-  lps::replace_variables_capture_avoiding( new_lps, s );
-
-  // NB: order is important. If we first replace the parameters, they are changed
-  // again when performing the capture avoiding substitution, most likely leading
-  // to an LPS that is not well-formed.
-  new_lps.process_parameters() = mcrl2::data::variable_list(new_process_parameters.begin(), new_process_parameters.end());
-
-  mCRL2log(debug) << "\nNew LPS:\n" <<  lps::pp(new_lps) << std::endl;
-
-  assert(check_well_typedness(new_lps));
-
-  return new_lps;
-}
-
-mcrl2::lps::stochastic_process_initializer lpsparunfold::update_linear_process_initialization(
-                   const data::function_symbol& determine_function,
-                   std::size_t parameter_at_index,
-                   const function_symbol_vector& projection_functions)
-{
-  //
-  //update inital process
-  //
-  mCRL2log(verbose) << "Updating initialization...\n" << std::endl;
-
-  const data::data_expression_list ass = m_init_process.expressions();
-  //Unfold parameters
-  mcrl2::data::data_expression_vector new_ass_right;
-  size_t index=0;
-  for (const data::data_expression& k: ass)
-  {
-    if (index == parameter_at_index)
-    {
-      mcrl2::data::data_expression_vector ins = unfold_constructor(k, determine_function, projection_functions);
-      //Replace unfold parameters in affected assignments
-      new_ass_right.insert(new_ass_right.end(), ins.begin(), ins.end());
-    }
-    else
-    {
-      new_ass_right.push_back(k);
-    }
-    index++;
-  }
-
-  const mcrl2::lps::stochastic_process_initializer new_init(mcrl2::data::data_expression_list(new_ass_right.begin(), new_ass_right.end()),
-                                                            m_init_process.distribution());
-  mCRL2log(debug) << "Expressions for the new initial state: " << lps::pp(new_init) << std::endl;
-
-  return new_init;
-}
-
-std::map<mcrl2::data::variable, mcrl2::data::data_expression> lpsparunfold::parameter_substitution(std::map<mcrl2::data::variable, mcrl2::data::variable_vector > proc_par_to_proc_par_inj, mcrl2::data::function_symbol_vector affected_constructors, const mcrl2::data::function_symbol& case_function)
-{
-  std::map<mcrl2::data::variable, mcrl2::data::data_expression> result;
-  data_expression_vector dev;
-
-  std::set<mcrl2::data::variable_vector::iterator> used_iters;
-
-  mcrl2::data::variable prev;
-  for (std::map<mcrl2::data::variable, mcrl2::data::variable_vector >::iterator i = proc_par_to_proc_par_inj.begin()
-       ; i != proc_par_to_proc_par_inj.end()
-       ; ++i)
-  {
-    if (prev != i->first)
-    {
-      dev.clear();
-    }
-
-    dev.push_back(data_expression(i->second.front()));
-
-    for (mcrl2::data::function_symbol_vector::iterator m = affected_constructors.begin()
-         ; m != affected_constructors.end()
-         ; ++m)
-    {
-      if (is_basic_sort(m -> sort()))
-      {
-        dev.push_back(*m);
-      }
-
-      if (is_structured_sort(m -> sort()))
-      {
-        dev.push_back(*m);
-      }
-
-      if (is_function_sort(m -> sort()))
-      {
-        sort_expression_list dom = function_sort(m -> sort()). domain();
-        data_expression_vector arg;
-
-        for (sort_expression_list::iterator n = dom.begin(); n != dom.end(); ++n)
-        {
-          for (mcrl2::data::variable_vector::iterator o = i->second.begin()
-               ; o != i->second.end()
-               ; ++o)
-          {
-            if (o -> sort() == *n && used_iters.find(o) == used_iters.end())
-            {
-              used_iters.insert(o);
-              arg.push_back(*o);
-              break;
-            }
-          }
-        }
-        dev.push_back(mcrl2::data::application(*m, arg));
-      }
-
-      if (is_container_sort(m -> sort()))
-      {
-        dev.push_back(*m);
-      }
-
-    }
-
-    mCRL2log(verbose) << "Parameter substitution:\t" << data::pp(i->first) << "\t->\t" <<  data::pp(mcrl2::data::application(case_function, dev)) << std::endl;
-    result.insert(std::pair<mcrl2::data::variable, mcrl2::data::data_expression>(i -> first,  mcrl2::data::application(case_function, dev)));
-  }
-  return result ;
-}
-
-mcrl2::data::data_expression_vector lpsparunfold::unfold_constructor(const data_expression& de, const data::function_symbol& determine_function, function_symbol_vector projection_functions)
-{
-  mcrl2::data::data_expression_vector result;
-  {
-    /* Unfold parameter if function symbol occurs  */
-    /* size of unfold parameter must be equal to 1 */
-    data_expression_vector new_ass;
-
-    /* Det function */
-    new_ass.push_back(application(determine_function, de)) ;
-
-    for (const function_symbol& f: projection_functions)
-    {
-      new_ass.push_back(application(f, de)) ;
-    }
-
-    result = new_ass;
-  }
-  return result;
-}
-
-mcrl2::data::sort_expression lpsparunfold::sort_at_process_parameter_index(std::size_t parameter_at_index)
-{
-  mcrl2::data::variable_list lps_proc_pars_list =  m_lps.process_parameters();
-  mcrl2::data::variable_vector lps_proc_pars = mcrl2::data::variable_vector(lps_proc_pars_list.begin(), lps_proc_pars_list.end());
-  mCRL2log(debug) << "- Number of parameters in LPS: " <<  lps_proc_pars.size() << "" << std::endl;
-  mCRL2log(verbose) << "Unfolding process parameter at index: " <<  parameter_at_index << "" << std::endl;
-  if (lps_proc_pars.size() <= parameter_at_index)
-  {
-    mCRL2log(mcrl2::log::error) << "Given index out of bounds. Index value needs to be in the range [0," << lps_proc_pars.size() <<")." << std::endl;
-    abort();
-  }
-
-  if (is_basic_sort(lps_proc_pars[parameter_at_index].sort()))
-  {
-    unfold_parameter_name = basic_sort(lps_proc_pars[parameter_at_index].sort()).name();
-  }
-
-  if (is_structured_sort(lps_proc_pars[parameter_at_index].sort()))
-  {
-    mcrl2::core::identifier_string nstr;
-    nstr = m_identifier_generator("S");
-    sort_names.insert(nstr);
-    unfold_parameter_name = nstr;
-  }
-
-  if (is_container_sort(lps_proc_pars[parameter_at_index].sort()))
-  {
-    mcrl2::core::identifier_string nstr;
-    nstr = m_identifier_generator("S");
-    sort_names.insert(nstr);
-    unfold_parameter_name = nstr;
-  }
-
-  return lps_proc_pars[parameter_at_index].sort();
-}
-
-mcrl2::data::data_equation lpsparunfold::create_distribution_law_over_case(
-  const mcrl2::data::function_symbol& function_for_distribution,
-  const mcrl2::data::function_symbol& case_function,
-  const bool add_case_function_to_data_type)
-{
-  assert(function_sort(case_function.sort()).codomain() == function_sort(function_for_distribution.sort()).domain().front());
-
-  variable_vector variables_used;
-  mcrl2::core::identifier_string istr;
-
-  sort_expression_list case_function_sort_arguments = function_sort(case_function.sort()).domain();
-  for (sort_expression_list::iterator i = case_function_sort_arguments.begin();
-       i != case_function_sort_arguments.end();
-       ++i)
-  {
-    if (i == case_function_sort_arguments.begin())
-    {
-      istr = m_identifier_generator("b");
-    }
-    else
-    {
-      istr = m_identifier_generator("d");
-    }
-    variable v(istr, *i);
-    variables_used.push_back(v);
-  }
-
-  data_expression lhs(application(function_for_distribution, application(case_function, variables_used)));
-  data_expression_vector rw_data_expressions;
-  sort_expression_vector rw_sort_expressions;
-  for (variable_vector::iterator i = variables_used.begin();
-       i != variables_used.end();
-       ++i)
-  {
-    if (i == variables_used.begin())
-    {
-      rw_data_expressions.push_back(*i);
-      rw_sort_expressions.push_back(i->sort());
-    }
-    else
-    {
-      rw_data_expressions.push_back(application(function_for_distribution, *i));
-      rw_sort_expressions.push_back(function_sort(function_for_distribution.sort()).codomain());
-    }
-  }
-
-  mcrl2::data::function_symbol new_case_function = data::function_symbol(case_function.name(),
-                         function_sort(rw_sort_expressions,function_sort(function_for_distribution.sort()).codomain()));
-  if (add_case_function_to_data_type)
-  {
-    m_data_specification.add_mapping(new_case_function);
-    generate_case_functions(m_data_specification.constructors(function_sort(new_case_function.sort()).domain().front()),new_case_function);   //add equations
-  }
-
-  /* Generate new case functions for laws */
-  application rhs(new_case_function , rw_data_expressions);
-
-  mCRL2log(verbose) << "- Added distribution law for \"" << data::pp(function_for_distribution) << "\" over \"" << data::pp(case_function) << "\": " << data::pp(data_equation(lhs,  rhs)) << std::endl;
-
-  return data_equation(variables_used, lhs, rhs);
-}
-
-void lpsparunfold::generate_case_functions(function_symbol_vector elements_of_new_sorts, const data::function_symbol& case_function)
-{
-  mCRL2log(verbose) << "- Generating case function for:\t" <<  mcrl2::data::pp(case_function) << ": " <<  mcrl2::data::pp(case_function.sort()) << "" << std::endl;
-
-  /* Generate variable identifier string for projection */
-  std::string fstr = "y";
-  mcrl2::core::identifier_string istr = m_identifier_generator(fstr);
-
-  variable_vector vars;
-  sort_expression_list dom = function_sort(case_function.sort()).domain();
-  for (const sort_expression& s: dom)
-  {
-    istr = m_identifier_generator(fstr);
-    variable v(istr, s);
-    vars.push_back(v);
-  }
-
-  std::size_t e = 1;
-  data_expression_vector sub_args(vars.begin(), vars.end());
-  for (std::size_t i = 1 ; i < function_sort(case_function.sort()).domain().size() ; ++i)
-  {
-    sub_args[0] = data_expression(elements_of_new_sorts[i-1]);
-    data_expression lhs = application(case_function , sub_args);
-    add_new_equation(lhs,vars[e]);
-    ++e;
-  }
-
-  {
-    data_expression_vector eq_args;
-
-    eq_args = data_expression_vector(function_sort(case_function.sort()).domain().size() -1 , vars.back());
-    eq_args.insert(eq_args.begin(), vars.front());
-
-    data_expression lhs = application(case_function , eq_args);
-    add_new_equation(lhs, vars.back());
-  }
-}
-
-mcrl2::lps::stochastic_specification lpsparunfold::algorithm(std::size_t parameter_at_index)
-{
-  m_unfold_process_parameter = sort_at_process_parameter_index(parameter_at_index);
-
-  /* Var Dec */
-  mcrl2::lps::stochastic_linear_process new_lps;
-  mcrl2::lps::stochastic_process_initializer new_init;
-  function_symbol_vector affected_constructors;
-  function_symbol_vector elements_of_new_sorts;
-  function_symbol_vector projection_functions;
-  data::function_symbol case_function;
-  data::function_symbol determine_function;
-  // data_equation_vector data_equations;
-
-  /* Updating cache*/
-  if( m_cache->find(m_unfold_process_parameter) == m_cache->end() )
+  std::map< data::sort_expression, unfold_cache_element >::iterator ce = m_cache.find(sort);
+  if(ce == m_cache.end())
   {
     /* Not using cache */
-
+    unfold_cache_element& new_cache_element = m_cache[sort];
     /*   Alg */
     /*     1 */
-    fresh_basic_sort = generate_fresh_basic_sort(unfold_parameter_name);
+    new_cache_element.fresh_basic_sort = generate_fresh_basic_sort(sort);
+    m_dataspec.add_sort(new_cache_element.fresh_basic_sort );
+
     /*     2 */
-    affected_constructors = determine_affected_constructors();
-    if (affected_constructors.empty())
-    {
-      mCRL2log(verbose) << "The selected process parameter " <<  unfold_parameter_name << " has no constructors." << std::endl;
-      mCRL2log(verbose) << "No need to unfold." << std::endl;
-      new_lps = m_lps;
-      new_init = m_init_process;
-    }
-    else
+    determine_affected_constructors(sort);
+
+    // If there are no constructors, there is nothing to be done.
+    if (!new_cache_element.affected_constructors.empty())
     {
       /*     4 */
-      elements_of_new_sorts = new_constructors(affected_constructors);
+      create_new_constructors(sort);
       /*     6 */
-      case_function = create_case_function(affected_constructors.size());
+      create_case_function(sort, sort);
       /*     7 */
-      determine_function = create_determine_function();
+      create_determine_function(sort);
       /*  8-12 */
-      projection_functions = create_projection_functions(affected_constructors);
-      /* 13-xx */
-      create_data_equations(projection_functions, case_function, elements_of_new_sorts, affected_constructors, determine_function);
-
-      //Reconstruct data specification, where already quite a number of mappings, constructors and functions have been added.
-      m_data_specification.add_sort(fresh_basic_sort);
-      m_data_specification.add_mapping(determine_function);
-      m_data_specification.add_mapping(case_function);
-
-      /*----------------*/
-      new_lps = update_linear_process(case_function, affected_constructors, determine_function, parameter_at_index, projection_functions);
-      new_init = update_linear_process_initialization(determine_function, parameter_at_index, projection_functions);
-
-      /* Updating cache*/
-      lspparunfold::unfold_cache_element e;
-      e.cached_case_function = case_function;
-      e.cached_k = affected_constructors;
-      e.cached_determine_function = determine_function;
-      e.cached_projection_functions = projection_functions;
-      e.cached_fresh_basic_sort = fresh_basic_sort;
-
-      m_cache->insert( std::pair<mcrl2::data::sort_expression , lspparunfold::unfold_cache_element>( m_unfold_process_parameter , e ));
+      create_projection_functions(sort);
     }
+    return new_cache_element;
   }
   else
   {
     /* Using cache */
-    mCRL2log(verbose) << "Update using cache for sort: \"" <<  mcrl2::data::pp(m_unfold_process_parameter)  << "\"..." << std::endl;
+    mCRL2log(log::verbose) << "Update using cache for sort: \"" <<  data::pp(sort)  << "\"..." << std::endl;
+    return ce->second;
+  }
+}
 
-    std::map< mcrl2::data::sort_expression , lspparunfold::unfold_cache_element >::iterator ce = m_cache->find(m_unfold_process_parameter);
-
-    fresh_basic_sort = ce->second.cached_fresh_basic_sort;
-    affected_constructors = ce->second.cached_k;
-    if (affected_constructors.empty())
-    {
-      mCRL2log(verbose) << "The selected process parameter " <<  unfold_parameter_name << " has no constructors." << std::endl;
-      mCRL2log(verbose) << "No need to unfold." << std::endl;
-      new_lps = m_lps;
-      new_init = m_init_process;
-    }
-
-    case_function = ce->second.cached_case_function;
-    determine_function = ce->second.cached_determine_function;
-    projection_functions = ce->second.cached_projection_functions;
-
-    new_lps = update_linear_process(case_function, affected_constructors, determine_function, parameter_at_index, projection_functions);
-    new_init = update_linear_process_initialization(determine_function, parameter_at_index, projection_functions);
+data::basic_sort unfold_data_manager::generate_fresh_basic_sort(const data::sort_expression& sort)
+{
+  //Generate a fresh Basic Sort
+  std::string hint("S");
+  if(data::is_basic_sort(sort))
+  {
+    hint = atermpp::down_cast<basic_sort>(sort).name();
+  }
+  else if(data::is_container_sort(sort))
+  {
+    hint = filter_illegal_characters(data::pp(sort));
   }
 
-  mcrl2::lps::stochastic_specification new_spec(m_data_specification, m_action_label_list, m_glob_vars, new_lps, new_init);
+  const data::basic_sort result(m_identifier_generator(hint));
+  mCRL2log(log::verbose) << "Generated fresh sort \"" <<  data::pp(result) << "\" for \"" <<  data::pp(sort) << "\"" << std::endl;
+  return result;
+}
 
-  assert(check_well_typedness(new_spec));
+core::identifier_string unfold_data_manager::generate_fresh_function_symbol_name(const std::string& str)
+{
+  //Generate a fresh name for a constructor of mapping
+  const core::identifier_string result(m_identifier_generator(filter_illegal_characters(str)));
+  mCRL2log(debug) << "Generated a fresh function symbol name: " <<  result << std::endl;
+  return result;
+}
 
-  return new_spec;
+data::variable unfold_data_manager::generate_fresh_variable(std::string str, const sort_expression& sort)
+{
+  return data::variable(m_identifier_generator(str.append("_pp")), sort);
+}
+
+void unfold_data_manager::determine_affected_constructors(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  assert(new_cache_element.affected_constructors.empty());
+
+  new_cache_element.affected_constructors = m_dataspec.constructors(sort);
+
+  mCRL2log(debug) << "constructors of unfolded sort:\t";
+  mCRL2log(log::verbose) << "" <<  sort  << " has " <<  new_cache_element.affected_constructors.size() << " constructor function(s)" << std::endl;
+
+  if(log::mCRL2logEnabled(debug))
+  {
+    for (const function_symbol& f : new_cache_element.affected_constructors)
+    {
+      mCRL2log(debug) << "\t" << f << std::endl;
+    }
+  }
+}
+
+void unfold_data_manager::create_new_constructors(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  assert(new_cache_element.new_constructors.empty());
+
+  for (const function_symbol& func: new_cache_element.affected_constructors)
+  {
+    std::string prefix = "c_";
+    prefix.append(func.name());
+    const data::function_symbol f(generate_fresh_function_symbol_name(prefix),
+                                  new_cache_element.fresh_basic_sort);
+    new_cache_element.new_constructors.push_back(f);
+    m_dataspec.add_constructor(f);
+    mCRL2log(debug) << "\t" << f << std::endl;
+  }
+  mCRL2log(debug) << "- Created " <<  new_cache_element.new_constructors.size() << " fresh \" c_ \" constructor(s)" << std::endl;
+}
+
+data::function_symbol unfold_data_manager::create_case_function(const sort_expression& det_sort, const sort_expression& output_sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[det_sort];
+  // Generate new function symbol that is used for all case functions related
+  // to unfolding new_cache_element.fresh_basic_sort.
+  if (new_cache_element.case_function_name == core::identifier_string())
+  {
+    std::string str = "C_";
+    str.append(new_cache_element.fresh_basic_sort.name());
+    new_cache_element.case_function_name =
+        generate_fresh_function_symbol_name(str);
+  }
+
+  // Check if the function symbol was already in the cache; if not, create and add it
+  std::map<mcrl2::data::sort_expression, mcrl2::data::function_symbol>::const_iterator
+      case_function_it = new_cache_element.case_functions.find(output_sort);
+  if(case_function_it == new_cache_element.case_functions.end())
+  {
+    // all except first argument are the sort of the unfolded type.
+    data::sort_expression_vector fsl(new_cache_element.affected_constructors.size() + 1, output_sort);
+    fsl[0] = new_cache_element.fresh_basic_sort ;
+
+    data::function_symbol fs(new_cache_element.case_function_name,
+                             data::function_sort(fsl, output_sort));
+
+    mCRL2log(debug) << "- Created C map: " << fs << std::endl;
+    new_cache_element.case_functions[output_sort] = fs;
+    m_dataspec.add_mapping(fs);
+
+    // generate and add equations.
+    generate_case_function_equations(det_sort, fs);
+    return fs;
+  }
+  else
+  {
+    return case_function_it->second;
+  }
+}
+
+void unfold_data_manager::create_determine_function(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  std::string str = "Det_";
+  str.append(std::string(new_cache_element.fresh_basic_sort.name()));
+  new_cache_element.determine_function =
+      data::function_symbol(generate_fresh_function_symbol_name(str),
+                           data::make_function_sort_(sort,
+                                     new_cache_element.fresh_basic_sort ));
+  mCRL2log(debug) << "\t" <<  new_cache_element.determine_function << std::endl;
+  m_dataspec.add_mapping(new_cache_element.determine_function);
+
+  generate_determine_function_equations(sort);
+}
+
+void unfold_data_manager::create_projection_functions(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  std::string str = "pi_";
+  str.append(std::string(new_cache_element.fresh_basic_sort.name()));
+
+  for (const function_symbol& f: new_cache_element.affected_constructors)
+  {
+    if (is_function_sort(f.sort()))
+    {
+      const function_sort fs = atermpp::down_cast<function_sort>(f.sort());
+      for (const sort_expression& argument_sort: fs.domain())
+      {
+        const data::function_symbol map(generate_fresh_function_symbol_name(str),
+                                        data::make_function_sort_(sort,
+                                           argument_sort));
+        m_dataspec.add_mapping(map);
+        new_cache_element.projection_functions.push_back(map);
+      }
+    }
+  }
+
+  if(mCRL2logEnabled(debug))
+  {
+    for (const function_symbol& f : new_cache_element.projection_functions)
+    {
+      mCRL2log(debug) << "\t" << f << std::endl;
+    }
+  }
+
+  generate_projection_function_equations(sort);
+}
+
+void unfold_data_manager::generate_projection_function_equations(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  // Add projection functions for the arguments of the original constructors.
+  function_symbol_vector::const_iterator pi_it = new_cache_element.projection_functions.begin();
+  for (const function_symbol& f : new_cache_element.affected_constructors)
+  {
+    const variable_vector f_arguments(m_data_equation_argument_generator.arguments(f));
+    const variable_list f_arguments_list(f_arguments.begin(), f_arguments.end());
+
+    for(const variable& arg: f_arguments)
+    {
+      const application lhs(*pi_it, application(f, f_arguments_list));
+      m_dataspec.add_equation(data_equation(f_arguments_list, lhs, arg));
+
+      // For the same projection function, generate right hand sides with default
+      // values if the projection function is applied to an expression with a
+      // constructor that it was not intended for.
+      for (const function_symbol& g: new_cache_element.affected_constructors)
+      {
+        if (f != g)
+        {
+          const variable_vector g_arguments(
+              m_data_equation_argument_generator.arguments(g));
+          const variable_list g_arguments_list(g_arguments.begin(), g_arguments.end());
+          application lhs;
+          if (g_arguments.empty())
+          {
+            lhs = application(*pi_it, g);
+          }
+          else
+          {
+            lhs = application(
+                *pi_it, application(g, g_arguments_list));
+          }
+          try
+          {
+            const data_expression rhs = m_representative_generator(lhs.sort());
+            m_dataspec.add_equation(data_equation(g_arguments_list, lhs, rhs));
+          }
+          catch (runtime_error& e)
+          {
+            mCRL2log(debug) << "Failed to generate equation " << data::pp(lhs)
+                            << "= ... as no default term of sort "
+                            << data::pp(lhs.sort()) << " could be generated.\n"
+                            << e.what() << "\n";
+          }
+        }
+      }
+
+      // If so desired, add distribution of pi over if and case functions
+      // pi(if(b,x,y))=if(b,pi(x),pi(y));
+      // pi(C(e,x1,x2,...))=C(e,pi(x1),pi(x2),...);
+      create_distribution_law_over_case(sort, *pi_it, data::if_(sort));
+      create_distribution_law_over_case(sort, *pi_it, new_cache_element.case_functions[sort]);
+
+      ++pi_it;
+    }
+  }
+}
+
+// Add equation for f(C(e, d_1, ..., d_n)) = C(e, f(d_1), ..., f(d_n))
+// note: the case_function parameter must be copied; passing by reference
+// may lead to crashes if the argument is an element of
+// new_cache_element.case_functions if a new case function is introduced.
+void unfold_data_manager::create_distribution_law_over_case(
+  const data::sort_expression& sort,
+  const data::function_symbol& f,
+  const data::function_symbol case_function)
+{
+  assert(case_function.sort().target_sort() == atermpp::down_cast<function_sort>(f.sort()).domain().front());
+
+  // C(e, d_1, ..., d_n)
+  variable_vector lhs_args = m_data_equation_argument_generator.arguments(case_function);
+  application lhs(f, application(case_function, lhs_args));
+
+  // Construct rhs arguments e, f(d_1), ..., f(d_n)
+  data_expression_vector rhs_args;
+  variable_vector::const_iterator args = lhs_args.begin();
+  for (variable_vector::const_iterator i = lhs_args.begin(); i != lhs_args.end(); ++i)
+  {
+    if(i == lhs_args.begin())
+    {
+      rhs_args.push_back(*args);
+    }
+    else
+    {
+      rhs_args.emplace_back(application(f, *i));
+    }
+  }
+
+  // Determine the new case function or if function symbol.
+  data::function_symbol new_case_function;
+  if(data::is_if_function_symbol(case_function))
+  {
+    new_case_function = data::if_(f.sort().target_sort());
+  }
+  else
+  {
+    new_case_function = create_case_function(sort, f.sort().target_sort());
+  }
+
+  data::application rhs(new_case_function , rhs_args);
+  data::data_equation result(lhs_args, lhs, rhs);
+  m_dataspec.add_equation(result);
+
+  mCRL2log(log::verbose) << "- Added distribution law for \"" << data::pp(f) << "\" over \"" << data::pp(case_function) << "\": " << data::pp(result) << std::endl;
+}
+
+void unfold_data_manager::generate_case_function_equations(const data::sort_expression& sort, const data::function_symbol& case_function)
+{
+  mCRL2log(log::verbose) << "- Generating case function equations for:\t" <<  data::pp(case_function) << ": " <<  data::pp(case_function.sort()) << "" << std::endl;
+
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  assert(atermpp::down_cast<function_sort>(case_function.sort()).domain().size() == new_cache_element.new_constructors.size() + 1);
+  /* Generate variable identifier string for projection */
+  const variable_vector vars = m_data_equation_argument_generator.arguments(case_function);
+  const variable_list used_vars(++vars.begin(), vars.end()); // all but the first parameter are used in the data equation.
+
+  // We generate one equation for each of the constructors of the new sort,
+  // projecting out the corresponding argument.
+  // C(c_i, d_1,...,d_(i-1), d_i, d_(i+1), ..., d_n) = d_i;
+  data_expression_vector sub_args(vars.begin(), vars.end());
+  // vars_it represents d_i above.
+  variable_vector::const_iterator vars_it = vars.begin();
+  ++vars_it; // first variable to be skipped.
+
+  for(data::function_symbol new_constructor: new_cache_element.new_constructors)
+  {
+    sub_args[0] = new_constructor; // set c_i
+    const application lhs(case_function , sub_args);
+    m_dataspec.add_equation(data_equation(used_vars, lhs, *vars_it));
+    ++vars_it;
+  }
+
+  // Add an equation that removes a case function if all (except the first)
+  // argument are the same.
+  // C(x, d_n, ...., d_n) = d_n
+  data_expression_vector eq_args(new_cache_element.new_constructors.size() + 1, vars.back());
+  eq_args[0] = vars.front();
+  const application lhs(case_function , eq_args);
+  m_dataspec.add_equation(data_equation(data::variable_list({vars.front(), vars.back()}), lhs, vars.back()));
+
+  if (m_dataspec.equal_sorts(case_function.sort().target_sort(), vars.front().sort()))
+  {
+    // Add an equation that rewrites to the first argument if the remainder are the corresponding constructors
+    // C(x, c_1, ..., c_n) = x
+    data_expression_vector cs_args{vars.front()};
+    for (const function_symbol& cs: new_cache_element.new_constructors)
+    {
+      cs_args.push_back(cs);
+    }
+    m_dataspec.add_equation(data_equation(data::variable_list({vars.front()}), application(case_function, cs_args), vars.front()));
+  }
+
+  // If the case function maps to the Booleans, we can replace it by a disjunction.
+  // Note: this may make the data specification inconsistent.
+  if(m_possibly_inconsistent && sort_bool::is_bool(case_function.sort().target_sort()))
+  {
+    // C(x, d_1, ..., d_n) = (d_1 && x == c_1) || (c_2 && x == c_2) || .... (d_n && x == c_n)
+    const data::variable_list args(vars.begin(), vars.end());
+    const application lhs(case_function, args);
+
+    data_expression_vector disjuncts;
+    vars_it = vars.begin();
+    const variable det_var = *vars_it++;
+    for(const function_symbol& constructor: new_cache_element.new_constructors)
+    {
+      if(vars_it == vars.end())
+      {
+        throw mcrl2::runtime_error("The number of variables and the number of constructors differs.");
+      }
+      disjuncts.push_back(
+          sort_bool::and_(*vars_it++, equal_to(det_var, constructor)));
+    }
+
+    m_dataspec.add_equation(data_equation(args, lhs, lazy::join_or(disjuncts.begin(), disjuncts.end())));
+
+    // We also need to add rules for equality on the new sort.
+    for(const function_symbol& left: new_cache_element.new_constructors)
+    {
+      for(const function_symbol& right: new_cache_element.new_constructors)
+      {
+        if (left != right)
+        {
+          const application lhs = data::equal_to(left, right);
+          const data_expression rhs = data::false_();
+          m_dataspec.add_equation(data_equation(lhs, rhs));
+        }
+      }
+    }
+  }
+}
+
+void unfold_data_manager::generate_determine_function_equations(const data::sort_expression& sort)
+{
+  unfold_cache_element& new_cache_element = m_cache[sort];
+  function_symbol_vector::const_iterator constructor_it = new_cache_element.new_constructors.begin();
+  for (const function_symbol& f: new_cache_element.affected_constructors)
+  {
+    assert(constructor_it != new_cache_element.new_constructors.end());
+    /* Creating an equation for the detector function */
+    const variable_vector function_arguments = m_data_equation_argument_generator.arguments(f);
+    if(function_arguments.empty())
+    {
+      m_dataspec.add_equation(data_equation(
+          application(new_cache_element.determine_function, f),
+                       *constructor_it));
+    }
+    else
+    {
+      const variable_list args(function_arguments.begin(), function_arguments.end());
+      m_dataspec.add_equation(data_equation(
+          args,
+          application(new_cache_element.determine_function,
+                      application(f,args)),
+          *constructor_it));
+    }
+    ++constructor_it;
+  }
+
+  /*  Add additional distribution laws for Det over if and case functions
+  Det(if(b,x,y))=if(b,Det(x),Det(y));
+  Det(C(e,x1,x2,...))=C(e,Det(x1),Det(x2),...);
+  */
+  create_distribution_law_over_case(sort, new_cache_element.determine_function, data::if_(sort));
+  create_distribution_law_over_case(sort, new_cache_element.determine_function, new_cache_element.case_functions[sort]);
+}
+
+} // namespace mcrl2::lps::detail
+
+
+/// \brief Constructor
+lpsparunfold::lpsparunfold(lps::stochastic_specification& spec,
+                           std::map< data::sort_expression , unfold_cache_element >& cache,
+                           bool alt_case_placement,
+                           bool possibly_inconsistent,
+                           bool unfold_pattern_matching)
+    : lps::detail::lps_algorithm<lps::stochastic_specification>(spec),
+      m_run_before(false),
+      m_datamgr(cache, spec.data(), possibly_inconsistent),
+      m_pattern_unfolder(m_datamgr),
+      m_alt_case_placement(alt_case_placement),
+      m_unfold_pattern_matching(unfold_pattern_matching)
+{
+  m_datamgr.add_used_identifiers(lps::find_identifiers(spec));
+  m_datamgr.add_used_identifiers(data::find_identifiers(spec.data()));
+  for (const function_symbol& f : spec.data().constructors())
+  {
+    m_datamgr.add_used_identifier(f.name());
+  }
+  for (const function_symbol& f : spec.data().mappings())
+  {
+    m_datamgr.add_used_identifier(f.name());
+  }
+}
+
+void lpsparunfold::unfold_summands(lps::stochastic_action_summand_vector& summands)
+{
+  for (lps::stochastic_action_summand& summand: summands)
+  {
+    data::assignment_vector new_assignments;
+    for (const data::assignment& k: summand.assignments())
+    {
+      if (k.lhs() == m_unfold_parameter)
+      {
+        const data::data_expression_vector new_rhs = unfold_constructor(k.rhs());
+        const data::assignment_vector injected_assignments = data::make_assignment_vector(m_injected_parameters, new_rhs);
+        new_assignments.insert(new_assignments.end(), injected_assignments.begin(), injected_assignments.end());
+      }
+      else
+      {
+        new_assignments.push_back(k);
+      }
+    }
+    summand.assignments() = data::assignment_list(new_assignments.begin(), new_assignments.end());
+  }
+}
+
+lpsparunfold::case_func_replacement lpsparunfold::parameter_case_function()
+{
+  const unfold_cache_element& new_cache_element = m_datamgr.get_cache_element(m_unfold_parameter.sort());
+  data_expression_vector dev;
+
+  auto new_pars_it = m_injected_parameters.cbegin();
+  ++new_pars_it;
+
+  for (const data::function_symbol& constr: new_cache_element.affected_constructors )
+  {
+    data::data_expression case_func_arg = constr;
+
+    if (is_function_sort(constr.sort()))
+    {
+      sort_expression_list dom = function_sort(constr.sort()).domain();
+      data_expression_vector arg;
+
+      for (const data::sort_expression& arg_sort: dom)
+      {
+        if (new_pars_it->sort() != arg_sort)
+        {
+          throw runtime_error("Unexpected new parameter encountered, maybe they were not sorted well.");
+        }
+        arg.push_back(*new_pars_it++);
+      }
+      case_func_arg = data::application(constr, arg);
+    }
+
+    dev.push_back(case_func_arg);
+  }
+
+  return std::make_tuple(m_unfold_parameter, new_cache_element.case_functions, m_injected_parameters[0], dev);
+
+}
+
+void lpsparunfold::update_linear_process(std::size_t parameter_at_index)
+{
+  /* Get process parameters from lps */
+  const data::variable_list& process_parameters =  m_spec.process().process_parameters();
+
+  /* Iterator pointing to the parameter that needs to be unfolded */
+  data::variable_list::const_iterator unfold_parameter_it =
+      process_parameters.begin();
+  std::advance(unfold_parameter_it, parameter_at_index);
+
+  mCRL2log(log::verbose) << "Updating LPS..." << std::endl;
+
+  /* Create new process parameters */
+  data::variable_vector new_process_parameters;
+
+  /* Expand unfold_parameter */
+  mCRL2log(log::verbose) << "  Unfolding parameter " << unfold_parameter_it->name() << " at index " << parameter_at_index << "..." << std::endl;
+
+  /* First copy the initial part of the parameters */
+  new_process_parameters.insert(new_process_parameters.end(),
+                                process_parameters.begin(),
+                                unfold_parameter_it);
+
+  const unfold_cache_element& new_cache_element = m_datamgr.get_cache_element(m_unfold_parameter.sort());
+  const data::variable param = m_datamgr.generate_fresh_variable(m_unfold_parameter.name(), new_cache_element.fresh_basic_sort );
+  m_injected_parameters.push_back(param);
+
+  mCRL2log(log::verbose) 
+      << "- Created process parameter " <<  data::pp(m_injected_parameters.back())
+      << " of type " <<  data::pp(new_cache_element.fresh_basic_sort ) << "" << std::endl;
+
+  for (const data::function_symbol& constructor: new_cache_element.affected_constructors)
+  {
+    if (is_function_sort(constructor.sort()))
+    {
+      const sort_expression_list domain = function_sort(constructor.sort()).domain();
+      for (const sort_expression& s: domain)
+      {
+        const data::variable param = m_datamgr.generate_fresh_variable(m_unfold_parameter.name(), s);
+        m_injected_parameters.push_back(param);
+        mCRL2log(log::verbose) << "- Injecting process parameter: " <<  param
+                               << "::" <<  pp(s) << std::endl;
+      }
+    }
+    else if (is_basic_sort(constructor.sort())
+             || is_structured_sort(constructor.sort())
+             || is_container_sort(constructor.sort()))
+    {
+      mCRL2log(debug) << "- No process parameters are injected for constant: "
+                      <<  constructor << std::endl;
+    }
+    else
+    {
+      throw mcrl2::runtime_error("Parameter " + pp(constructor) + " has an unsupported type " + pp(constructor.sort()));
+    }
+  }
+
+  new_process_parameters.insert(new_process_parameters.end(),
+                                m_injected_parameters.begin(),
+                                m_injected_parameters.end());
+
+
+  ++unfold_parameter_it;
+  /* Copy the remainder of the parameters */
+  new_process_parameters.insert(new_process_parameters.end(),
+                              unfold_parameter_it, process_parameters.end());
+
+  mCRL2log(debug) << "- New LPS process parameters: " <<  data::pp(new_process_parameters) << std::endl;
+
+  // update the summands in new_lps
+  unfold_summands(m_spec.process().action_summands());
+
+  // Replace occurrences of unfolded parameters by the corresponding case function
+  // Clear process parameters first, to ensure capture avoiding substitution
+  // ignores the process parameters.
+  m_spec.process().process_parameters() = data::variable_list();
+  if (m_alt_case_placement)
+  {
+    m_datamgr.create_case_function(m_unfold_parameter.sort(), data::sort_bool::bool_()); // conditions
+    m_datamgr.create_case_function(m_unfold_parameter.sort(), data::sort_real::real_()); // time/distributions
+
+    // process parameters
+    for (const data::variable& param : new_process_parameters)
+    {
+      m_datamgr.create_case_function(m_unfold_parameter.sort(), param.sort());
+    }
+
+    // parameters of actions
+    for (const process::action_label& action_label : m_spec.action_labels())
+    {
+      for (const sort_expression& s : action_label.sorts())
+      {
+        m_datamgr.create_case_function(m_unfold_parameter.sort(), s);
+      }
+    }
+
+    mCRL2log(log::verbose) << "- Inserting case functions into the process using alternative case placement" << std::endl;
+    // place the case functions
+    insert_case_functions(m_spec.process(), parameter_case_function(), m_datamgr.id_gen());
+  }
+  else
+  {
+    mCRL2log(log::verbose) << "- Inserting case functions into the process using default case placement" << std::endl;
+    //Prepare parameter substitution
+    const mutable_map_substitution< std::map< data::variable , data::data_expression > > s{parameter_substitution()};
+    lps::replace_variables_capture_avoiding(m_spec.process(), s);
+  }
+
+  if (m_unfold_pattern_matching)
+  {
+    // Unfold pattern matching mappings in parameter updates, requires intermediate rewriting
+    data::rewriter rewr(m_spec.data());
+    for (action_summand& sum: m_spec.process().action_summands())
+    {
+      data::assignment_vector new_assignments;
+      for (const assignment& as: sum.assignments())
+      {
+        new_assignments.emplace_back(as.lhs(), unfold_pattern_matching(rewr(as.rhs()), m_pattern_unfolder));
+      }
+      sum.assignments() = data::assignment_list(new_assignments.begin(), new_assignments.end());
+    }
+  }
+
+  // NB: order is important. If we first replace the parameters, they are changed
+  // again when performing the capture avoiding substitution, most likely leading
+  // to an LPS that is not well-formed.
+  m_spec.process().process_parameters() = data::variable_list(new_process_parameters.begin(), new_process_parameters.end());
+
+  mCRL2log(debug) << "\nNew LPS:\n" <<  lps::pp(m_spec.process()) << std::endl;
+
+  assert(check_well_typedness(m_spec.process()));
+}
+
+void lpsparunfold::update_linear_process_initialization(
+                   std::size_t parameter_at_index)
+{
+  //
+  //update inital process
+  //
+  mCRL2log(log::verbose) << "Updating initialization...\n" << std::endl;
+
+  //Unfold parameters
+  data::data_expression_vector new_init;
+  size_t index=0;
+  for (const data::data_expression& k: m_spec.initial_process().expressions())
+  {
+    if (index == parameter_at_index)
+    {
+      const data::data_expression_vector ins = unfold_constructor(k);
+      //Replace unfold parameters in affected assignments
+      new_init.insert(new_init.end(), ins.begin(), ins.end());
+    }
+    else
+    {
+      new_init.push_back(k);
+    }
+    ++index;
+  }
+
+  m_spec.initial_process() = stochastic_process_initializer(
+      data_expression_list(new_init.begin(), new_init.end()),
+      m_spec.initial_process().distribution());
+
+  mCRL2log(debug) << "Expressions for the new initial state: " << data::pp(m_spec.initial_process().expressions()) << std::endl;
+}
+
+std::map<data::variable, data::data_expression> lpsparunfold::parameter_substitution()
+{
+  const unfold_cache_element& new_cache_element = m_datamgr.get_cache_element(m_unfold_parameter.sort());
+  std::map<data::variable, data::data_expression> result;
+
+  data_expression_vector dev;
+
+  auto new_pars_it = m_injected_parameters.cbegin();
+  dev.push_back(data_expression(*new_pars_it));
+  ++new_pars_it;
+
+  for (const data::function_symbol& constr: new_cache_element.affected_constructors)
+  {
+    data::data_expression case_func_arg = constr;
+
+    if (is_function_sort(constr.sort()))
+    {
+      sort_expression_list dom = function_sort(constr.sort()).domain();
+      data_expression_vector arg;
+
+      for (const data::sort_expression& arg_sort: dom)
+      {
+        if (new_pars_it->sort() != arg_sort)
+        {
+          throw runtime_error("Unexpected new parameter encountered, maybe they were not sorted well.");
+        }
+        arg.push_back(*new_pars_it++);
+      }
+      case_func_arg = data::application(constr, arg);
+    }
+
+    dev.push_back(case_func_arg);
+  }
+  mCRL2log(log::verbose) 
+      << "Parameter substitution:\t" << m_unfold_parameter
+      << "\t->\t" <<  data::application(new_cache_element.case_functions.at(m_unfold_parameter.sort()), dev) << std::endl;
+  result.insert(std::make_pair(
+    m_unfold_parameter, data::application(new_cache_element.case_functions.at(m_unfold_parameter.sort()), dev)));
+  return result;
+}
+
+data::data_expression lpsparunfold::apply_function(const function_symbol& f, const data_expression& de) const
+{
+  if(m_alt_case_placement && is_if_application(de))
+  {
+    return data::if_(atermpp::down_cast<data::application>(de)[0],
+                     apply_function(f, atermpp::down_cast<data::application>(de)[1]),
+                     apply_function(f, atermpp::down_cast<data::application>(de)[2]));
+  }
+  else
+  {
+    return application(f, de);
+  }
+}
+
+data::data_expression_vector lpsparunfold::unfold_constructor(const data_expression& de)
+{
+  assert(de.sort() == m_unfold_parameter.sort());
+  const unfold_cache_element& new_cache_element = m_datamgr.get_cache_element(m_unfold_parameter.sort());
+  data::data_expression_vector result;
+
+  // Replace global variables with fresh global variables.
+  if(data::is_variable(de) &&
+      m_spec.global_variables().find(atermpp::down_cast<variable>(de)) != m_spec.global_variables().end())
+  {
+    // don't care for det position
+    variable v = m_datamgr.generate_fresh_variable("dc", new_cache_element.determine_function.sort().target_sort());
+    result.push_back(v);
+    m_spec.global_variables().insert(v);
+
+    // don't cares for each of the arguments
+    for (const function_symbol& f: new_cache_element.projection_functions)
+    {
+      v = m_datamgr.generate_fresh_variable("dc", f.sort().target_sort());
+      result.push_back(v);
+      m_spec.global_variables().insert(v);
+    }
+  }
+  else
+  {
+    /* Det function */
+    result.emplace_back(apply_function(new_cache_element.determine_function, de));
+
+    for (const function_symbol& f: new_cache_element.projection_functions)
+    {
+      result.emplace_back(apply_function(f, de));
+    }
+  }
+
+  return result;
+}
+
+data::variable lpsparunfold::process_parameter_at(const std::size_t index)
+{
+  mCRL2log(debug) << "- Number of parameters in LPS: " <<   m_spec.process().process_parameters().size() << "" << std::endl;
+  mCRL2log(log::verbose) << "Unfolding process parameter at index: " <<  index << "" << std::endl;
+  if ( m_spec.process().process_parameters().size() <= index)
+  {
+    throw mcrl2::runtime_error("Given index out of bounds. Index value needs to be in the range [0," + std::to_string(m_spec.process().process_parameters().size()) + ").");
+  }
+
+  data::variable_list::const_iterator parameter_it = m_spec.process().process_parameters().begin();
+  std::advance(parameter_it, index);
+  return *parameter_it;
+}
+
+void lpsparunfold::algorithm(const std::size_t parameter_at_index)
+{
+  // Can only be run once as local data structures are not cleared
+  assert(!m_run_before);
+  m_run_before = true;
+
+  m_unfold_parameter = process_parameter_at(parameter_at_index);
+  const unfold_cache_element& new_cache_element = m_datamgr.get_cache_element(m_unfold_parameter.sort());  
+
+  // Perform the actual unfolding (if needed)
+  if (new_cache_element.affected_constructors.empty())
+  {
+    mCRL2log(log::verbose) << "The selected process parameter " <<  m_unfold_parameter.name() << " has no constructors." << std::endl;
+    mCRL2log(log::verbose) << "No need to unfold." << std::endl;
+  }
+  else
+  {
+    update_linear_process(parameter_at_index);
+    update_linear_process_initialization(parameter_at_index);
+  }
+
+  assert(check_well_typedness(m_spec));
 }
