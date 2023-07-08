@@ -133,6 +133,7 @@ macro(_add_man_page TARGET_NAME)
       TARGET ${TARGET_NAME} POST_BUILD
       COMMAND ${TARGET_NAME} --generate-man-page | gzip --best > ${TARGET_NAME}.1.gz
       COMMENT "Generating man page for ${TARGET_NAME}"
+      USES_TERMINAL
     )
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.1.gz DESTINATION share/man/man1 COMPONENT Documentation)
   endif(MCRL2_MAN_PAGES)
@@ -279,6 +280,9 @@ function(_add_mcrl2_binary TARGET_NAME TARGET_TYPE)
             RUNTIME DESTINATION ${MCRL2_RUNTIME_PATH}
             BUNDLE DESTINATION ${MCRL2_BUNDLE_PATH})
     get_target_property(IS_BUNDLE ${TARGET_NAME} MACOSX_BUNDLE)
+    
+    get_property(MCRL2_TOOLS GLOBAL PROPERTY MCRL2_TOOLS)
+    set_property(GLOBAL PROPERTY MCRL2_TOOLS "${MCRL2_TOOLS},${TARGET_NAME}")
   endif()
   
   target_include_directories(${TARGET_NAME} PUBLIC ${ARG_INCLUDEDIR} ${ARG_INCLUDE} )
