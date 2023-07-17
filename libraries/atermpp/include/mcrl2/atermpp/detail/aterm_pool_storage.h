@@ -44,9 +44,9 @@ public:
     Equals,
     typename std::conditional<N == DynamicNumberOfArguments,
       atermpp::detail::_aterm_appl_allocator<>,
-      typename std::conditional<EnableBlockAllocator, mcrl2::utilities::block_allocator<Element, 1024, GlobalThreadSafe>, std::allocator<Element>>::type
+      typename std::conditional<EnableBlockAllocator, mcrl2::utilities::block_allocator<Element, 1024, mcrl2::utilities::detail::GlobalThreadSafe>, std::allocator<Element>>::type
       >::type,
-    GlobalThreadSafe,
+    mcrl2::utilities::detail::GlobalThreadSafe,
     false>;
   using iterator = typename unordered_set::iterator;
   using const_iterator = typename unordered_set::const_iterator;
@@ -145,11 +145,6 @@ public:
   /// \brief Prints various performance statistics for this storage.
   /// \param identifier A string to identify the printed message for this storage.
   void print_performance_stats(const char* identifier) const;
-
-#ifdef MCRL2_ATERMPP_REFERENCE_COUNTED
-  /// \brief Marks all terms that are reachable and should not be destroyed.
-  void mark();
-#endif
 
   /// \brief sweep Destroys all terms that are not reachable. Requires that
   ///        mark() was called first.
