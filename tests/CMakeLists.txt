@@ -42,11 +42,18 @@ endforeach()
 #
 # Add a ctest test for the tooltests
 #
-if(MCRL2_ENABLE_TOOL_TESTS)
-  add_test(NAME tooltests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tool/tool_testing.py
-      --toolpath ${MCRL2_TOOL_PATH}
-      -m8
-  )
+set(TOOLTEST_ARGS "-m8")
+if(MCRL2_ENABLE_JITTYC)
+  set(TOOLTEST_ARGS "${TOOLTEST_ARGS};--jittyc")
 endif()
+
+if(CVC3_EXECUTABLE)
+  set(TOOLTEST_ARGS "${TOOLTEST_ARGS};--cvc3")
+endif()
+
+add_test(NAME tooltests
+  COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tool/tool_testing.py
+    --toolpath ${MCRL2_TOOL_PATH}
+    ${TOOLTEST_ARGS}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/workspace
+)

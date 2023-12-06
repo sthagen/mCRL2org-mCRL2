@@ -263,7 +263,7 @@ available_tests = [
     ToolTest("bespp", "[pbesfile]", ["-fdefault"]),
     # TODO: "-sspm" causes a segfault.
     ToolTest("bessolve", "[pbesfile]", ["-sgauss"]),
-    ToolTest("besconvert", "[pbesfile]", ["-ebisim", "-estuttering"]),
+    ToolTest("besconvert", "[besfile]", ["-ebisim", "-estuttering"]),
     ToolTest(
         "pbesinst",
         "[pbesfile]",
@@ -384,7 +384,11 @@ def main(tests):
         print(names)
         return
     
-    for example, mcrl2_file in [("abp", os.path.join(MCRL2_ROOT, "examples/academic/abp/abp.mcrl2")), ("dice", os.path.join(MCRL2_ROOT, "examples/probabilistic/coins_simulate_dice/dice.mcrl2"))]:
+    for example, rename_spec, mcrl2_file in [
+        ("abp", "act renamed;\n var x:D;\n rename r1(x) => renamed;", os.path.join(MCRL2_ROOT, "examples/academic/abp/abp.mcrl2")), 
+        #("dice", "act renamed;\n var x:Bool;\n rename b1(x) => renamed;", os.path.join(MCRL2_ROOT, "examples/probabilistic/coins_simulate_dice/dice.mcrl2"))
+        ]:
+        
         print(f"Write intermediate files into {output}", flush=True)
         name, _ = os.path.splitext(os.path.basename(mcrl2_file))
         lps_file = os.path.join(output, f"{name}.lps")
@@ -404,15 +408,16 @@ def main(tests):
             f.write("false")
 
         # Create input files for lpsactionrename
-        rename_file = os.path.join(output, "abp.rename")
+        rename_file = os.path.join(output, f"{example}.rename")
         with open(rename_file, "w", encoding="utf-8") as f:
-            f.write("act renamed;\n var x:D;\n rename r1(x) => renamed;")
+            f.write(rename_spec)
 
         # Create a generic nodeadlock formula
         mcf_file = os.path.join(output, "nodeadlock.mcf")
         with open(mcf_file, "w", encoding="utf-8") as f:
             f.write("[true*]<true>true")
-        pbes_file = os.path.join(output, "abp.nodeadlock.pbes")
+        pbes_file = os.path.join(output, f"{example}.nodeadlock.pbes")
+        bes_file = os.path.join(output, f"{example}.nodeadlock.bes")
 
         # Generate the input files for all tests beforehand
         run_test(os.path.join(args.toolpath, "mcrl22lps"), ["-D", mcrl2_file, lps_file])
@@ -421,7 +426,9 @@ def main(tests):
             os.path.join(args.toolpath, "lps2pbes"), [lps_file, "-f", mcf_file, pbes_file]
         )
         run_test(os.path.join(args.toolpath, "lpspp"), [lps_file, txtlps_file])
+        
         run_test(os.path.join(args.toolpath, "pbespp"), [pbes_file, txtpbes_file])
+        run_test(os.path.join(args.toolpath, "pbes2bes"), [pbes_file, bes_file])
 
         try:
             with concurrent.futures.ThreadPoolExecutor(
@@ -448,6 +455,7 @@ def main(tests):
                         arguments = arguments.replace("[rename]", rename_file)
                         arguments = arguments.replace("[mcffile]", mcf_file)
                         arguments = arguments.replace("[pbesfile]", pbes_file)
+                        arguments = arguments.replace("[besfile]", bes_file)
                         arguments = arguments.replace("[txtlpsfile]", txtlps_file)
                         arguments = arguments.replace("[txtpbesfile]", txtpbes_file)
                         arguments = arguments.replace("[actions]", "r1")

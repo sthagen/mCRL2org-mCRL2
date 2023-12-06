@@ -19,24 +19,7 @@ if( MCRL2_ENABLE_PROFILING )
 endif()
 
 ##---------------------------------------------------
-## Set C compile flags
-##---------------------------------------------------
-
-#try_mcrl2_add_c_flag(-std=c11)
-mcrl2_add_c_flag(-Wall)
-mcrl2_add_c_flag(-Wno-inline)
-mcrl2_add_c_flag(-fno-strict-overflow)
-mcrl2_add_c_flag(-pipe)
-mcrl2_add_c_debug_flag(-W)
-
-if(MCRL2_IS_CLANG)
-  # Ignore specific warnings produced in Sylvan.
-  mcrl2_add_c_flag(-Wno-c99-extensions)
-  mcrl2_add_c_flag(-Wno-gnu-zero-variadic-macro-arguments)
-  mcrl2_add_c_flag(-Wno-zero-length-array)
-endif()
-
-##---------------------------------------------------
+## Enables additional standard library checks.
 ##---------------------------------------------------
 
 if (MCRL2_ENABLE_STD_CHECKS)
@@ -74,8 +57,32 @@ mcrl2_add_cxx_debug_flag(-Wno-system-headers)
 mcrl2_add_cxx_debug_flag(-Woverloaded-virtual)
 mcrl2_add_cxx_debug_flag(-Wwrite-strings)
 
+# Change to lld as default linker.
+if(MCRL2_ENABLE_LLD)
+  mcrl2_add_cxx_flag(-fuse-ld=lld)
+endif()
+
+# Make inline member functions hidden by default, allowing them to not be exported
+mcrl2_add_cxx_flag(-fvisibility-inlines-hidden)
+
+# Change the thread local storage model to 'initial-exec', which applies additional
+# optimisations which assume that the shared library will never be dynamically loaded.
+mcrl2_add_cxx_flag(-ftls-model=initial-exec)
+
+# Disable the procedure linkage table, which is used for lazy loading.
+mcrl2_add_cxx_flag(-fno-plt)
+
+# Disable interposition, which allows inlining external definitions.
+mcrl2_add_cxx_flag(-fno-semantic-interposition)
+
 # This prevents warnings in the dnj bisimulation algorithm.
-mcrl2_add_cxx_debug_flag(-Wno-switch)
+mcrl2_add_cxx_flag(-Wno-switch)
+
+# Enable additional flags to make link time optimisation actually useful
+if(MCRL2_ENABLE_LTO)
+  set(CMAKE_CXX_COMPILE_OPTIONS_IPO ${CMAKE_CXX_COMPILE_OPTIONS_IPO} -flto=auto)
+  mcrl2_add_cxx_flag(-fuse-linker-plugin)
+endif()
 
 # Ignore specific warnings produced in Sylvan in clang.
 mcrl2_add_cxx_flag(-Wno-c99-extensions)
@@ -126,4 +133,34 @@ endif()
 
 if(MCRL2_ENABLE_THREADSANITIZER)
   add_link_options(-fsanitize=thread)
+endif()
+
+##---------------------------------------------------
+## Set C compile flags, see above for documentation
+##---------------------------------------------------
+
+#try_mcrl2_add_c_flag(-std=c11)
+mcrl2_add_c_flag(-Wall)
+mcrl2_add_c_flag(-Wno-inline)
+mcrl2_add_c_flag(-fno-strict-overflow)
+mcrl2_add_c_flag(-pipe)
+mcrl2_add_c_debug_flag(-W)
+
+if(MCRL2_ENABLE_LINKER_LLD)
+  mcrl2_add_c_flag(-fuse-ld=lld)
+endif()
+mcrl2_add_c_flag(-ftls-model=initial-exec)
+mcrl2_add_c_flag(-fno-plt)
+mcrl2_add_c_flag(-fno-semantic-interposition)
+
+if(MCRL2_IS_CLANG)
+  # Ignore specific warnings produced in Sylvan.
+  mcrl2_add_c_flag(-Wno-c99-extensions)
+  mcrl2_add_c_flag(-Wno-gnu-zero-variadic-macro-arguments)
+  mcrl2_add_c_flag(-Wno-zero-length-array)
+endif()
+
+if(MCRL2_ENABLE_LTO)
+  set(CMAKE_C_COMPILE_OPTIONS_IPO ${CMAKE_CXX_COMPILE_OPTIONS_IPO} -flto=auto)
+  mcrl2_add_c_flag(-fuse-linker-plugin)
 endif()
