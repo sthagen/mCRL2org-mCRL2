@@ -140,7 +140,7 @@ endif()
 # Install the example directory.
 install(DIRECTORY examples DESTINATION ${MCRL2_RESOURCE_PATH} COMPONENT Examples)
 
-# Install third party libraries
+# Install third party libraries if they are shared libraries
 install(TARGETS dparser
   COMPONENT "Libraries"
   LIBRARY DESTINATION ${MCRL2_LIBRARY_PATH}
