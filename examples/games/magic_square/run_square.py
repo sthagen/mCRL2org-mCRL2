@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+
+import subprocess
 import os
 
-os.system('mcrl22lps -v magic_square.mcrl2 magic_square.lps')
-
-
+# Change working dir to the script path
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
