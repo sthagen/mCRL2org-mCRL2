@@ -14,15 +14,8 @@
 
 #include <queue>
 
-#include "mcrl2/utilities/detail/join.h"
-
-#include "mcrl2/data/data_configuration.h"
-#ifdef Enable64bitNumbers
-#include "mcrl2/data/real64.h"
-#else
 #include "mcrl2/data/real.h"
-#endif
-
+#include "mcrl2/utilities/detail/join.h"
 
 namespace mcrl2
 {

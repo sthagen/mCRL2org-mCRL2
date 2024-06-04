@@ -63,19 +63,22 @@ option(MCRL2_ENABLE_STD_CHECKS       "Enable libstdc++ and libc++ specific asser
 option(MCRL2_ENABLE_SOUNDNESS_CHECKS "Enable extensive soundness checks." ON)
 option(MCRL2_ENABLE_MSVC_CCACHE      "Enable MSVC specific flags to enable building with ccache" OFF)
 option(MCRL2_ENABLE_JITTYC           "Enable the compiling rewriter (jittyc) functionality," ${UNIX})
+option(MCRL2_ENABLE_MACHINENUMBERS   "Enable the usage of 64bit machine number digits to represent numeric sorts" ON)
 option(MCRL2_ENABLE_MULTITHREADING   "Enable the usage of multiple threads. Disabling removes usage of synchronisation primitives" ON)
 option(MCRL2_ENABLE_LINKER_LLD       "Enable LLVM lld as linker, which offers significantly linking speedup" OFF)
 
 mark_as_advanced(
   MCRL2_ENABLE_ADDRESSSANITIZER
-  MCRL2_ENABLE_THREADSANITIZER
   MCRL2_ENABLE_CODE_COVERAGE
-  MCRL2_ENABLE_DEBUG_SOUNDNESS_CHECKS 
-  MCRL2_ENABLE_MSVC_CCACHE
-  MCRL2_ENABLE_STABLE
   MCRL2_ENABLE_JITTYC
-  MCRL2_ENABLE_MULTITHREADING
   MCRL2_ENABLE_LINKER_LLD
+  MCRL2_ENABLE_MACHINENUMBERS
+  MCRL2_ENABLE_MSVC_CCACHE
+  MCRL2_ENABLE_MULTITHREADING
+  MCRL2_ENABLE_SOUNDNESS_CHECKS 
+  MCRL2_ENABLE_STABLE
+  MCRL2_ENABLE_STD_CHECKS
+  MCRL2_ENABLE_THREADSANITIZER
 )
 
 # A list of tools that is being built by the current configuration (populated by build/cmake/MCRL2AddTarget.cmake)
