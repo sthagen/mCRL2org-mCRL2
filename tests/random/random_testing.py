@@ -18,6 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__),'../../'))
 
 import tests.utility.random_process_expression as random_process_expression
 import tests.utility.random_state_formula_generator as random_state_formula_generator
+import tests.utility.random_quantitative_state_formula_generator as random_quantitative_state_formula_generator
 from tests.utility.random_bes_generator import make_bes
 from tests.utility.random_pbes_generator import make_pbes
 from tests.utility.testing import YmlTest
@@ -225,6 +226,14 @@ class Lps2pbesTest(ProcessTest):
         super(Lps2pbesTest, self).create_inputfiles(runpath)
         self.inputfiles.append(mcrl2file('examples/modal-formulas/nodeadlock.mcf'))
 
+class Lps2presTest(ProcessTest):
+    def __init__(self, name, settings):
+        super(Lps2presTest, self).__init__(name, ymlfile('lps2pres'), settings)
+
+    def create_inputfiles(self, runpath = '.'):
+        super(Lps2presTest, self).create_inputfiles(runpath)
+        self.inputfiles.append(mcrl2file('examples/modal-formulas/nodeadlock.mcf'))
+
 class Lts2pbesTest(ProcessTest):
     def __init__(self, name, settings):
         super(Lts2pbesTest, self).__init__(name, ymlfile('lts2pbes'), settings)
@@ -325,6 +334,17 @@ class Pbes2boolTest(PbesTest):
     def __init__(self, name, settings):
         super(Pbes2boolTest, self).__init__(name, ymlfile('pbessolve'), settings)
 
+class Pres2boolTest(ProcessTest):
+    def __init__(self, name, settings):
+        super(Pres2boolTest, self).__init__(name, ymlfile('pressolve'), settings)
+
+    def create_inputfiles(self, runpath = '.'):
+        super(Pres2boolTest, self).create_inputfiles(runpath)
+        filename = f'{self.name}.mcf'
+        formula = random_state_formula_generator.make_modal_formula()
+        write_text(filename, str(formula))
+        self.inputfiles += [filename]
+
 class Pbes2boolDepthFirstTest(PbesTest):
     def __init__(self, name, settings):
         super(Pbes2boolDepthFirstTest, self).__init__(name, ymlfile('pbessolve'), settings)
@@ -396,6 +416,7 @@ available_tests = {
     'lps2lts-algorithms'                          : lambda name, settings: Lps2ltsAlgorithmsTest(name, settings)                                       ,
     'lps2lts-parallel'                            : lambda name, settings: Lps2ltsParallelTest(name, settings)                                         ,
     'lps2pbes'                                    : lambda name, settings: Lps2pbesTest(name, settings)                                                ,
+    'lps2pres'                                    : lambda name, settings: Lps2presTest(name, settings)                                                ,
     'lpsstategraph'                               : lambda name, settings: LpsstategraphTest(name, settings)                                           ,
     'lts2pbes'                                    : lambda name, settings: Lts2pbesTest(name, settings)                                                ,
     'ltscompare-bisim'                            : lambda name, settings: LtscompareTest(name, 'bisim', settings)                                     ,
@@ -457,7 +478,8 @@ available_tests = {
     'pbessolve-counter-example-optimization-7'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 7, settings)                            ,
     'pbesstategraph'                              : lambda name, settings: PbesstategraphTest(name, settings)                                          ,
     'pbes-unify-parameters'                       : lambda name, settings: Pbes_unify_parametersTest(name, settings)                                   ,
-    'pbes-srf'                                    : lambda name, settings: Pbes_srfTest(name, settings)                                                ,
+    'pbes-srf'                                    : lambda name, settings: Pbes_srfTest(name, settings)                                               ,
+    'pressolve'                                   : lambda name, settings: Pres2boolTest(name, settings)                                              ,
     'bessolve'                                    : lambda name, settings: BessolveTest(name, settings)                                                ,
     'stochastic-ltscompare'                      : lambda name, settings: StochasticLtscompareTest(name, settings)                                     ,
 }

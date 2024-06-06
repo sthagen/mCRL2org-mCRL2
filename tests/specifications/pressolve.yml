@@ -1,0 +1,50 @@
+nodes:
+  l1:
+    type: mcrl2
+  l2:
+    type: mcf
+  l3:
+    type: lps
+  l4:
+    type: pbes
+  l5:
+    type: pres
+
+tools:
+  t1:
+    input: [l1]
+    output: [l3]
+    args: []
+    name: mcrl22lps
+  t2:
+    input: [l3, l2]
+    output: [l4]
+    args: []
+    name: lps2pbes
+  t3:
+    input: [l4]
+    output: []
+    args: [--check-strategy]
+    name: pbessolve
+  t4:
+    input: [l3, l2]
+    output: [l5]
+    args: []
+    name: lps2pres
+  t5:
+    input: [l5]
+    output: []
+    args: []
+    name: pressolve
+  t6:
+    input: [l5]
+    output: []
+    args: ['-an']
+    name: pressolve
+  t7:
+    input: [l5]
+    output: []
+    args: ['-am']
+    name: pressolve
+result: |
+  result = t3.value['solution'] == t5.value['solution'] == t6.value['solution'] == t7.value['solution']
