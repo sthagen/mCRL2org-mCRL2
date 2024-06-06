@@ -522,7 +522,7 @@ private:
       else
       {
         std::pair<block_index_type, block_index_type> liftedPair = min_split_blockpair(B1, Bt1_Bt2.first);
-        Phi2[liftedPair] = dist_formula(B1, Bt1_Bt2.first);
+        Phi2[liftedPair] = dist_formula(liftedPair.first, liftedPair.second);
         // Update truthvalues for the formula phi2.
         split_and_intersect(Truths2, liftedPair);
       }
@@ -621,17 +621,19 @@ bool destructive_branching_bisimulation_compare_minimal_depth(LTS_TYPE& l1,
   // First remove tau loops in case of branching bisimulation
   bool preserve_divergences = false;
   detail::scc_partitioner<LTS_TYPE> scc_part(l1);
-  init_l2 = scc_part.get_eq_class(init_l2);
   scc_part.replace_transition_system(preserve_divergences);
 
-  // Run a faster branching bisimulation algorithm as preprocessing, no preversing of loops.
+  init_l2 = scc_part.get_eq_class(init_l2);
+
+   // Run a faster branching bisimulation algorithm as preprocessing, no preversing of loops.
   detail::bisim_partitioner_dnj branching_bisim_part(l1, true, preserve_divergences);
-  init_l2 = branching_bisim_part.get_eq_class(init_l2);
-  branching_bisim_part.finalize_minimized_LTS();
   if (branching_bisim_part.in_same_class(l1.initial_state(), init_l2))
   {
     return true;
   }
+
+  init_l2 = branching_bisim_part.get_eq_class(init_l2); 
+  branching_bisim_part.finalize_minimized_LTS();
 
   //Start the new debugging to get minimal depth splitting information.  
   branching_bisim_partitioner_minimal_depth<LTS_TYPE> branching_bisim_min(l1, init_l2);
