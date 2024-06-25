@@ -415,6 +415,12 @@ QDomDocument FileSystem::createNewProjectOptions()
 
   QDomElement propertiesElement = newProjectOptions.createElement("properties");
   rootElement.appendChild(propertiesElement);
+  
+  QDomNode jittycNode = newProjectOptions.createElement("jittyc");
+  rootElement.appendChild(jittycNode);
+        
+  QDomNode linearisationNode = newProjectOptions.createElement("linearisation_method");
+  rootElement.appendChild(linearisationNode);
 
   return newProjectOptions;
 }
@@ -469,6 +475,7 @@ bool FileSystem::newProject(bool forNewProject)
         QDomNode specNode = projectOptions.elementsByTagName("spec").at(0);
         specNode.replaceChild(specPathNode, specNode.firstChild());
       }
+      
       updateProjectFile();
 
       QDir(projectFolderPath).mkdir(propertiesFolderName);
@@ -648,6 +655,29 @@ void FileSystem::openProjectFromFolder(const QString& newProjectFolderPath)
         "specification as value).");
     projectFile.close();
     return;
+  }
+  
+  /** Read the tool options from the file */
+  QDomElement jittycElement = newProjectOptions.elementsByTagName("jittyc").at(0).toElement();
+  if (!jittycElement.isNull())
+  {
+    if (jittycElement.text() == "true")
+    {
+      m_enableJittyc = true;
+    }
+  }
+
+  QDomElement linearisationElement = newProjectOptions.elementsByTagName("linearisation_method").at(0).toElement();
+  if (!linearisationElement.isNull())
+  {
+    try
+    {
+      m_linearisationMethod = mcrl2::lps::parse_lin_method(linearisationElement.text().toStdString());
+    }
+    catch (std::exception& ex)
+    {
+      // Keep the default linearisation method.
+    }
   }
 
   /* get the path to the specification */
@@ -944,6 +974,46 @@ bool FileSystem::save(bool forceSave)
         saveProperty(property);
       }
     }
+
+    /* save the tool options */
+    QDomText jittycValue = projectOptions.createTextNode(m_enableJittyc ? "true" : "false");
+    QDomText linearisationValue = projectOptions.createTextNode(QString::fromStdString(mcrl2::lps::print_lin_method(m_linearisationMethod)));
+
+
+    QDomNode jittycNode = projectOptions.elementsByTagName("jittyc").at(0).toElement();
+    if (jittycNode.isNull())
+    {
+      // Append the jittyc node
+      QDomNode rootNode = projectOptions.elementsByTagName("root").at(0);
+      jittycNode = rootNode.appendChild(projectOptions.createElement("jittyc"));
+    }   
+
+    if (jittycNode.firstChild().isNull())
+    {
+      jittycNode.appendChild(jittycValue);
+    }
+    else
+    {
+      jittycNode.replaceChild(jittycValue, jittycNode.firstChild());
+    }
+            
+    QDomNode linearisationNode = projectOptions.elementsByTagName("linearisation_method").at(0);
+    if (linearisationNode.isNull())
+    {
+      QDomNode rootNode = projectOptions.elementsByTagName("root").at(0);
+      linearisationNode = rootNode.appendChild(projectOptions.createElement("linearisation_method"));
+    }
+
+    if (linearisationNode.firstChild().isNull())
+    {      
+      linearisationNode.appendChild(linearisationValue);
+    }
+    else
+    {
+      linearisationNode.replaceChild(linearisationValue, linearisationNode.firstChild());
+    }
+
+    updateProjectFile();
 
     specificationEditor->document()->setModified(false);
     return true;

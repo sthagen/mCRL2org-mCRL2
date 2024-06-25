@@ -118,7 +118,8 @@ void ProcessSystem::testExecutableExistence()
       QString::fromStdString(mcrl2::utilities::get_toolset_version());
 
   QStringList tools = {"mcrl22lps",  "lpsxsim",  "lps2lts",  "ltsconvert",
-                       "ltscompare", "ltsgraph", "lps2pbes", "pbessolve"};
+                       "ltscompare", "ltsgraph", "lps2pbes", "pbessolve",
+                       "mcrl2i"};
 
   /* for each necessary executable, check if it exists by trying to run it and
    *   compare its version with mcrl2ide's version */
@@ -165,37 +166,47 @@ bool ProcessSystem::isThreadRunning(ProcessType processType)
 }
 
 QProcess*
-ProcessSystem::createSubprocess(SubprocessType subprocessType, int processid,
-                                int subprocessIndex,
-                                mcrl2::lts::lts_equivalence equivalence)
+ProcessSystem::createSubprocess(SubprocessType subprocessType, 
+  int processid,
+  int subprocessIndex,
+  mcrl2::lts::lts_equivalence equivalence)
 {
   return createSubprocess(subprocessType, processid, subprocessIndex,
-                          Property(), false, equivalence, SpecType::Main);
+                          Property(), QString(), false, equivalence, SpecType::Main);
 }
 
 QProcess*
-ProcessSystem::createSubprocess(SubprocessType subprocessType, int processid,
-                                int subprocessIndex, const Property& property,
-                                mcrl2::lts::lts_equivalence equivalence)
+ProcessSystem::createSubprocess(SubprocessType subprocessType, 
+  int processid,
+  int subprocessIndex, 
+  const Property& property,
+  mcrl2::lts::lts_equivalence equivalence)
 {
-  return createSubprocess(subprocessType, processid, subprocessIndex, property,
+  return createSubprocess(subprocessType, processid, subprocessIndex,  property, QString(), 
                           false, equivalence, SpecType::Main);
 }
 
 QProcess* ProcessSystem::createSubprocess(SubprocessType subprocessType,
-                                          int processid, int subprocessIndex,
-                                          const Property& property,
-                                          SpecType specType)
+  int processid,
+  int subprocessIndex,
+  const Property& property,
+  SpecType specType)
 {
-  return createSubprocess(subprocessType, processid, subprocessIndex, property,
+  return createSubprocess(subprocessType, processid, subprocessIndex, property, QString(), 
                           false, mcrl2::lts::lts_eq_none, specType);
 }
 
 QProcess* ProcessSystem::createSubprocess(
-    SubprocessType subprocessType, int processid, int subprocessIndex,
-    const Property& property, bool evidence,
-    mcrl2::lts::lts_equivalence equivalence, SpecType specType)
+    SubprocessType subprocessType, 
+    int processid, 
+    int subprocessIndex,
+    const Property& property,
+    const QString& expression,
+    bool evidence,
+    mcrl2::lts::lts_equivalence equivalence, 
+    SpecType specType)
 {
+  // TODO: This function combines all parameters for the different processes, which is confusing.
   QProcess* subprocess = new QProcess();
   ProcessType processType = processTypes[processid];
 
@@ -225,6 +236,10 @@ QProcess* ProcessSystem::createSubprocess(
     case ProcessType::Verification:
       connect(subprocess, SIGNAL(readyReadStandardError()), consoleDock,
               SLOT(logToVerificationConsole()));
+      break;
+    case ProcessType::Rewriting:
+      connect(subprocess, SIGNAL(readyReadStandardError()), consoleDock,
+              SLOT(logToRewriteConsole()));
       break;
     default:
       break;
@@ -268,15 +283,28 @@ QProcess* ProcessSystem::createSubprocess(
     program = "mcrl22lps";
     inputFile = fileSystem->specificationFilePath(specType, property.name);
     outputFile = fileSystem->lpsFilePath(specType, property.name, evidence);
-    arguments << inputFile << outputFile << "--lin-method=regular"
-              << "--rewriter=jitty"
-              << "--verbose";
+    arguments << inputFile 
+              << outputFile 
+              << "--verbose"
+              << QString("--lin-method=").append(QString::fromStdString(mcrl2::lps::print_lin_method(fileSystem->linearisationMethod())));
+#ifdef MCRL2_JITTYC_ENABLED
+    if (fileSystem->enableJittyc())
+    {
+      arguments<< "--rewriter=jittyc";
+    }
+#endif // MCRL2_JITTYC_ENABLED
     break;
 
   case SubprocessType::Lpsxsim:
     program = "lpsxsim";
     inputFile = fileSystem->lpsFilePath();
-    arguments << inputFile << "--rewriter=jitty";
+    arguments << inputFile;
+#ifdef MCRL2_JITTYC_ENABLED
+    if (fileSystem->enableJittyc())
+    {
+      arguments<< "--rewriter=jittyc";
+    }
+#endif // MCRL2_JITTYC_ENABLED
     break;
 
   case SubprocessType::Lps2lts:
@@ -339,6 +367,12 @@ QProcess* ProcessSystem::createSubprocess(
     {
       arguments << "--counter-example";
     }
+#ifdef MCRL2_JITTYC_ENABLED
+    if (fileSystem->enableJittyc())
+    {
+      arguments<< "--rewriter=jittyc";
+    }
+#endif // MCRL2_JITTYC_ENABLED
     break;
 
   case SubprocessType::Pbessolve:
@@ -349,6 +383,12 @@ QProcess* ProcessSystem::createSubprocess(
               << "--search-strategy=breadth-first"
               << "--solve-strategy=0"
               << "--verbose";
+#ifdef MCRL2_JITTYC_ENABLED
+    if (fileSystem->enableJittyc())
+    {
+      arguments<< "--rewriter=jittyc";
+    }
+#endif // MCRL2_JITTYC_ENABLED
     if (evidence)
     {
       inputFile2 = fileSystem->lpsFilePath();
@@ -360,6 +400,22 @@ QProcess* ProcessSystem::createSubprocess(
       connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
               SLOT(verificationResult(int)));
     }
+    break;
+
+  case SubprocessType::Mcrl2i:
+    program = "mcrl2i";
+    inputFile = fileSystem->lpsFilePath();
+    arguments << inputFile << "-e" << expression;
+#ifdef MCRL2_JITTYC_ENABLED
+    if (fileSystem->enableJittyc())
+    {
+      arguments<< "--rewriter=jittyc";
+    }
+#endif // MCRL2_JITTYC_ENABLED
+
+    connect(subprocess, SIGNAL(finished(int, QProcess::ExitStatus)), this,
+            SLOT(rewriteResult(int)));
+
     break;
 
   default:
@@ -415,6 +471,27 @@ int ProcessSystem::simulate()
     return processid;
   }
   return -1;
+}
+
+int ProcessSystem::rewriteExpression(std::string expression)
+{
+    /* create the subprocesses */
+    int processid = pid++;
+    ProcessType processType = ProcessType::Rewriting;
+    processTypes[processid] = processType;
+    consoleDock->setConsoleTab(processType);
+
+    processes[processid] = {
+        createSubprocess(SubprocessType::ParseMcrl2, processid, 0),
+        createSubprocess(SubprocessType::Mcrl22lps, processid, 1),
+        createSubprocess(SubprocessType::Mcrl2i, processid, 2, Property(), QString::fromStdString(expression))
+    };
+
+    processQueues[processType]->enqueue(processid);
+    
+    emit newProcessQueued(processType);
+
+    return processid;
 }
 
 int ProcessSystem::showLts(mcrl2::lts::lts_equivalence reduction)
@@ -551,11 +628,11 @@ int ProcessSystem::showEvidence(const Property& property)
         createSubprocess(SubprocessType::Mcrl22lps, processid, 1),
         createSubprocess(SubprocessType::ParseMcf, processid, 2, property),
         createSubprocess(SubprocessType::Lps2pbes, processid, 3, property,
+                         QString(), true),
+        createSubprocess(SubprocessType::Pbessolve, processid, 4, property, QString(),
                          true),
-        createSubprocess(SubprocessType::Pbessolve, processid, 4, property,
-                         true),
-        createSubprocess(SubprocessType::Lps2lts, processid, 5, property, true),
-        createSubprocess(SubprocessType::Ltsgraph, processid, 6, property,
+        createSubprocess(SubprocessType::Lps2lts, processid, 5, property, QString(),true),
+        createSubprocess(SubprocessType::Ltsgraph, processid, 6, property, QString(),
                          true)};
     processQueues[processType]->enqueue(processid);
     emit newProcessQueued(processType);
@@ -750,6 +827,9 @@ void ProcessSystem::executeNextSubprocess(int previousExitCode, int processid)
       }
       break;
 
+    case SubprocessType::Mcrl2i:
+      consoleDock->writeToConsole(processType, "##### REWRITING EXPRESSION #####\n");
+
     default:
       break;
     }
@@ -879,6 +959,19 @@ void ProcessSystem::verificationResult(int previousExitCode)
               " on this specification evaluates to false\n");
     }
   }
+  emit processFinished(processid);
+}
+
+void ProcessSystem::rewriteResult(int previousExitCode)
+{
+  QProcess* previousProcess = qobject_cast<QProcess*>(sender());
+  int processid = previousProcess->property("processid").toInt();
+
+  if (previousExitCode == 0)
+  {
+    results[processid] = QString(previousProcess->readAllStandardOutput());
+  }
+    
   emit processFinished(processid);
 }
 

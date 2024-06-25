@@ -97,6 +97,29 @@ class HelpMenu : public QMenu
     }
 };
 
+inline
+void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    QByteArray localMsg = msg.toLocal8Bit();
+    switch (type) {
+    case QtDebugMsg:
+        fprintf(stderr, "Debug: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtInfoMsg:
+        fprintf(stderr, "Info: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtWarningMsg:
+        fprintf(stderr, "Warning: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtCriticalMsg:
+        fprintf(stderr, "Critical: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        break;
+    case QtFatalMsg:
+        fprintf(stderr, "Fatal: %s (%s:%u, %s)\n", localMsg.constData(), context.file, context.line, context.function);
+        abort();
+    }
+}
+
 template <typename Tool>
 class qt_tool: public Tool
 {
@@ -142,13 +165,22 @@ class qt_tool: public Tool
 
     bool pre_run(int& argc, char** argv)
     {
+#ifdef MCRL2_PLATFORM_WINDOWS
+      // Disable the dark mode on Windows 11 until the icons have been adapted
+      qputenv("QT_QPA_PLATFORM", "windows:darkmode=0");
+#endif // MCRL2_PLATFORM_WINDOWS
+
       // The instantiation of QApplication has been postponed
       // to here, since creating it in execute would make it
       // impossible to view the help text in an environment
       // without display server
       try
       {
+        qInstallMessageHandler(myMessageOutput); // Install the handler
         m_application = std::unique_ptr<QApplication>(new QApplication(argc, argv));
+#ifdef MCRL2_PLATFORM_WINDOWS
+        m_application->setStyle("windowsvista");
+#endif // MCRL2_PLATFORM_WINDOWS
       }
       catch (...)
       {

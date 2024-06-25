@@ -34,6 +34,7 @@ MainWindow::MainWindow(const QString& inputFilePath, QWidget* parent)
   findAndReplaceDialog = new FindAndReplaceDialog(specificationEditor, this);
   addPropertyDialog = new AddEditPropertyDialog(true, processSystem, fileSystem,
                                                 findAndReplaceDialog, this);
+  toolOptionsDialog = new ToolOptionsDialog(this, fileSystem);
 
   setupMenuBar();
   setupToolbar();
@@ -129,13 +130,10 @@ void MainWindow::setupMenuBar()
       QKeySequence(Qt::ALT | Qt::Key_I));
   importPropertiesAction->setEnabled(false);
 
-// workaround for QTBUG-57687
-#if QT_VERSION > QT_VERSION_CHECK(5, 10, 0) || !defined MCRL2_PLATFORM_WINDOWS
   fileMenu->addSeparator();
 
   openGuiAction =
       fileMenu->addAction("Open mcrl2-gui", this, SLOT(actionOpenMcrl2gui()));
-#endif
 
   fileMenu->addSeparator();
 
@@ -191,7 +189,7 @@ void MainWindow::setupMenuBar()
   for (std::pair<IntermediateFileType, QString> item :
        INTERMEDIATEFILETYPENAMES)
   {
-    QAction* saveFileAction = saveIntermediateFilesMenu->addAction(item.second);
+    QAction* saveFileAction = saveIntermediateFilesMenu->addAction(item.second, this, SLOT(nothingSlot()));
     saveFileAction->setCheckable(true);
     saveFileAction->setProperty("filetype", item.first);
     saveFileAction->setToolTip("Changing this will only have effect on "
@@ -199,6 +197,8 @@ void MainWindow::setupMenuBar()
     connect(saveFileAction, SIGNAL(toggled(bool)), fileSystem,
             SLOT(setSaveIntermediateFilesOptions(bool)));
   }
+
+  optionsMenu->addAction("Tool Options", this, SLOT(actionShowToolOptions()));
 }
 
 void MainWindow::setupToolbar()
@@ -228,14 +228,17 @@ void MainWindow::setDocksToDefault()
 
   propertiesDock->setFloating(false);
   consoleDock->setFloating(false);
+  rewriteExpressionDock->setFloating(true);
 
   propertiesDock->show();
   consoleDock->show();
+  rewriteExpressionDock->hide();
 
   // Workaround for QTBUG-65592.
   propertiesDock->setObjectName("PropertiesDockObject");
   consoleDock->setObjectName("ConsoleDockObject");
   toolbar->setObjectName("ToolbarObject");
+  rewriteExpressionDock->setObjectName("RewriteExpressionDockObject");
   QByteArray array = saveState();
   restoreState(array);
 
@@ -249,10 +252,13 @@ void MainWindow::setupDocks()
   propertiesDock =
       new PropertiesDock(processSystem, fileSystem, findAndReplaceDialog, this);
   consoleDock = new ConsoleDock(this);
+  rewriteExpressionDock = new RewriteExpressionDock(specificationEditor, processSystem, this);
 
   /* add toggleable option in the view menu for each dock */
   viewMenu->addAction(propertiesDock->toggleViewAction());
   viewMenu->addAction(consoleDock->toggleViewAction());
+  viewMenu->addAction(rewriteExpressionDock->toggleViewAction());
+  rewriteExpressionDock->setEnabled(false);
 
   /* place the docks in the default dock layout */
   setDocksToDefault();
@@ -277,6 +283,10 @@ void MainWindow::onNewProjectOpened()
 
   /* change the file buttons */
   changeFileButtons(false);
+
+  toolOptionsDialog->updateToolOptions();
+
+  rewriteExpressionDock->setEnabled(true);
 }
 
 void MainWindow::onEnterSpecificationOnlyMode()
@@ -338,8 +348,6 @@ void MainWindow::actionImportProperties()
 
 void MainWindow::actionOpenMcrl2gui()
 {
-// workaround for QTBUG-57687
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
   QProcess* p = new QProcess();
   p->setProgram(fileSystem->toolPath("mcrl2-gui"));
   if (!p->startDetached())
@@ -347,14 +355,6 @@ void MainWindow::actionOpenMcrl2gui()
     QMessageBox::warning(this, "mCRL2 IDE",
                          "Failed to start mcrl2-gui: " + p->errorString());
   }
-#elif not defined MCRL2_PLATFORM_WINDOWS
-  if (!QProcess::startDetached(fileSystem->toolPath("mcrl2-gui")))
-  {
-    executeInformationBox(
-        this, "mCRL2 IDE",
-        "Failed to start mcrl2-gui: could not find its executable");
-  }
-#endif
 }
 
 void MainWindow::actionFindAndReplace()
@@ -404,6 +404,14 @@ void MainWindow::actionParse()
   }
 }
 
+void MainWindow::actionShowToolOptions()
+{
+  if (assertSpecificationOpened())
+  {
+    toolOptionsDialog->show();
+  }
+}
+
 void MainWindow::actionSimulate()
 {
   if (assertSpecificationOpened())
@@ -450,7 +458,7 @@ void MainWindow::actionShowReducedLts()
       QVBoxLayout vbox;
       QLabel textLabel("Reduction:");
       EquivalenceComboBox reductionBox(&reductionDialog);
-      QDialogButtonBox buttonBox(QDialogButtonBox::Cancel);
+      QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
       vbox.addWidget(&textLabel);
       vbox.addWidget(&reductionBox);
@@ -465,6 +473,7 @@ void MainWindow::actionShowReducedLts()
       if (last_equivalence)
       {
         reductionBox.setSelectedEquivalence(last_equivalence.value());
+        connect(&buttonBox, SIGNAL(accepted()), &reductionDialog, SLOT(accept()));
       }
 
       /* execute the dialog */
@@ -549,10 +558,12 @@ void MainWindow::changeFileButtons(bool specificationOnlyMode)
   if (fileSystem->projectOpened())
   {
     importPropertiesAction->setEnabled(true);
+    rewriteExpressionDock->setEnabled(true);
   }
   else
   {
     importPropertiesAction->setEnabled(false);
+    rewriteExpressionDock->setEnabled(false);
   }
 }
 
