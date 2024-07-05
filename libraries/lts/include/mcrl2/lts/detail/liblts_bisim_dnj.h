@@ -296,7 +296,7 @@ class action_block_entry;
         }
 
 
-        /// \brief allocate and construct a new element of a  size that doesn't
+        /// \brief allocate and construct a new element of a size that doesn't
         /// fit the free list
         template <class U, class... Args>
         U* construct_othersize(Args&&... args)
@@ -2888,9 +2888,14 @@ class part_trans_t
             // action_block-slice.)
 
             // extend the bunch
-            new_noninert_bunch = (*new_noninert_block_bunch_ptr)->bunch;        assert(new_action_block_pos == new_noninert_bunch->end ||
-                                                                                                        (nullptr == new_action_block_pos[-1].succ &&
-                                                                                                         new_action_block_pos - 1 == new_noninert_bunch->end));
+            new_noninert_bunch = (*new_noninert_block_bunch_ptr)->bunch;        assert(new_action_block_pos >= new_noninert_bunch->end);
+                                                                                ONLY_IF_DEBUG(
+                                                                                    for (const action_block_entry*temp_action_block_pos=new_action_block_pos ;
+                                                                                                            temp_action_block_pos > new_noninert_bunch->end ; )
+                                                                                    {
+                                                                                        assert(nullptr == (--temp_action_block_pos)->succ);
+                                                                                    }
+                                                                                )
             new_noninert_bunch->end = action_block_inert_begin;
             /* extend the block_bunch-slice                                  */ assert((*new_noninert_block_bunch_ptr)->end == new_block_bunch_pos);
             (*new_noninert_block_bunch_ptr)->end = block_bunch_inert_begin;
@@ -3180,8 +3185,7 @@ class part_trans_t
                                                                                             return;
                                                                                         }
                                                                                         const state_info_entry* source(succ_iter->block_bunch->pred->source);
-                                                                                        mCRL2log(log::debug) << source->debug_id(partitioner)
-                                                                                                                                                      << ":\n";
+                                                                                        mCRL2log(log::debug) << source->debug_id(partitioner) << ":\n";
                                                                                         block_bunch_slice_iter_or_null_t current_out_bunch(
                                                                                                          const_cast<part_trans_t*>(this)->splitter_list.end());
                                                                                         do
@@ -4714,9 +4718,9 @@ class bisim_partitioner_dnj
                                                                                         << block_B->debug_id(*this)
                                                                                         << ',' << splitter_T->debug_id(*this)
                                                                                         << (extend_from_marked_states__add_new_noninert_to_splitter == mode
-                                                                                           ? ",extend_from_marked_states__add_new_noninert_to_splitter,"
+                                                                                           ? ",extend_from_marked_states__add_new_noninert_to_splitter)\n"
                                                                                            : (extend_from_marked_states == mode
-                                                                                             ? ",extend_from_marked_states,"
+                                                                                             ? ",extend_from_marked_states)\n"
                                                                                              : (extend_from_splitter == mode
                                                                                                ? ",extend_from_splitter)\n"
                                                                                                : ",UNKNOWN MODE)\n")));
@@ -5493,14 +5497,19 @@ void bisimulation_reduce_dnj(LTS_TYPE& l, bool const branching = false,
 {
     if (1 >= l.num_states())
     {
-        mCRL2log(log::warning) << "There is only 1 state in the LTS. It is not "
-                "guaranteed that branching bisimulation minimisation runs in "
-                "time O(m log n).\n";
+        // LTSs with 1 state also need to be reduced because some users call
+        // bisimulation minimisation just to remove duplicated transitions.
+        mCRL2log(log::warning) << "There is only 1 state in the LTS. It is "
+                "not guaranteed that branching bisimulation minimisation runs "
+                "in time O(m log n).\n";
     }
     // Line 2.1: Find tau-SCCs and contract each of them to a single state
     if (branching)
     {
         scc_reduce(l, preserve_divergence);
+        // If only 1 state remains after this contraction, we are already
+        // finished because scc_reduce() also removes duplicated transitions.
+        if (1 >= l.num_states())  return;
     }
 
     // Now apply the branching bisimulation reduction algorithm.  If there
@@ -5536,7 +5545,8 @@ template <class LTS_TYPE>
 bool destructive_bisimulation_compare_dnj(LTS_TYPE& l1, LTS_TYPE& l2,
         bool const branching = false, bool const preserve_divergence = false,
         bool const generate_counter_examples = false,
-        const std::string& /*counter_example_file*/ = "", bool /*structured_output*/ = false)
+        const std::string& /*counter_example_file*/ = "",
+        bool /*structured_output*/ = false)
 {
     if (generate_counter_examples)
     {
