@@ -29,15 +29,15 @@
 #include "mcrl2/lts/detail/liblts_scc.h"
 #include "mcrl2/lts/detail/liblts_merge.h"
 
-#define CHECK_COMPLEXITY_GJ // check whether coroutines etc. satisfy the O(m log n) time complexity constraint for the concrete input
+#ifndef NDEBUG
+#define CHECK_COMPLEXITY_GJ // Check whether coroutines etc. satisfy the O(m log n) time complexity constraint for the concrete input.
+                            // Outcomment to disable. Works only in debug mode. 
+#endif
 
 #ifdef CHECK_COMPLEXITY_GJ
-  #ifdef NDEBUG
-    #error "It does not make sense to check the complexity in non-debug mode"
-  #endif
-
   #include "mcrl2/lts/detail/check_complexity.h"
-  #define mCRL2complexity_gj(...) mCRL2complexity(__VA_ARGS__)
+  // Using __VA_ARGS__ is not handled appropriately by MSVC. 
+  #define mCRL2complexity_gj(A1, A2, A3) mCRL2complexity(A1, A2, A3)
 #else
   #define mCRL2complexity_gj(...)  do{}while(0)
 #endif
@@ -2658,7 +2658,7 @@ class bisim_partitioner_gj
 //std::cerr << "RANGE OUT  "; for(auto s=begin; s!=end; s++){ std::cerr << *s << "  "; } std::cerr << "\n";
     }
 
-
+//================================================= Create initial partition ========================================================
     void create_initial_partition()
     {
       mCRL2log(log::verbose) << "An O(m log n) "
@@ -2903,7 +2903,6 @@ mCRL2log(log::verbose) << "Start refining in the initialisation\n";
      
       for(label_index a: todo_stack_actions)
       {
-// YYYYYYYYYYYYY
 mCRL2log(log::debug) << "--------------------------------------------------\n";
 mCRL2log(log::debug) << "CONSIDER ACTION ";
 if (m_aut.num_action_labels() != a) { mCRL2log(log::debug) << m_aut.action_label(a) << "   "; } else { mCRL2log(log::debug) << "(inert tau)   "; }
