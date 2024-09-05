@@ -205,6 +205,9 @@ const char *check_complexity::work_names[TRANS_gj_MAX - BLOCK_MIN + 1] =
     /*----------------- counters for the bisim_gj algorithm -----------------*/
 
     // block counters
+    "refine_partition_until_it_becomes_stable(): find a splitter",
+    "hatU_does_not_cover_B_bottom(): handle the bottom states "
+                              "and their outgoing transitions in the splitter",
     "splitB(): update BLC data structure of the smaller subblock",
     "finalize_minimized_LTS(): set labels of a block",
 
@@ -216,25 +219,38 @@ const char *check_complexity::work_names[TRANS_gj_MAX - BLOCK_MIN + 1] =
     "simple_splitB(): find predecessors of a state in R",
     "simple_splitB(): find a bottom state in U",
     "simple_splitB(): find predecessors of a state in U",
+    "create_initial_partition(): set start_incoming_transitions",
     "finalize_minimized_LTS(): collect labels of a state",
 
     // BLC slice counters
+    "refine_partition_until_it_becomes_stable(): "
+                              "select an action label and a block to be split",
     "finalize_minimized_LTS(): handle a transition",
 
     // transition counters
-    "simple_splitB(): handle a transition from a state of the smaller subblock",
+    "simple_splitB(): "
+                    "handle a transition from a state of the smaller subblock",
+    "refine_partition_until_it_becomes_stable(): find a cotransition",
     "simple_splitB(): handle a transition to a state of the smaller subblock",
     "simple_splitB(): do not add state with a transition in the splitter to U",
+    "not_all_bottom_states_are_touched(): mark the source state",
+    "some_bottom_state_has_no_outgoing_co_transition(): handle a transition",
+    "group_in_situ(): count transitions per block",
+    "group_in_situ(): swap transition",
+    "group_in_situ(): skip to the next block",
+    "create_initial_partition(): "
+                              "select an action label and a block to be split",
     "simple_splitB(): handle a transition (in the splitter) from an R-state",
     "simple_splitB(): handle an (inert) transition to an R-state",
     "simple_splitB(): handle an (inert) transition to a U-state",
     "simple_splitB(): handle a transition from a potential U-state",
-    "simple_splitB(): the test for outgoing transitions "
-                                                     "found a new bottom state"
+    "create_initial_partition(): set transitions_per_block_to_constellation",
+    "simple_splitB(): "
+                   "the test for outgoing transitions found a new bottom state"
 };
 
 
-#if 0
+#ifdef TEST_WORK_COUNTER_NAMES
 /// \brief helper macro for check_complexity::test_work_names()
 #define test_work_name(var, ctr)                                              \
         do                                                                    \
@@ -276,11 +292,13 @@ void check_complexity::test_work_names()
     test_work_name(i, refine_visited_state_3_15);
 
     // temporary state counters (blue):
+    assert(check_complexity::STATE_MIN_TEMP == i);
     test_work_name(i, while_Test_is_not_empty_3_6l_s_is_blue_3_11l);
     test_work_name(i, while_Blue_contains_unvisited_states_3_15l);
 
     // temporary state counters (red):
     test_work_name(i, while_Red_contains_unvisited_states_3_15r);
+    assert(check_complexity::STATE_MAX_TEMP + 1 == i);
 
     // new bottom state counters
     test_work_name(i, for_all_bottom_states_s_in_RfnB_4_8);
@@ -293,7 +311,9 @@ void check_complexity::test_work_names()
     test_work_name(i,
                 Register_that_inert_transitions_from_s_go_to_NewC_B_to_C_2_17);
     // temporary B_to_C_descriptor counters
+    assert(check_complexity::B_TO_C_MIN_TEMP == i);
     test_work_name(i, for_all_constellations_C_not_in_R_from_RfnB_4_4);
+    assert(check_complexity::B_TO_C_MAX_TEMP + 1 == i);
     assert(check_complexity::B_TO_C_MAX + 1 == i);
 
     // transition counters
@@ -391,9 +411,69 @@ void check_complexity::test_work_names()
            refine_partition_until_stable__stabilize_new_noninert_a_posteriori);
     assert(check_complexity::TRANS_dnj_MAX + 1 == i);
 
+    /*----------------- counters for the bisim_gj algorithm -----------------*/
+
+    // block counters
+    assert(check_complexity::BLOCK_gj_MIN == i);
+    test_work_name(i, refine_partition_until_it_becomes_stable__find_splitter);
+    test_work_name(i, hatU_does_not_cover_B_bottom__handle_bottom_states_and_their_outgoing_transitions_in_splitter);
+    test_work_name(i, splitB__update_BLC_of_smaller_subblock);
+    test_work_name(i, finalize_minimized_LTS__set_labels_of_block);
+    assert(check_complexity::BLOCK_gj_MAX + 1 == i);
+
+    // state counters
+    assert(check_complexity::STATE_gj_MIN == i);
+    test_work_name(i, split_block_B_into_R_and_BminR__carry_out_split);
+    test_work_name(i, simple_splitB__find_bottom_state);
+    test_work_name(i, simple_splitB__find_predecessors_of_R_or_U_state);
+    assert(check_complexity::STATE_gj_MIN_TEMP == i);
+    test_work_name(i, simple_splitB_R__find_predecessors);
+    test_work_name(i, simple_splitB_U__find_bottom_state);
+    test_work_name(i, simple_splitB_U__find_predecessors);
+    assert(check_complexity::STATE_gj_MAX_TEMP + 1 == i);
+    test_work_name(i,create_initial_partition__set_start_incoming_transitions);
+    test_work_name(i, finalize_minimized_LTS__collect_labels_of_state);
+    assert(check_complexity::STATE_gj_MAX + 1 == i);
+
+    // BLC slice counters
+    assert(check_complexity::BLC_gj_MIN == i);
+    test_work_name(i,
+        refine_partition_until_it_becomes_stable__select_action_label_and_block_to_be_split);
+    test_work_name(i, finalize_minimized_LTS__handle_transition);
+    assert(check_complexity::BLC_gj_MAX + 1 == i);
+
+    // transition counters
+    assert(check_complexity::TRANS_gj_MIN == i);
+    test_work_name(i, simple_splitB__handle_transition_from_R_or_U_state);
+    test_work_name(i,
+                  refine_partition_until_it_becomes_stable__find_cotransition);
+    test_work_name(i, simple_splitB__handle_transition_to_R_or_U_state);
+    test_work_name(i,
+             simple_splitB__do_not_add_state_with_transition_in_splitter_to_U);
+    test_work_name(i, not_all_bottom_states_are_touched__mark_source_state);
+    test_work_name(i,
+           some_bottom_state_has_no_outgoing_co_transition__handle_transition);
+    test_work_name(i, group_in_situ__count_transitions_per_block);
+    test_work_name(i, group_in_situ__swap_transition);
+    test_work_name(i, group_in_situ__skip_to_next_block);
+    test_work_name(i,
+          create_initial_partition__select_action_label_and_block_to_be_split);
+    assert(check_complexity::TRANS_gj_MIN_TEMP == i);
+    test_work_name(i, simple_splitB_R__handle_transition_from_R_state);
+    test_work_name(i, simple_splitB_R__handle_transition_to_R_state);
+    test_work_name(i, simple_splitB_U__handle_transition_to_U_state);
+    test_work_name(i,
+                    simple_splitB_U__handle_transition_from_potential_U_state);
+    assert(check_complexity::TRANS_gj_MAX_TEMP + 1 == i);
+    test_work_name(i,
+         create_initial_partition__set_transitions_per_block_to_constellation);
+    test_work_name(i,
+              simple_splitB__test_outgoing_transitions_found_new_bottom_state);
+    assert(check_complexity::TRANS_gj_MAX + 1 == i);
+
     exit(EXIT_SUCCESS);
 }
-#endif // #if 0
+#endif // #ifdef TEST_WORK_NAMES
 
 #endif // #ifndef NDEBUG
 
