@@ -18,7 +18,7 @@
 // Merge identifying whether there is a splitter and actual splitting (Done. No performance effect).
 // Use BLC lists for the main split. 
 // Maintain a co-splitter and a splitter to enable a co-split. 
-// Eliminate two pointers in transition_type.
+// Eliminate two pointers in transition_type (done).
 
 #ifndef LIBLTS_BISIM_GJ_H
 #define LIBLTS_BISIM_GJ_H
@@ -1310,8 +1310,9 @@ class bisim_partitioner_gj
               typename std::vector<state_index>::iterator pos3) 
     {
 // David suggests: actually it is enough to require
-// assert(pos1 != pos2 || pos2 == pos3);
+//      assert(pos1 != pos2 || pos2 == pos3);
 // (Memory help: pos3 should be between pos1 and pos2.)
+// JFG answers: The assertion below is much stronger than the one above. 
       assert(pos1!=pos2 && pos2!=pos3 && pos3!=pos1);
       const state_index temp=*pos1;
       *pos1=*pos3;
@@ -1338,14 +1339,15 @@ class bisim_partitioner_gj
       #ifdef CHECK_COMPLEXITY_GJ
         m_blocks[B_new].work_counter = m_blocks[B].work_counter;
       #endif
-      // m_non_trivial_constellations.emplace(m_blocks[B].constellation);
       std::forward_list<block_index>::iterator cit=m_constellations[m_blocks[B].constellation].blocks.begin();
       assert(cit!=m_constellations[m_blocks[B].constellation].blocks.end());
       ++cit;
       if (cit==m_constellations[m_blocks[B].constellation].blocks.end()) // This constellation is trivial.
       {
-        // This constellation is trivial, as it will be split add to the non trivial constellations. 
-        assert(std::find(m_non_trivial_constellations.begin(),m_non_trivial_constellations.end(),m_blocks[B].constellation)==m_non_trivial_constellations.end());
+        // This constellation is trivial, as it will be split add it to the non trivial constellations. 
+        assert(std::find(m_non_trivial_constellations.begin(),
+                         m_non_trivial_constellations.end(),
+                         m_blocks[B].constellation)==m_non_trivial_constellations.end());
         m_non_trivial_constellations.emplace_back(m_blocks[B].constellation);
       }
       m_constellations[m_blocks[B].constellation].blocks.push_front(B_new);
@@ -1369,7 +1371,7 @@ class bisim_partitioner_gj
 // Doing additional assignments is likely faster than all these branches.
 // (perhaps only distinguish between no swap is needed at all/some swap is needed)
 // JFG: I am not so sure whether swapping more is better, as it requires more memory accesses, possibly outside the cache.
-//      But we could attempt to clean up this code. 
+//      The code is cleaned up
           // We know that B must have a bottom state. Not true all bottom states can be removed from B. 
           // assert(m_blocks[B].start_bottom_states!=m_blocks[B].start_non_bottom_states);
           if (pos==m_blocks[B].start_bottom_states)
@@ -1377,27 +1379,18 @@ class bisim_partitioner_gj
             // There is no bottom state left. pos is a non bottom state. No swap is necessary as it is
             // already at the right position.
           }
+          else if (pos==m_blocks[B].start_non_bottom_states || 
+                   m_blocks[B].start_bottom_states==m_blocks[B].start_non_bottom_states)
+          {
+            // pos is not also located at the first bottom state, or
+            // pos is a later non-bottom-state of B. We need to swap:
+            // pos --> B.start_bottom_states --> pos.
+            swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states);
+          }
           else
           {
-            if (pos==m_blocks[B].start_non_bottom_states)
-            {
-              // pos is not also located at the first bottom state, so a swap is needed.
-              // Otherwise no swap is required. 
-              swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states);
-            }
-            else
-            {
-              // pos is a later non-bottom-state of B. We need to swap:
-              // pos --> B.start_bottom_states --> B.start_non_bottom_states --> pos.
-              if (m_blocks[B].start_bottom_states==m_blocks[B].start_non_bottom_states)
-              {
-                swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states);
-              }
-              else
-              {
-                swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states, m_blocks[B].start_non_bottom_states);
-              }
-            }
+            // pos --> B.start_bottom_states --> B.start_non_bottom_states --> pos.
+            swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states, m_blocks[B].start_non_bottom_states);
           }
           m_blocks[B].start_non_bottom_states++;
           m_blocks[B].start_bottom_states++;
@@ -1417,19 +1410,10 @@ class bisim_partitioner_gj
             // It holds that B.start_bottom_states==B_new_bottom_states.
             // Nothing needs to be swapped. 
           }
-          else if (m_blocks[B_new].start_non_bottom_states==m_blocks[B].start_bottom_states)
+          else if (pos==m_blocks[B].start_bottom_states ||
+                   m_blocks[B_new].start_non_bottom_states==m_blocks[B].start_bottom_states)
           {
-            // There are no non-bottom states in B_new. 
-            swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states);
-          }
-          else if (m_blocks[B_new].start_non_bottom_states==m_blocks[B].start_bottom_states)
-          {
-            // pos --> B.start_bottom_states --> pos.
-            swap_states_in_states_in_block(pos,m_blocks[B].start_bottom_states);
-          }
-          else if (pos==m_blocks[B].start_bottom_states)
-          {
-            // pos --> new_B.start_non_bottom_states --> pos.
+            // pos --> B_new.start_non_bottom_states --> pos.
             swap_states_in_states_in_block(pos,m_blocks[B_new].start_non_bottom_states);
           }
           else
@@ -1667,8 +1651,8 @@ class bisim_partitioner_gj
       // assert(VARIANT!=2 || m_R.empty());
       assert(VARIANT!=1 || m_U.empty());
       assert(VARIANT!=1 || m_U_counter_reset_vector.empty());
-      typedef enum { initializing, state_checking, aborted, aborted_after_initialisation, incoming_inert_transition_checking, outgoing_action_constellation_check /*,
-                     outgoing_action_constellation_check_during_initialisation*/ } status_type;
+      typedef enum { initializing, state_checking, aborted, aborted_after_initialisation, 
+                     incoming_inert_transition_checking, outgoing_action_constellation_check } status_type;
       status_type U_status=(VARIANT==1)?initializing:state_checking;
       status_type R_status=(VARIANT==1)?state_checking:initializing;
       MARKED_STATE_TRANSITION_ITERATOR M_it=M_begin; 
@@ -1926,13 +1910,6 @@ class bisim_partitioner_gj
               if (m_states[si].counter==undefined)
               {
                 mCRL2complexity_gj(&m_states[si], add_work(check_complexity::simple_splitB_U__find_bottom_state, 1), *this);
-                /* if (VARIANT==2 && !(R_status==state_checking || R_status==incoming_inert_transition_checking || R_status==aborted_after_initialisation))
-                {
-                  current_U_outgoing_state=si;
-                  current_U_outgoing_transition_iterator=m_states[si].start_outgoing_transitions;
-                  U_status=outgoing_action_constellation_check_during_initialisation;
-                  break;
-                } */
 
                 assert(!m_R.find(si));
                 // This is for VARIANT 1.
@@ -1985,52 +1962,6 @@ class bisim_partitioner_gj
             }
             break;
           }
-/*          case outgoing_action_constellation_check_during_initialisation:
-// David suggests: this should not be necessary, because the bottom states can always be split
-// before the two coroutines start.
-// In fact, if current_U_outgoing_state is already a bottom state
-// and does not have a transition to the splitter,
-// this check takes too long.
-// The outgoing-action-constellation-check is only allowed for states
-// that can become NEW bottom states.
-          {
-//std::cerr << "U_outg_actconstcheckduringit\n";
-            if (current_U_outgoing_transition_iterator==m_outgoing_transitions.end() ||
-                (current_U_outgoing_state+1<m_states.size() &&
-                    current_U_outgoing_transition_iterator==m_states[current_U_outgoing_state+1].start_outgoing_transitions))
-            {
-              assert(!m_U.find(current_U_outgoing_state));
-//std::cerr << "U_todo2 insert: " << current_U_outgoing_state << "\n";
-              m_U.add_todo(current_U_outgoing_state);
-              m_states[current_U_outgoing_state].counter=0;
-              m_U_counter_reset_vector.push_back(current_U_outgoing_state);
-              // Algorithm 3, 
-              if (2*m_U.size()>B_size)
-              {
-                U_status=aborted;
-                break;
-              }
-              else
-              {
-                U_status=initializing;
-              }
-              break;
-            }
-            else
-            {
-              const transition& t_local=m_aut.get_transitions()[current_U_outgoing_transition_iterator->transition];
-              if (m_aut.apply_hidden_label_map(t_local.label())==a && m_blocks[m_states[t_local.to()].block].constellation==C)
-              {
-                // This state must be blocked.
-                U_status=initializing;
-                // m_states[current_U_outgoing_state].counter=undefined;
-                break;
-              }
-              current_U_outgoing_transition_iterator=current_U_outgoing_transition_iterator->start_same_saC; // This is an optimisation.
-              current_U_outgoing_transition_iterator++;
-            }
-            break;
-          } */
           do_state_checking:
           case state_checking:
           {
@@ -2717,6 +2648,9 @@ class bisim_partitioner_gj
       // group_transitions_on_tgt(m_aut.get_transitions(), m_aut.num_action_labels(), m_aut.tau_label_index(), m_aut.num_states()); // sort on label. Tau transitions come first.
       // sort_transitions(m_aut.get_transitions(), lbl_tgt_src);
 // David suggests: I think it is enough to sort according to tgt_lbl.
+// JFG answers: Agreed. But I believe this can be done a no cost. For 1394-fin-vvlarge this saves 1 second to sort, but
+//                      requires five more seconds to carry out the splitting. Apparently, there is benefit to have src together.
+//                      This may have been measured on an older version of the code. 
       sort_transitions(m_aut.get_transitions(), m_aut.hidden_label_set(), tgt_lbl_src); // THIS IS NOW ESSENTIAL.
       // sort_transitions(m_aut.get_transitions(), src_lbl_tgt);
       // sort_transitions(m_aut.get_transitions(), tgt_lbl);
@@ -3014,7 +2948,6 @@ mCRL2log(log::verbose) << "Start refining in the initialisation\n";
                       (block_ind, start_index_per_block, end_index_per_block))
               { 
                 bool dummy=false;
-                // std::size_t dummy_number=-1;
                 const bool initialisation=true;
                 splitB<1>(block_ind, 
                           start_index_per_block,
@@ -3452,6 +3385,7 @@ mCRL2log(log::verbose) << "Start stabilizing in the initialisation\n";
     // outgoing transitions. Set m_states[s].counter accordingly.
     // If all states in W have outgoing transitions with the label and constellation, leave
     // m_R, m_U, m_states[s].counters and m_U_counter_reset vector untouched. 
+
     bool W_empty(const set_of_states_type& W, const set_of_states_type& aux)
     {
       bool W_empty=true;
@@ -3676,8 +3610,8 @@ DIT WERKT NIET MEER WANT NON_TRIVIAL_CONSTELLATIONS IS NU EEN VECTOR EN GEEN SET
       // This represents the while loop in Algorithm 1 from line 1.6 to 1.25.
 
       std::vector<label_count_sum_triple> value_counter(m_blocks.size());
-      std::vector<transition_index> count_transitions_per_label;
-      count_transitions_per_label.reserve(m_aut.num_action_labels()); // will be reset to 0 later
+      // The instruction below has complexity O(|Act|);
+      std::vector<transition_index> count_transitions_per_label(m_aut.num_action_labels(),0); 
       std::vector<label_index> todo_stack_labels;
       std::vector<block_index> todo_stack_blocks;
       std::vector<transition_index> calM;
@@ -3726,9 +3660,15 @@ DIT WERKT NIET MEER WANT NON_TRIVIAL_CONSTELLATIONS IS NU EEN VECTOR EN GEEN SET
         // The following data structure maintains per state and action label from where to where the start_same_saC pointers
         // in m_outgoing_transitions still have to be set. 
  
-        clear(todo_stack_labels);
 // David suggests: The following statement takes time O(|Act|).
-        count_transitions_per_label.assign(m_aut.num_action_labels(), 0);
+// JFG answers: This is a real problem. It has been solved below by only resetting those values that have been set. 
+        // count_transitions_per_label.assign(m_aut.num_action_labels(), 0);
+        for(std::size_t i: todo_stack_labels)
+        {
+          count_transitions_per_label[i]=0;
+        }
+        assert(std::for_each(count_transitions_per_label.begin(),count_transitions_per_label.end(),[](std::size_t n){ return n==0; }));
+        clear(todo_stack_labels);
         for(typename std::vector<state_index>::iterator i=m_blocks[index_block_B].start_bottom_states;
                                                         i!=m_blocks[index_block_B].end_states; ++i)
         {
@@ -3814,6 +3754,7 @@ DIT WERKT NIET MEER WANT NON_TRIVIAL_CONSTELLATIONS IS NU EEN VECTOR EN GEEN SET
             if (!m_branching || !m_aut.is_tau(m_aut.apply_hidden_label_map(t.label())) || m_states[t.from()].block != m_states[t.to()].block)
             {
               transition_index& c=count_transitions_per_label[t.label()];
+              assert(c<calM.size());
               calM[c]=t_index;
               c++;
             }
@@ -3822,6 +3763,7 @@ DIT WERKT NIET MEER WANT NON_TRIVIAL_CONSTELLATIONS IS NU EEN VECTOR EN GEEN SET
 // loop through the states in block B.
 // Here, place the code from below to correct the start_same_saC pointers.
 // Then we do not need the vector transitions_for_which_start_same_saC_must_be_repaired.
+// JFG answers: As discussed David will adapt this. 
             // Update the state-action-constellation (saC) references in m_outgoing_transitions.
             const outgoing_transitions_it pos1=m_transitions[t_index].ref_outgoing_transitions;
             outgoing_transitions_it end_same_saC;
@@ -4050,7 +3992,7 @@ DIT WERKT NIET MEER WANT NON_TRIVIAL_CONSTELLATIONS IS NU EEN VECTOR EN GEEN SET
                                                     block_label_to_cotransition,
                                                     ci);
                                           });
-                assert(0 <= bi1 && bi1 < m_blocks.size());
+                assert(bi1 < m_blocks.size());
                 // Algorithm 1, line 1.13.
                 if (M_in_bi1)
                 {
