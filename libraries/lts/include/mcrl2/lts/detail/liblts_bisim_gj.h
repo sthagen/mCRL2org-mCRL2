@@ -2556,11 +2556,11 @@ assert(!initialisation);
                                                         [](const transition_index, const transition_index, const block_index){},
                        const bool split_off_new_bottom_states = true)
     {
-std::cerr << "splitB(splitter = " << splitter->debug_id(*this) << ", first_unmarked_bottom_state = " << m_states[*first_unmarked_bottom_state].debug_id(*this) << ", splitter_end_same_BLC_early = "
-<< (splitter_end_same_BLC_early == splitter->end_same_BLC ? "end_same_BLC" : (splitter_end_same_BLC_early == splitter->end_marked_BLC ? "end_marked_BLC" : "?")) << ", ..., split_off_new_bottom_states = " << split_off_new_bottom_states << ")\n";
+// std::cerr << "splitB(splitter = " << splitter->debug_id(*this) << ", first_unmarked_bottom_state = " << m_states[*first_unmarked_bottom_state].debug_id(*this) << ", splitter_end_same_BLC_early = "
+// << (splitter_end_same_BLC_early == splitter->end_same_BLC ? "end_same_BLC" : (splitter_end_same_BLC_early == splitter->end_marked_BLC ? "end_marked_BLC" : "?")) << ", ..., split_off_new_bottom_states = " << split_off_new_bottom_states << ")\n";
       const block_index B = m_states[m_aut.get_transitions()[*splitter->start_same_BLC].from()].block;
-std::cerr << "Marked bottom states:"; for (std::vector<state_index>::iterator it = m_blocks[B].start_bottom_states; it < first_unmarked_bottom_state; ++it) { std::cerr << ' ' << *it; }
-std::cerr << "\nUnmarked bottom states:"; for (std::vector<state_index>::iterator it = first_unmarked_bottom_state; it < m_blocks[B].start_non_bottom_states; ++it) { std::cerr << ' ' << *it; } std::cerr << "\nAdditionally, " << m_R.size() << " non-bottom states have been marked.\n";
+//std::cerr << "Marked bottom states:"; for (std::vector<state_index>::iterator it = m_blocks[B].start_bottom_states; it < first_unmarked_bottom_state; ++it) { std::cerr << ' ' << *it; }
+//std::cerr << "\nUnmarked bottom states:"; for (std::vector<state_index>::iterator it = first_unmarked_bottom_state; it < m_blocks[B].start_non_bottom_states; ++it) { std::cerr << ' ' << *it; } std::cerr << "\nAdditionally, " << m_R.size() << " non-bottom states have been marked.\n";
       if (1 >= number_of_states_in_block(B))
       {
         mCRL2log(log::debug) << "Trying to split up singleton block " << B << '\n';
@@ -3296,7 +3296,7 @@ std::cerr << "\nUnmarked bottom states:"; for (std::vector<state_index>::iterato
 
       // The data structures have now been completely initialized.
 
-      print_data_structures("After initial reading before splitting in the initialisation");
+      // print_data_structures("After initial reading before splitting in the initialisation");
       assert(check_data_structures("After initial reading before splitting in the initialisation"));
 
       // The initial partition has been constructed. Continue with the initiatialisation.
@@ -3455,10 +3455,12 @@ std::cerr << "\nUnmarked bottom states:"; for (std::vector<state_index>::iterato
             }
             for (; m_blocks[bi].block_to_constellation.end() != ind; ++ind)
             {
+#ifndef NDEBUG
               const transition& first_t = m_aut.get_transitions()[*ind->start_same_BLC];
               assert(m_states[first_t.from()].block == bi);
               assert(!is_inert_during_init(first_t) ||
                      m_blocks[bi].constellation != m_blocks[m_states[first_t.to()].block].constellation);
+#endif
               // BLC set transitions are not constellation-inert, so we need to stabilize under them
               Qhat.emplace_back(ind->start_same_BLC, ind->end_same_BLC);
 
@@ -3549,7 +3551,7 @@ mCRL2log(log::debug) << "Haven't yet found a transition from a new bottom state 
                         );
               if (first_unmarked_bottom_state < from_block.start_non_bottom_states)
               {
-mCRL2log(log::debug) << "PERFORM A NEW BOTTOM STATE SPLIT\n";
+// std::cerr << "PERFORM A NEW BOTTOM STATE SPLIT\n";
             // Algorithm 4, line 4.11, and implicitly 4.12, 4.13 and 4.18.
                 splitB(splitter, first_unmarked_bottom_state, splitter->end_same_BLC);
               }
@@ -4017,7 +4019,7 @@ mCRL2log(log::debug) << "PERFORM A NEW BOTTOM STATE SPLIT\n";
           mCRL2log(log::verbose) << "Refining. There are " << m_blocks.size() << " blocks and " << m_constellations.size() << " constellations.\n";
           last_log_time=last_log_time = new_log_time;
         } */
-        print_data_structures("MAIN LOOP");
+        // print_data_structures("MAIN LOOP");
         assert(check_data_structures("MAIN LOOP"));
         assert(check_stability("MAIN LOOP"));
 
@@ -4385,10 +4387,12 @@ mCRL2log(log::debug) << "PERFORM A NEW BOTTOM STATE SPLIT\n";
                   bltc_it->second!=null_transition)
               {
 // mCRL2log(log::debug) << "CO-TRANSITION  " << ptr(bltc_it->second) << "\n";
+#ifndef NDEBUG
                 const transition& co_t = m_aut.get_transitions()[bltc_it->second];
                 assert(m_states[co_t.from()].block == Bpp);
                 assert(m_blocks[m_states[co_t.to()].block].constellation == old_constellation);
                 assert(!(is_inert_during_init(co_t) && m_blocks[Bpp].constellation == old_constellation));
+#endif
                 linked_list<BLC_indicators>::iterator co_splitter = m_transitions[bltc_it->second].transitions_per_block_to_constellation;
                 assert(m_states[m_aut.get_transitions()[*co_splitter->start_same_BLC].from()].block == Bpp);
                 // Algorithm 1, line 1.19.
@@ -4426,7 +4430,7 @@ mCRL2log(log::debug) << "PERFORM A NEW BOTTOM STATE SPLIT\n";
           while (calM_elt.first < calM_elt.second);
         }
 
-print_data_structures("Before stabilize");
+// print_data_structures("Before stabilize");
         assert(check_data_structures("Before stabilize", false, false));
         check_stability("Before stabilize");
         stabilizeB();
