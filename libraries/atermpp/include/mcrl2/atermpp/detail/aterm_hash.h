@@ -28,10 +28,20 @@ struct hash<atermpp::detail::_aterm*>
 {
   std::size_t operator()(const atermpp::detail::_aterm* term) const
   {
-    // All terms are 8 bytes aligned which means that the three lowest significant
-    // bits of their pointers are always 0. However, their smallest size is 16 bytes so
-    // the lowest 4 bits do not carry much information.
+    // The hash function given here shifts a term four positions to the right.
+    // This is very effective in the toolset, as the aterms are often stored 
+    // in consecutive positions and this means they are stored in consecutive positions
+    // in hash tables based on chaining. However, this has function is very disadvantageous
+    // for other hash tables, especially those with open addressing. In that case
+    // it is much better to use the hash function below, which unfortunately can lead
+    // to a performance drop of 1/3, compared to the ">> 4" hash below. 
+    // The reason for the performance drop is most likely that with better hashing
+    // the items are better dispersed in hash tables, leading to worse cache behaviour. 
+    //   std::hash<const void*> hasher;
+    //   return hasher(reinterpret_cast<const void*>(term));
+
     return reinterpret_cast<std::uintptr_t>(term) >> 4;
+    
   }
 };
 
