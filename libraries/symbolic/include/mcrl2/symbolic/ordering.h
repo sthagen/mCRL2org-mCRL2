@@ -12,14 +12,19 @@
 
 #include "mcrl2/data/variable.h"
 #include "mcrl2/utilities/detail/container_utility.h"
+#include "mcrl2/utilities/logger.h"
 #include "mcrl2/utilities/parse_numbers.h"
 #include "mcrl2/utilities/text_utility.h"
 
 #include <boost/dynamic_bitset.hpp>
 
 #include <algorithm>
+#include <boost/dynamic_bitset/dynamic_bitset.hpp>
+#include <cstddef>
 #include <iomanip>
+#include <iostream>
 #include <iterator>
+#include <limits>
 #include <random>
 #include <regex>
 
@@ -178,6 +183,161 @@ std::vector<std::size_t> compute_variable_order_random(std::size_t n, bool exclu
 }
 
 inline
+std::string print_read_write_patterns(const std::vector<boost::dynamic_bitset<>>& patterns);
+
+/// Returns the distances to each vertex in the graph S from s.
+inline
+std::vector<std::size_t> distances(const std::vector<boost::dynamic_bitset<>>& adjacency, const boost::dynamic_bitset<> S, std::size_t s) {
+  
+  // Number of vertices in the graph.
+  std::size_t n = adjacency[0].size();
+
+  // Compute the weight of each vertex.
+  std::vector<std::size_t> dist(n, std::numeric_limits<std::size_t>::max());
+  dist[s] = 0;
+
+  for (std::size_t k = 0; k < n; ++k) {
+
+    for (std::size_t i = 0; i < n; ++i) {
+      if (S[i]) {      
+        for (std::size_t j = 0; j < n; ++j) {
+          if (S[j] && i != j) {
+            if (adjacency[i][j] > 0 && dist[i] !=  std::numeric_limits<size_t>::max())  {
+              dist[j] = std::min(dist[j], dist[i] + 1);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return dist;
+}
+
+/// Returns the sum of weighted distances to all other vertices.
+inline
+float weight(const std::vector<boost::dynamic_bitset<>>& adjacency, boost::dynamic_bitset<> S, std::size_t s)
+{
+  // Compute the weight of each vertex.
+  std::vector<std::size_t> dist = distances(adjacency, S, s);
+
+  // Compute the weight of the set S.
+  float weight = 0.0;
+  for (const auto& d : dist) {
+    if (d != std::numeric_limits<size_t>::max()) {
+      weight += std::pow(2.0f, -1.0f * (float)d);
+    }
+  }
+
+  return weight;
+}
+
+/// Returns true if the variable at position i is used in the pattern.
+inline
+bool is_used(const boost::dynamic_bitset<>& pattern, std::size_t i)
+{
+  return pattern[2*i] || pattern[2*i+1];
+}
+
+/// Details
+///
+/// Let G = (E, V) be the graph defined by the read write patterns, such that (u, v) in E if and only if there is a pattern in which u and v are both used.
+/// G_U, for U subset V, is a subgraph in which only the vertices in U are considered.
+/// 
+/// weight(u, G) = sum_{v in V} 2^(-d(u, v)), where d(u, v) is the distance between u and v in G.
+///
+/// The algorithm is as follows recurse(G, &order):
+/// 1. while G is not empty
+/// 2.  pick u in G such that weight(u, G) is maximal
+/// 3.  order := order u
+/// 4.  determine G_u, the connected component of u in G
+/// 5.  recurse(G_u, &order)
+/// End
+inline
+void weighted_order_rec(std::vector<std::size_t>& order, boost::dynamic_bitset<> S, std::size_t n, const std::vector<boost::dynamic_bitset<>>& adjacency)
+{  
+    while (S.any())
+    {
+      // Determine the maximum weight within U
+      float max_weight = 0.0f;
+      std::size_t index = std::numeric_limits<std::size_t>::max();
+      for (std::size_t i = 0; i < n; ++i) {
+        if (S[i]) {
+          float w = weight(adjacency, S, i);
+          if (w > max_weight) {
+            max_weight = w;
+            index = i;
+          }
+        }
+      }
+
+      // Determine the connected component for the vertex with the maximum weight
+      boost::dynamic_bitset<> U(S.size());
+      auto dist = distances(adjacency, S, index);
+      for (std::size_t j = 0; j < n; ++j) {
+        if (S[j] && index != j) {
+          if (dist[j] != std::numeric_limits<std::size_t>::max()) {
+            S[j] = false;
+            U[j] = true;
+          }
+        }
+      }
+
+      // Remove this vertex from S and add it to the order.
+      S[index] = false;
+      order.push_back(index);
+
+      weighted_order_rec(order, U, n, adjacency);
+    }
+}
+
+inline
+std::vector<std::size_t> compute_variable_order_weighted(const std::vector<boost::dynamic_bitset<>>& read_write_group_patterns, bool exclude_first_variable = false)
+{
+  if (read_write_group_patterns.empty()) {
+    return {};
+  }
+
+  // Compute an adjacency matrix for the graph
+  std::size_t n = read_write_group_patterns[0].size() / 2;
+
+  std::vector<boost::dynamic_bitset<>> adjacency;
+  for (std::size_t i = 0; i < n; ++i) {
+    adjacency.push_back(boost::dynamic_bitset<>(n, false));
+
+    for (std::size_t s = 0; s < read_write_group_patterns.size(); ++s) {
+      if (is_used(read_write_group_patterns[s], i)) {
+        for (std::size_t j = 0; j < n; ++j) {
+          if (i != j) {
+            adjacency[i][j] |= is_used(read_write_group_patterns[s], j);
+          }
+        }
+      }
+    }
+  }
+
+  std::vector<std::size_t> order;  
+  boost::dynamic_bitset<> S(n);
+  S.set();
+
+  if (exclude_first_variable) {
+    S[0] = false;
+    order.push_back(0);
+  }
+  
+  weighted_order_rec(order, S, n, adjacency);
+
+  // Print the resulting order. 
+  mCRL2log(log::verbose) << "weighted order = ";
+  for (const auto& val : order) {    
+    mCRL2log(log::verbose) << val << ", ";
+  }
+  mCRL2log(log::verbose) << std::endl;
+
+  return order;
+}
+
+inline
 std::vector<std::size_t> parse_variable_order(std::string text, std::size_t n, bool exclude_first_variable = false)
 {
   using utilities::trim_copy;
@@ -211,7 +371,7 @@ std::vector<std::size_t> parse_variable_order(std::string text, std::size_t n, b
 }
 
 inline
-std::vector<std::size_t> compute_variable_order(const std::string& text, std::size_t number_of_variables, bool exclude_first_variable = false)
+std::vector<std::size_t> compute_variable_order(const std::string& text, std::size_t number_of_variables, const std::vector<boost::dynamic_bitset<>>& summand_groups, bool exclude_first_variable = false)
 {
   if (text == "none")
   {
@@ -220,6 +380,10 @@ std::vector<std::size_t> compute_variable_order(const std::string& text, std::si
   else if (text == "random")
   {
     return compute_variable_order_random(number_of_variables, exclude_first_variable);
+  }
+  else if (text == "weighted")
+  {
+    return compute_variable_order_weighted(summand_groups, exclude_first_variable);
   }
   else
   {
