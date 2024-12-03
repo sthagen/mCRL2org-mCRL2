@@ -32,6 +32,8 @@
 #include <cstddef>     // for std::size_t
 #include <new>         // for placement new
 #include <type_traits> // for std::is_trivially_destructible<class>
+#include <functional>  // for std::less
+#include <iterator>    // for std::bidirectional_iterator_tag
 
 // My provisional recommendation is to always use simple lists and pool
 // allocators.  Using standard allocation and standard lists is 5-15% slower
@@ -324,7 +326,7 @@ namespace detail
         class const_iterator
         {
           public:
-            typedef std::bidirectional_iterator_tag iterator_category;
+            typedef std::forward_iterator_tag iterator_category;
             typedef T value_type;
             typedef std::ptrdiff_t difference_type;
             typedef T* pointer;
@@ -341,14 +343,22 @@ namespace detail
             const_iterator() = default;
             const_iterator(const const_iterator& other) = default;
             const_iterator& operator=(const const_iterator& other) = default;
-            const_iterator& operator++()  {  ptr = ptr->next;  return *this;  }
-            const_iterator& operator--()  {  ptr = ptr->prev;  return *this;  }
+            const_iterator& operator++()
+            {                                                                   assert(nullptr != ptr);
+                ptr = ptr->next;
+                return *this;
+            }
+            const_iterator& operator--()
+            {                                                                   assert(nullptr != ptr);
+                ptr = ptr->prev;                                                assert(nullptr != ptr->next);
+                return *this;
+            }
             const T& operator*() const
-            {
+            {                                                                   assert(nullptr != ptr);
                 return  static_cast<const entry*>(ptr)->data;
             }
             const T* operator->() const
-            {
+            {                                                                   assert(nullptr != ptr);
                 return &static_cast<const entry*>(ptr)->data;
             }
             bool operator==(const const_iterator& other) const
@@ -411,11 +421,11 @@ namespace detail
             iterator_or_null(const iterator& other) : iterator(other)  {  }
             bool is_null() const  {  return nullptr == const_iterator::ptr;  }
             T& operator*() const
-            {                                                                   assert(!is_null());
+            {
                 return iterator::operator*();
             }
             T* operator->() const
-            {                                                                   assert(!is_null());
+            {
                 return iterator::operator->();
             }
             bool operator==(const const_iterator& other) const
@@ -429,8 +439,9 @@ namespace detail
             bool operator==(const T* const other) const
             {                                                                   assert(nullptr != other);
                 // It is allowed to call this even if is_null().  Therefore, we
-                // cannot use iterator_or_null::operator->().
-                return const_iterator::operator->() == other;
+                // cannot use operator->().
+                return &static_cast<const entry*>(const_iterator::ptr)->data ==
+                                                                         other;
             }
             bool operator!=(const T* const other) const
             {
