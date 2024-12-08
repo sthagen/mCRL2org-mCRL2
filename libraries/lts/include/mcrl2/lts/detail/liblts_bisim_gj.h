@@ -423,7 +423,7 @@ struct linked_list
   /// pos==end(), in which it is put in front of the list.
   template <class... Args>
   iterator emplace_after(const iterator pos, Args&&... args)
-  {                                                                             assert(pos==nullptr || !empty());  assert(pos==nullptr || pos->prev()!=nullptr);
+  {                                                                             assert(pos==nullptr || !empty()); assert(pos==nullptr || pos->prev()!=nullptr);
                                                                                 #ifndef NDEBUG
                                                                                   assert(check_linked_list());
                                                                                   if (pos!=nullptr)
@@ -2366,7 +2366,7 @@ class bisim_partitioner_gj
       state_in_block_pointer temp=*pos1;
       while (--count > 0)
       {                                                                         mCRL2complexity(pos2->ref_state, add_work(check_complexity::
-                                                                                        multiple_swap_states_in_block__swap_state_in_small_block, max_B), *this);
+                                                                                      multiple_swap_states_in_block__swap_state_in_small_block, max_B), *this);
         *pos1 = *pos2;
         pos1->ref_state->ref_states_in_blocks=pos1;
         ++pos1;
@@ -2535,7 +2535,7 @@ class bisim_partitioner_gj
             // ....counter==marking_value.
 
             // Move BminR bottom states out of the way.
-            fixed_vector<state_in_block_pointer>::iterator
+            state_in_block_pointer*
                take_next_R_non_bottom_state_from=BminR_start_non_bottom_states;
                                                                                 #ifndef NDEBUG
                                                                                   todo_state_vector::const_iterator account_for_skipped_BminR_states=R.begin();
@@ -3533,11 +3533,12 @@ class bisim_partitioner_gj
     /// case; the function will only treat
     /// [`splitter->start_same_BLC`, `splitter_end_unmarked_BLC`) as unmarked
     /// transitions.
-    template <bool initialisation=false, class Iterator=linked_list<BLC_indicators>::iterator>
+    template <bool initialisation=false,
+                          class Iterator=linked_list<BLC_indicators>::iterator>
     block_index simple_splitB(const block_index B,
                   Iterator splitter,
                   state_in_block_pointer* const first_unmarked_bottom_state,
-                  const BLC_list_iterator splitter_end_unmarked_BLC)
+                  const BLC_list_iterator_or_null splitter_end_unmarked_BLC)
     {                                                                           assert(!initialisation || m_constellations.size()==1);
       #ifdef INITIAL_PARTITION_WITHOUT_BLC_SETS
         #define use_BLC_transitions (!initialisation)
@@ -4267,7 +4268,7 @@ class bisim_partitioner_gj
       assert(m_R.empty());
       assert(1 < number_of_states_in_block(bi));
       // If the above assertion is false, one can just: return B.end_states;
-      fixed_vector<state_in_block_pointer>::iterator first_unmarked_bottom_state=B.start_bottom_states;
+      state_in_block_pointer* first_unmarked_bottom_state=B.start_bottom_states;
       assert(!splitter->is_stable());
       const BLC_list_iterator splitter_start_marked_BLC = splitter->start_marked_BLC;
       for (BLC_list_iterator marked_t_it = splitter_start_marked_BLC; marked_t_it<splitter->end_same_BLC; ++marked_t_it)
@@ -4319,7 +4320,7 @@ class bisim_partitioner_gj
       {
         // all bottom states are marked.
         // reset all counters of bottom states
-        for(fixed_vector<state_in_block_pointer>::iterator s_it=B.start_non_bottom_states; s_it<first_unmarked_bottom_state; ++s_it)
+        for(state_in_block_pointer* s_it=B.start_non_bottom_states; s_it<first_unmarked_bottom_state; ++s_it)
         {
           // mCRL2complexity(s_it->ref_state, ...)
               // not needed because it can be ascribed to the marked transition(s) of s_it->ref_state
@@ -4338,7 +4339,7 @@ class bisim_partitioner_gj
         // the majority of bottom states is marked
         // so go through the bottom states from the end and swap in those few unmarked bottom states there
         std::vector<state_in_block_pointer>::iterator take_U_bottom_state_from=B.start_bottom_states;
-        for (fixed_vector<state_in_block_pointer>::iterator s_it=B.start_non_bottom_states;
+        for (state_in_block_pointer* s_it=B.start_non_bottom_states;
              s_it>first_unmarked_bottom_state; )
         {
           --s_it;
@@ -4384,7 +4385,7 @@ class bisim_partitioner_gj
           assert(s.ref_state->block==bi);
           // mCRL2complexity(&m_transitions[*i], add_work(...), *this);
               // not needed because this work can be attributed to the marking of the transition
-          const fixed_vector<state_in_block_pointer>::iterator pos_s=s.ref_state->ref_states_in_blocks;
+          state_in_block_pointer* const pos_s=s.ref_state->ref_states_in_blocks;
           assert(B.start_bottom_states<=pos_s);
           assert(pos_s<B.end_states);
           if (first_unmarked_bottom_state<=pos_s)
@@ -4421,7 +4422,7 @@ class bisim_partitioner_gj
           const transition& t = m_aut.get_transitions()[*i];
           const state_in_block_pointer s(m_states.begin()+t.from());
           assert(s.ref_state->block == bi);
-          const fixed_vector<state_in_block_pointer>::const_iterator pos_s=s.ref_state->ref_states_in_blocks;
+          const state_in_block_pointer* const pos_s=s.ref_state->ref_states_in_blocks;
           assert(*pos_s==s);
           assert(B.start_bottom_states <= pos_s);
           assert(pos_s < B.end_states);
@@ -4542,7 +4543,7 @@ class bisim_partitioner_gj
                                        this default argument is not allowed */,
                       constellation_index old_constellation=null_constellation,
                       const bool split_off_new_bottom_states=true)
-    {
+    {                                                                           assert(nullptr!=first_unmarked_bottom_state);
       #ifdef INITIAL_PARTITION_WITHOUT_BLC_SETS
         #define use_BLC_transitions (!initialisation)
       #else
@@ -6846,12 +6847,18 @@ class bisim_partitioner_gj
                                         old_constellation);
                 if (linked_list<BLC_indicators>::end()!=co_splitter)
                 {
+                  // we need to use linked_list<BLC_indicators>::end(), the
+                  // static function, because it is unclear whether Bpp is
+                  // still a valid block (it could be that all states in the
+                  // R-subblock are new bottom states). But even in that case
+                  // we have to declare the co-splitter part of the U-subblock
+                  // stable, so we cannot just skip the loop that comes here:
+
                   // The former co-splitter has been separated into up to three parts:
                   // one with transitions starting in the R-subblock (that will be the true co-splitter);
                   // one with transitions starting in the U-subblock (that actually is already stable);
                   // one with transitions starting in new bottom states and their predecessors.
-                                                                                assert(Bpp<m_blocks.size());
-                  co_splitter=m_blocks[Bpp].block.to_constellation.end();       assert(co_splitter_begin<co_splitter_end);
+                  co_splitter=linked_list<BLC_indicators>::end();               assert(co_splitter_begin<co_splitter_end);
                                                                                 #ifndef NDEBUG
                                                                                   int number_of_iterations=0;
                                                                                 #endif
@@ -6871,7 +6878,7 @@ class bisim_partitioner_gj
                     const block_index from_block=m_states[t.from()].block;
                     if (from_block==Bpp)
                     {                                                           assert(null_block!=Bpp);
-                      /* This is the part that starts in the R-subblock      */ assert(m_blocks[Bpp].block.to_constellation.end()==co_splitter);
+                      /* This is the part that starts in the R-subblock      */ assert(linked_list<BLC_indicators>::end()==co_splitter);
 //std::cerr << "Co-splitter updated to " << candidate->debug_id(*this) << '\n';
                       co_splitter=candidate;
                     }
