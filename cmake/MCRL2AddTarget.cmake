@@ -55,12 +55,8 @@ function(mcrl2_add_library TARGET_NAME)
   # Install the header files for mCRL2 libraries
   mcrl2_install_header_files(${TARGET_INCLUDE_FILES})
 
-  if (MCRL2_ENABLE_STD_CHECKS)
-    if(${MCRL2_IS_CLANG})
-      target_link_libraries(${TARGET_NAME} PUBLIC -lstdc++_libbacktrace)
-    else()
-      target_link_libraries(${TARGET_NAME} PUBLIC -lbacktrace) 
-    endif()
+  if (MCRL2_ENABLE_STD_CHECKS AND UNIX AND NOT APPLE)
+    target_link_libraries(${TARGET_NAME} PUBLIC -lstdc++_libbacktrace)
   endif()
 
   # Install the libraries only when we are using jittyc, or shared libraries.
