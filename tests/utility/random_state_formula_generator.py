@@ -102,7 +102,6 @@ class VariableInstanceFormula(Formula):
             return self.variable.name
 
         args = ", ".join(str(arg) for arg in self.arguments)
-        print(f"{self.variable.name}({args})")
         return f"{self.variable.name}({args})"
 
 
@@ -276,8 +275,25 @@ class RandomStateFormulaGenerator:
 
         # Base case for recursion
         if max_depth <= 0:
-            choices = [TrueFormula(), FalseFormula()]
-            return random.choice(choices)
+            if not existing_variables or random.random() < 0.3:
+                return random.choice([TrueFormula(), FalseFormula()])
+            else:
+                var_name = random.choice(list(existing_variables))
+                expressions = []
+                if var_name.parameters:
+                    for arg in var_name.parameters:
+                        if arg.type == "Nat":
+                            expressions.append(
+                                make_integer_data_expression(list(var_name.parameters))
+                            )
+                        elif arg.type == "Bool":
+                            expressions.append(
+                                make_boolean_data_expression(list(var_name.parameters))
+                            )
+                        else:
+                            raise ValueError(f"Unknown type: {arg.type}")
+                
+                return VariableInstanceFormula(var_name, expressions)
 
         formula_types = [FormulaType.CONSTANT, FormulaType.BINARY]
 
@@ -289,26 +305,7 @@ class RandomStateFormulaGenerator:
         formula_type = random.choice(formula_types)
 
         if formula_type == FormulaType.CONSTANT:
-            if not existing_variables:
-                return random.choice([TrueFormula(), FalseFormula()])
-
-            var_name = random.choice(list(existing_variables))
-
-            expressions = []
-            if var_name.parameters:
-                for arg in var_name.parameters:
-                    if arg.type == "Nat":
-                        expressions.append(
-                            make_integer_data_expression(list(var_name.parameters))
-                        )
-                    elif arg.type == "Bool":
-                        expressions.append(
-                            make_boolean_data_expression(list(var_name.parameters))
-                        )
-                    else:
-                        raise ValueError(f"Unknown type: {arg.type}")
-
-            return VariableInstanceFormula(var_name, expressions)
+            return random.choice([TrueFormula(), FalseFormula()])
 
         elif formula_type == FormulaType.BINARY:
             operator = random.choice(list(BinaryOperator))
@@ -347,12 +344,12 @@ class RandomStateFormulaGenerator:
             if random.random() < 0.3:
                 num_bound_vars = random.randint(1, 3)
                 for i in range(num_bound_vars):
-                    data_type = random.choice(["Nat", "Bool"])
-                    bound_vars.append(DataVariable(f"v{i}", data_type))
+                    datatype = random.choice(["Nat", "Bool"])
+                    bound_vars.append(DataVariable(f"v{i}", datatype))
 
-                    if data_type == "Nat":
+                    if datatype == "Nat":
                         initial.append(make_integer_data_expression([]))
-                    elif data_type == "Bool":
+                    elif datatype == "Bool":
                         initial.append(make_boolean_data_expression([]))
 
             variable = Variable(var_name, tuple(bound_vars), tuple(initial))
@@ -371,22 +368,14 @@ class RandomStateFormulaGenerator:
             operator = random.choice(list(FixedPointOperator))
             return FixedPointFormula(variable, subformula, operator)
 
-FORMULAS = '''[!a*.b]false && [!c*.b]false && [!d*.b]false && [true*.c.!a*.b]false
-nu X.<a || b || c || d>X && [a]false
-nu X. (([!a]X && [b]false))
-nu X. (([!a]X && [c]false))
-nu X. mu Y. (<a>X || <!a>Y)
-nu X. mu Y. (<a>X || <!b>Y)
-[true*] [a.(!a && !b)*.b.(!a)*.b]false
-[true*.(a + b)]mu X.[!c]X
+
+FORMULAS = """nu X.<a || b || c || d>X && [a]false
 ([true*.a]mu X.[!d]X) && ([true*.a]mu X.[!c]X) && ([true*.a]mu X.[!b]X)
 [true*](([a](nu X. mu Y. ([b]X && [!b]Y))))
 [true*]([a](nu X. mu Y. ([b]X && [!b]Y)))
 [true*]([a](nu X. mu Y. ([c]X && [!c]Y)))
 <true*>(<a>(nu X. mu Y. (<c>X || <!d && !b>Y)))
-<true*.a>true
 [true*] [a.(!a && !c)*.c.(!a)*.c]false
-[true*]mu X.[a]X
 [true*](mu Y. ([!a]Y && <true>true))
 ([true*] nu X. mu Y. nu Z. ([a]X && ([a]false || [!a]Y) && [!a]Z))
 [true*] nu X. mu Y. nu Z. ([a]X && ([a]false || [!a]Y) && [!a]Z)
@@ -398,19 +387,21 @@ nu X. (([!a]X && [b]false))
 [true*.(a + b)]mu X.[!c]X
 [true*]mu X.[a]X
 [!a*.b]false && [!c*.b]false && [!d*.b]false && [true*.c.!a*.b]false
-[true*] [a.(!a && !b)*.b.(!a)*.b]false'''
+[true*] [a.(!a && !b)*.b.(!a)*.b]false"""
+
 
 def make_modal_formula() -> str:
     """ " Generate a random modal formula with actions a, b and c."""
-    #if random.random() < 0.5:
-    #    # Return a random formula from the predefined set
-    #    return random.choice(FORMULAS.splitlines())
-    
+    if random.random() < 0.5:
+        # Return a random formula from the predefined set
+        return random.choice(FORMULAS.splitlines())
+
     return RandomStateFormulaGenerator().generate(
         action_names=["a", "b", "c"],
         max_depth=5,
         max_fixedpoints=3,
     )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate a random state formula.")
@@ -436,7 +427,7 @@ def main():
         help="Maximum number of fixed point formulas (default: 2)",
     )
     parser.add_argument(
-        "-s", "--seed", type=int, help="Random seed for reproducibility"
+        "-s", "--seed", type=float, help="Random seed for reproducibility"
     )
 
     args = parser.parse_args()
@@ -459,6 +450,7 @@ def main():
     print(formula)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
