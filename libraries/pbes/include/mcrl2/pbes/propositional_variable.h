@@ -101,7 +101,7 @@ bool is_propositional_variable(const atermpp::aterm& x)
 }
 
 // prototype declaration
-std::string pp(const propositional_variable& x);
+std::string pp(const propositional_variable& x, bool precedence_aware = true);
 
 /// \\brief Outputs the object to a stream
 /// \\param out An output stream
@@ -121,8 +121,8 @@ inline void swap(propositional_variable& t1, propositional_variable& t2)
 //--- end generated class propositional_variable ---//
 
 // template function overloads
-std::string pp(const propositional_variable_list& x);
-std::string pp(const propositional_variable_vector& x);
+std::string pp(const propositional_variable_list& x, bool precedence_aware = true);
+std::string pp(const propositional_variable_vector& x, bool precedence_aware = true);
 
 } // namespace pbes_system
 
