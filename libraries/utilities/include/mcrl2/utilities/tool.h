@@ -23,14 +23,8 @@
   #include <fcntl.h>
 #endif
 
-namespace mcrl2
-{
-
-namespace utilities
-{
-
 /// \brief The namespace for command line tool classes
-namespace tools
+namespace mcrl2::utilities::tools
 {
 
 /// \brief Base class for command line tools.
@@ -160,8 +154,7 @@ class tool
     {}
 
     /// \brief Destructor.
-    virtual ~tool()
-    {}
+    virtual ~tool() = default;
 
     /// \brief Run the tool. The options must be set manually.
     /// \return True if the tool execution was successful.
@@ -247,10 +240,6 @@ class tool
     }
 };
 
-} // namespace tools
-
-} // namespace utilities
-
-} // namespace mcrl2
+} // namespace mcrl2::utilities::tools
 
 #endif // MCRL2_UTILITIES_TOOL_H

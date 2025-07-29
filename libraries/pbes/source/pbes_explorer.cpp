@@ -17,10 +17,9 @@
 #include "mcrl2/pbes/io.h"
 #include "mcrl2/pbes/pbes_explorer.h"
 
-namespace mcrl2
-{
 
-namespace pbes_system
+
+namespace mcrl2::pbes_system
 {
 
 namespace detail
@@ -44,10 +43,7 @@ lts_type::lts_type(int state_length)
     this->state_length = state_length;
 }
 
-
-lts_type::~lts_type()
-{}
-
+lts_type::~lts_type() = default;
 
 int lts_type::get_state_length() const
 {
@@ -1716,6 +1712,6 @@ std::vector<ltsmin_state> explorer::get_successors(const ltsmin_state& state,
 }
 
 
-} // namespace pbes_system
+} // namespace mcrl2::pbes_system
 
-} // namespace mcrl2
+

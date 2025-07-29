@@ -92,11 +92,7 @@
 
 #include <cstddef>   // for std::size_t
 
-namespace mcrl2
-{
-namespace lts
-{
-namespace detail
+namespace mcrl2::lts::detail
 {
                                                                                 #ifndef NDEBUG
                                                                                     /// \brief include something in Debug mode
@@ -112,7 +108,7 @@ namespace detail
 /// \brief type used to store label numbers and counts
 /// \details It would be better to define it as LTS_TYPE::labels_size_type, but
 /// that would require most classes to become templates.
-typedef std::size_t label_type;
+using label_type = std::size_t;
 
 template <class LTS_TYPE> class bisim_partitioner_dnj;
 
@@ -191,7 +187,7 @@ class permutation_entry;
 ///
 /// Iterating over the states of a block will
 /// therefore be done using the permutation_t array.
-typedef fixed_vector<permutation_entry> permutation_t;
+using permutation_t = fixed_vector<permutation_entry>;
 
 class block_t;
 class bunch_t;
@@ -200,11 +196,9 @@ class pred_entry;
 class succ_entry;
 
 class block_bunch_slice_t;
-typedef simple_list<block_bunch_slice_t>::iterator block_bunch_slice_iter_t;
-typedef simple_list<block_bunch_slice_t>::const_iterator
-                                                block_bunch_slice_const_iter_t;
-typedef iterator_or_null_t<block_bunch_slice_t>
-                                              block_bunch_slice_iter_or_null_t;
+using block_bunch_slice_iter_t = simple_list<block_bunch_slice_t>::iterator;
+using block_bunch_slice_const_iter_t = simple_list<block_bunch_slice_t>::const_iterator;
+using block_bunch_slice_iter_or_null_t = iterator_or_null_t<block_bunch_slice_t>;
 
 enum new_block_mode_t { new_block_is_U, new_block_is_R };
 
@@ -549,7 +543,7 @@ class part_state_t
     {                                                                           assert(0 < num_states);
         permutation_entry* perm_iter(permutation.data());
                                                                                 #ifdef USE_POOL_ALLOCATOR
-                                                                                    static_assert(std::is_trivially_destructible<block_t>::value);
+                                                                                    static_assert(std::is_trivially_destructible_v<block_t>);
                                                                                 #endif
         state_info_entry* state_iter(state_info.data());                        assert(perm_iter < permutation.data_end());
         do
@@ -1358,8 +1352,8 @@ class part_trans_t
 
   public:
     #ifdef USE_POOL_ALLOCATOR
-                                                                                static_assert(std::is_trivially_destructible<bunch_t>::value);
-    #endif
+    static_assert(std::is_trivially_destructible_v<bunch_t>);
+#endif
 
     /// \brief number of new bottom states found until now.
     state_type nr_of_new_bottom_states;
@@ -2940,8 +2934,7 @@ class bisim_partitioner_dnj
                                                     this step can be ignored */
         {
             /* Create a vector for the new labels */
-            typename std::remove_reference<decltype(aut.state_labels())>::type
-                                                  new_labels(num_eq_classes());
+            std::remove_reference_t<decltype(aut.state_labels())> new_labels(num_eq_classes());
 
             state_type i(0);                                                    assert(i < aut.num_states());
             do
@@ -4985,7 +4978,7 @@ inline bool bisimulation_compare_dnj(const LTS_TYPE& l1, const LTS_TYPE& l2,
 ///@} (end of group part_interface)
 
 } // end namespace detail
-} // end namespace lts
-} // end namespace mcrl2
+// end namespace lts
+// end namespace mcrl2
 
 #endif // ifndef LIBLTS_BISIM_DNJ_H

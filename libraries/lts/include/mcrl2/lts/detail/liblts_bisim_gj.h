@@ -33,11 +33,7 @@
 #include "mcrl2/lts/detail/simple_list.h"
 #define linked_list simple_list
 
-namespace mcrl2
-{
-namespace lts
-{
-namespace detail
+namespace mcrl2::lts::detail
 {
 
 template <class LTS_TYPE> class bisim_partitioner_gj;
@@ -52,15 +48,12 @@ struct constellation_type;
 struct transition_type;
 struct outgoing_transition_type;
 
-typedef std::size_t state_index;
-typedef std::size_t transition_index;
+using state_index = std::size_t;
+using transition_index = std::size_t;
 
-
-typedef std::size_t label_index;
-typedef fixed_vector<outgoing_transition_type>::iterator
-                                                       outgoing_transitions_it;
-typedef fixed_vector<outgoing_transition_type>::const_iterator
-                                                 outgoing_transitions_const_it;
+using label_index = std::size_t;
+using outgoing_transitions_it = fixed_vector<outgoing_transition_type>::iterator;
+using outgoing_transitions_const_it = fixed_vector<outgoing_transition_type>::const_iterator;
 
 constexpr constellation_type* null_constellation=nullptr;
 constexpr transition_index null_transition=-1;
@@ -126,9 +119,9 @@ static inline void clear(CONTAINER& c)
 
 // The struct below facilitates to walk through a LBC_list starting from an
 // arbitrary transition.
-typedef transition_index* BLC_list_iterator; // should not be nullptr
-typedef transition_index* BLC_list_iterator_or_null; // can be nullptr
-typedef const transition_index* BLC_list_const_iterator; // should not be nullptr
+using BLC_list_iterator = transition_index*;             // should not be nullptr
+using BLC_list_iterator_or_null = transition_index*;     // can be nullptr
+using BLC_list_const_iterator = const transition_index*; // should not be nullptr
 
 /// information about a transition stored in m_outgoing_transitions
 struct outgoing_transition_type
@@ -161,8 +154,7 @@ struct outgoing_transition_type
   outgoing_transitions_it start_same_saC;
 
   // The default initialiser does not initialize the fields of this struct.
-  outgoing_transition_type()
-  {}
+  outgoing_transition_type() = default;
 
   outgoing_transition_type(const outgoing_transitions_it sssaC)
    : ref(),
@@ -177,8 +169,7 @@ struct state_in_block_pointer
    : ref_state(new_ref_state)
   {}
 
-  state_in_block_pointer()
-  {}
+  state_in_block_pointer() = default;
 
   fixed_vector<state_type_gj>::iterator ref_state;
 
@@ -201,8 +192,8 @@ class todo_state_vector
   std::vector<state_in_block_pointer> m_vec;
 
   public:
-    typedef std::vector<state_in_block_pointer>::const_iterator const_iterator;
-                                                                                #ifndef NDEBUG
+    using const_iterator = std::vector<state_in_block_pointer>::const_iterator;
+#ifndef NDEBUG
                                                                                   bool find(const state_in_block_pointer s) const
                                                                                   {
                                                                                     return std::find(m_vec.begin(), m_vec.end(), s)!=m_vec.end();
@@ -277,7 +268,7 @@ class todo_state_vector
       m_vec.reserve(new_cap);
     }
 
-    typedef std::vector<state_in_block_pointer>::iterator iterator;
+    using iterator = std::vector<state_in_block_pointer>::iterator;
 
     iterator begin()
     {
@@ -576,8 +567,8 @@ struct block_type
     /// corresponding co-splitter in the list.
     /// During `stabilize()`, BLC sets that are regarded as unstable are near
     /// the end of the list.
-    linked_list<BLC_indicators> to_constellation;                               static_assert(std::is_trivially_destructible
-                                                                                                                        <linked_list<BLC_indicators> >::value);
+    linked_list<BLC_indicators> to_constellation;
+    static_assert(std::is_trivially_destructible_v<linked_list<BLC_indicators>>);
     /// \brief used during initialisation for a pointer to a vector of marked states
     /// \details During initialisation (when there is only one constellation)
     /// the same space as `to_constellation` is actually used for something
@@ -727,9 +718,9 @@ class bisim_partitioner_gj
 {
   private:
 
-    typedef std::unordered_set<state_index> set_of_states_type;
-    typedef std::unordered_set<transition_index> set_of_transitions_type;
-                                                                                #ifndef NDEBUG
+    using set_of_states_type = std::unordered_set<state_index>;
+    using set_of_transitions_type = std::unordered_set<transition_index>;
+#ifndef NDEBUG
                                                                                   public: // needed for the debugging functions, e.g. debug_id().
                                                                                 #endif
     /// \brief automaton that is being reduced
@@ -1784,8 +1775,7 @@ class bisim_partitioner_gj
       {
         // The transitions are most efficiently directly extracted from the
         // block.to_constellation lists in blocks.
-        typename std::remove_reference<decltype(m_aut.get_transitions())>::type
-                                                                             T;
+        std::remove_reference_t<decltype(m_aut.get_transitions())> T;
         for (state_in_block_pointer*
               si=m_states_in_blocks.data(); m_states_in_blocks.data_end()!=si;
                                            si=si->ref_state->block->end_states)
@@ -1816,8 +1806,7 @@ class bisim_partitioner_gj
       if (m_aut.has_state_info())   // If there are no state labels
       {                             // this step is not needed
         /* Create a vector for the new labels */
-        typename std::remove_reference<decltype(m_aut.state_labels())>::type
-                                                  new_labels(num_eq_classes());
+        std::remove_reference_t<decltype(m_aut.state_labels())> new_labels(num_eq_classes());
 
         for(std::size_t i=0; i<m_aut.num_states(); ++i)
         {                                                                       //mCRL2complexity(&m_states[i], add_work(..., 1), *this);
@@ -1957,8 +1946,7 @@ class bisim_partitioner_gj
     {                                                                           assert(count<m_aut.num_states());  assert(m_states_in_blocks.data()<=pos1);
       /* if (pos1 > pos2)  std::swap(pos1, pos2);                            */ assert(pos1<pos2);  assert(pos2<=m_states_in_blocks.data_end()-count);
       {
-        std::make_signed<state_index>::type
-                                       overlap=std::distance(pos2, pos1)+count;
+        std::make_signed_t<state_index> overlap = std::distance(pos2, pos1) + count;
         if (overlap > 0)
         {
           count -= overlap;
@@ -6916,8 +6904,8 @@ inline bool bisimulation_compare_gj(const LTS_TYPE& l1, const LTS_TYPE& l2,
 
 
 } // end namespace detail
-} // end namespace lts
-} // end namespace mcrl2
+// end namespace lts
+// end namespace mcrl2
 
 #undef linked_list
 #endif // ifndef LIBLTS_BISIM_GJ_H

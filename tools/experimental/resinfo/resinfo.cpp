@@ -28,18 +28,18 @@ using pres_system::tools::pres_input_tool;
 class resinfo_tool: public pres_input_tool<input_tool>
 {
   protected:
-    typedef pres_input_tool<input_tool> super;
+    using super = pres_input_tool<input_tool>;
 
     bool opt_full;
 
     /// Parse the non-default options.
-    void parse_options(const command_line_parser& parser)
+    void parse_options(const command_line_parser& parser) override
     {
       super::parse_options(parser);
       opt_full = parser.options.count("full") > 0;
     }
 
-    void add_options(interface_description& desc)
+    void add_options(interface_description& desc) override
     {
       super::add_options(desc);
       desc.add_option("full",
@@ -68,7 +68,7 @@ class resinfo_tool: public pres_input_tool<input_tool>
     /// - Show predicate variables and their type
     /// else
     /// - Give error
-    bool run()
+    bool run() override
     {
       pres b;
       load_pres(b,input_filename(), pres_input_format());

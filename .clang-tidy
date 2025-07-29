@@ -1,38 +1,54 @@
 ---
-Checks: "clang-analyzer-*,
-    bug-prone-*,
+Checks: "-*,
+    boost-use-to-string,
+    bugprone-*,
+    -bugprone-branch-clone,
+    -bugprone-crtp-constructor-accessibility,
+    -bugprone-easily-swappable-parameters,
+    -bugprone-narrowing-conversions,
+    -bugprone-swapped-arguments,
+    -bugprone-use-after-move,
+    -bugprone-assignment-in-if-condition,
+    -bugprone-assert-side-effect,
+    -bugprone-inc-dec-in-conditions,
+    -bugprone-reserved-identifier,
+    -bugprone-return-const-ref-from-parameter,
+    -bugprone-unhandled-self-assignment,
+    -bugprone-multi-level-implicit-pointer-conversion,
+    -bugprone-macro-parentheses,
+    -bugprone-exception-escape,
     modernize-avoid-bind,
-    modernize-avoid-c-arrays,
     modernize-concat-nested-namespaces,
     modernize-deprecated-headers,
     modernize-deprecated-ios-base-aliases,
     modernize-loop-convert,
     modernize-make-shared,
     modernize-make-unique,
-    modernize-pass-by-value,
+    modernize-min-max-use-initializer-list,
     modernize-raw-string-literal,
     modernize-redundant-void-arg,
+    modernize-replace-auto-ptr,
     modernize-replace-random-shuffle,
     modernize-shrink-to-fit,
+    modernize-type-traits,
+    modernize-unary-static-assert,
     modernize-use-bool-literals,
     modernize-use-constraints,
-    modernize-use-default-member-init,
-    modernize-use-designated-initializers,
     modernize-use-emplace,
     modernize-use-equals-default,
-    modernize-use-equals-delete
-    modernize-use-integer-sign-comparison,
-    modernize-use-nodiscard,
-    modernize-use-noexcept,
+    modernize-use-equals-delete,
     modernize-use-nullptr,
     modernize-use-override,
-    modernize-use-ranges,
-    modernize-use-starts-ends-with,
-    modernize-use-std-numbers,
     modernize-use-std-numbers,
     modernize-use-transparent-functors,
     modernize-use-uncaught-exceptions,
-    modernize-use-using"
-WarningsAsErrors: ''
-HeaderFilterRegex: ''
-FormatStyle:     none
+    modernize-use-using,
+    "
+CheckOptions:
+    modernize-convert-loop.MinConfidence: 'risky'
+WarningsAsErrors: 'false'
+HeaderFilterRegex: '.'
+ExcludeHeaderFilterRegex: '.*3rd-party.*,
+    liblts_bisim_*.h
+    '
+FormatStyle: 'file'

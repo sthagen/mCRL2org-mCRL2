@@ -24,14 +24,10 @@
 
 #ifdef MCRL2_ENABLE_JITTYC
 
-namespace mcrl2
-{
-namespace data
-{
-namespace detail
+namespace mcrl2::data::detail
 {
 
-typedef std::vector < sort_expression_list> sort_list_vector;
+using sort_list_vector = std::vector<sort_expression_list>;
 
 ///
 /// \brief The normal_form_cache class stores normal forms of data_expressions that
@@ -44,12 +40,10 @@ class normal_form_cache
   private:
     std::set<data_expression> m_lookup;
   public:
-    normal_form_cache()
-    { 
-    }
+    normal_form_cache() = default;
 
-  // Caches cannot be copied or moved. The addresses in the cache must remain available the lifetime of 
-  // all rewriters using this cache. 
+    // Caches cannot be copied or moved. The addresses in the cache must remain available the lifetime of
+    // all rewriters using this cache. 
     normal_form_cache(const normal_form_cache& ) = delete;
     normal_form_cache(normal_form_cache&& ) = delete;
     normal_form_cache& operator=(const normal_form_cache& ) = delete;
@@ -77,25 +71,23 @@ class normal_form_cache
     return m_lookup.empty();
   }
 
-  ~normal_form_cache()
-  {
-  }
+  ~normal_form_cache() = default;
 };
 
 class RewriterCompilingJitty: public Rewriter
 {
   public:
-    typedef Rewriter::substitution_type substitution_type;
-    typedef void (*rewriter_function)(data_expression&, const application&, RewriterCompilingJitty*);
+    using substitution_type = Rewriter::substitution_type;
+    using rewriter_function = void (*)(data_expression&, const application&, RewriterCompilingJitty*);
 
     RewriterCompilingJitty(const data_specification& DataSpec, const used_data_equation_selector&);
-    virtual ~RewriterCompilingJitty();
+    ~RewriterCompilingJitty() override;
 
-    rewrite_strategy getStrategy();
+    rewrite_strategy getStrategy() override;
 
-    data_expression rewrite(const data_expression& term, substitution_type& sigma);
+    data_expression rewrite(const data_expression& term, substitution_type& sigma) override;
 
-    void rewrite(data_expression& result, const data_expression& term, substitution_type& sigma);
+    void rewrite(data_expression& result, const data_expression& term, substitution_type& sigma) override;
 
     // The variable global_sigma is a temporary store to maintain the substitution 
     // sigma during rewriting a single term. It is not a variable for public use. 
@@ -155,8 +147,7 @@ class RewriterCompilingJitty: public Rewriter
       {}
 
       // Default constructor
-      variable_index_where_stack_pair()
-      {}
+      variable_index_where_stack_pair() = default;
     };
 
     std::vector<variable> rewriter_bound_variables;
@@ -240,7 +231,7 @@ class RewriterCompilingJitty: public Rewriter
     // Standard assignment operator.
     RewriterCompilingJitty& operator=(const RewriterCompilingJitty& other)=delete;
 
-    std::shared_ptr<detail::Rewriter> clone()
+    std::shared_ptr<detail::Rewriter> clone() override
     {
       return std::shared_ptr<Rewriter>(new RewriterCompilingJitty(*this));
     }
@@ -296,10 +287,10 @@ class RewriterCompilingJitty: public Rewriter
     match_tree build_tree(build_pars pars, std::size_t i);
     match_tree create_tree(const data_equation_list& rules);
 
-  void thread_initialise()
-  {
-    mCRL2log(mcrl2::log::debug) << "Initialise busy/forbidden flags\n";
-    m_thread_aterm_pool = &atermpp::detail::g_thread_term_pool();
+    void thread_initialise() override
+    {
+      mCRL2log(mcrl2::log::debug) << "Initialise busy/forbidden flags\n";
+      m_thread_aterm_pool = &atermpp::detail::g_thread_term_pool();
   }
 };
 
@@ -312,8 +303,6 @@ struct rewriter_interface
   void (*rewrite_cleanup)();
 };
 
-}
-}
 }
 
 #endif // MCRL2_ENABLE_JITTYC

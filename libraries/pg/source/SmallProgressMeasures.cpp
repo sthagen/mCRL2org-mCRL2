@@ -12,6 +12,7 @@
 #include "mcrl2/pg/SCC.h"
 
 #include <cstring>
+#include <memory>
 
 LiftingStatistics::LiftingStatistics( const ParityGame &game,
                                       long long max_lifts )
@@ -34,12 +35,18 @@ void LiftingStatistics::record_lift(verti v, bool success)
     }
 }
 
-SmallProgressMeasures::SmallProgressMeasures(
-        const ParityGame &game, ParityGame::Player player,
-        LiftingStatistics *stats, const verti *vmap, verti vmap_size )
-    : game_(game), p_(player), stats_(stats),
-      vmap_(vmap), vmap_size_(vmap_size),
-      strategy_(game.graph().V(), NO_VERTEX), dirty_(0)
+SmallProgressMeasures::SmallProgressMeasures(const ParityGame& game,
+    ParityGame::Player player,
+    LiftingStatistics* stats,
+    const verti* vmap,
+    verti vmap_size)
+    : game_(game),
+      p_(player),
+      stats_(stats),
+      vmap_(vmap),
+      vmap_size_(vmap_size),
+      strategy_(game.graph().V(), NO_VERTEX),
+      dirty_(nullptr)
 {
     assert(p_ == 0 || p_ == 1);
 
@@ -142,7 +149,7 @@ std::pair<verti, bool> SmallProgressMeasures::solve_one(LiftingStrategy &ls)
             success = true;
         }
     }
-    if (stats_ != NULL)
+    if (stats_ != nullptr)
     {
         stats_->record_lift(vmap_ && v < vmap_size_ ? vmap_[v] : v, success);
     }
@@ -220,7 +227,7 @@ verti SmallProgressMeasures::solve_one(LiftingStrategy2 &ls)
         }
     }
 
-    if (stats_ != NULL)
+    if (stats_ != nullptr)
     {
         stats_->record_lift(vmap_ && v < vmap_size_ ? vmap_[v] : v, true);
     }
@@ -434,10 +441,8 @@ ParityGame::Strategy SmallProgressMeasuresSolver::solve_alternate()
 {
     // Create two SPM and two lifting strategy instances:
     std::unique_ptr<SmallProgressMeasures> spm[2];
-    spm[0].reset(new DenseSPM( game_, PLAYER_EVEN,
-                               stats_, vmap_, vmap_size_ ));
-    spm[1].reset(new DenseSPM( game_, PLAYER_ODD,
-                               stats_, vmap_, vmap_size_ ));
+    spm[0] = std::make_unique<DenseSPM>(game_, PLAYER_EVEN, stats_, vmap_, vmap_size_);
+    spm[1] = std::make_unique<DenseSPM>(game_, PLAYER_ODD, stats_, vmap_, vmap_size_);
 
     // Solve games alternatingly:
     int player = 0;
@@ -497,7 +502,7 @@ void SmallProgressMeasuresSolver::preprocess_game(ParityGame &game)
                 {
                     if (*it != v)
                     {
-                        obsolete_edges.push_back(std::make_pair(v, *it));
+                      obsolete_edges.emplace_back(v, *it);
                     }
                 }
             }
@@ -505,7 +510,7 @@ void SmallProgressMeasuresSolver::preprocess_game(ParityGame &game)
             if (graph.outdegree(v) > 1)
             {
                 // Self-edge is detrimental; remove it
-                obsolete_edges.push_back(std::make_pair(v, v));
+                obsolete_edges.emplace_back(v, v);
             }
         }
     }
@@ -595,10 +600,8 @@ ParityGame::Strategy SmallProgressMeasuresSolver2::solve_alternate()
 {
     // Create two SPM and two lifting strategy instances:
     std::unique_ptr<SmallProgressMeasures> spm[2];
-    spm[0].reset(new DenseSPM( game_, PLAYER_EVEN,
-                               stats_, vmap_, vmap_size_ ));
-    spm[1].reset(new DenseSPM( game_, PLAYER_ODD,
-                               stats_, vmap_, vmap_size_ ));
+    spm[0] = std::make_unique<DenseSPM>(game_, PLAYER_EVEN, stats_, vmap_, vmap_size_);
+    spm[1] = std::make_unique<DenseSPM>(game_, PLAYER_ODD, stats_, vmap_, vmap_size_);
 
     // Solve games alternatingly:
     int player = 0;
@@ -664,7 +667,7 @@ ParityGameSolver *SmallProgressMeasuresSolverFactory::create(
         return new SmallProgressMeasuresSolver2(
             game, lsf_, alt_, stats_, vmap, vmap_size );
     }
-    return 0;
+    return nullptr;
 }
 
 //

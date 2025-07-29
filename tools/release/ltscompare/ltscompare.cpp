@@ -39,7 +39,7 @@ struct t_tool_options
   bool enable_preprocessing      = true;
 };
 
-typedef  input_tool ltscompare_base;
+using ltscompare_base = input_tool;
 class ltscompare_tool : public ltscompare_base
 {
   private:
@@ -86,7 +86,7 @@ class ltscompare_tool : public ltscompare_base
   private:
 
     template <class LTS_TYPE>
-    bool lts_compare(void)
+    bool lts_compare()
     {
       LTS_TYPE l1,l2;
       l1.load(tool_options.name_for_first);

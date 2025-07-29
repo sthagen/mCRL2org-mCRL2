@@ -19,9 +19,8 @@
 
 #include "mcrl2/utilities/tagged_pointer.h"
 
-namespace mcrl2
-{
-namespace utilities
+
+namespace mcrl2::utilities
 {
 
 /// \brief Enable to count the number of reference count changes.
@@ -89,7 +88,7 @@ public:
   }
 
 protected:
-  using SizeType = typename std::conditional<ThreadSafe, std::atomic<std::size_t>, std::size_t>::type;
+  using SizeType = std::conditional_t<ThreadSafe, std::atomic<std::size_t>, std::size_t>;
 
   // The underlying reference counter can always be changed.
   mutable SizeType m_reference_count;
@@ -236,8 +235,8 @@ private:
   mutable utilities::tagged_pointer<T> m_reference;
 };
 
-} // namespace utilities
-} // namespace mcrl2
+} // namespace mcrl2::utilities
+
 
 namespace std
 {

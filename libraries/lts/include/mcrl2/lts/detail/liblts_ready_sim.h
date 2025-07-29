@@ -14,12 +14,7 @@
 
 #include "mcrl2/lts/detail/liblts_sim.h"
 
-
-namespace mcrl2
-{
-namespace lts
-{
-namespace detail
+namespace mcrl2::lts::detail
 {
 
 template <class LTS_TYPE>
@@ -35,9 +30,9 @@ template <class LTS_TYPE>
     /**
      * Computes the ready-simulation equivalence
      * classes and preorder relations of the LTS
-     */  
-  virtual void partitioning_algorithm();
-    /** Destroys this partitioner. */
+     */
+  void partitioning_algorithm() override;
+  /** Destroys this partitioner. */
   ~ready_sim_partitioner();
  private :
   // Non inherited data members...
@@ -292,8 +287,7 @@ ready_sim_partitioner<LTS_TYPE>::~ready_sim_partitioner()
   delete forall2;
 }
 
- 
-} // namespace detail
-} // namespace lts
-} // namespacemcrl2
+} // namespace mcrl2::lts::detail
+
+// namespacemcrl2
 #endif

@@ -18,11 +18,11 @@
 
 #include "mcrl2/pbes/pbes_functions.h"
 
-namespace mcrl2 {
 
-namespace pbes_system {
 
-namespace detail {
+
+
+namespace mcrl2::pbes_system::detail {
 
 /// \brief The current indent level. Used for debug output.
 static int indent_count = 0;
@@ -128,8 +128,7 @@ struct bqnf_visitor
   }
 
   /// \brief Destructor.
-  virtual ~bqnf_visitor()
-  { }
+  virtual ~bqnf_visitor() = default;
 
   /// \brief Constructor.
   bqnf_visitor():
@@ -489,10 +488,10 @@ struct bqnf_visitor
 
 };
 
-} // namespace detail
+} // namespace mcrl2::pbes_system::detail
 
-} // namespace pbes_system
 
-} // namespace mcrl2
+
+
 
 #endif // MCRL2_PBES_DETAIL_BQNF_VISITOR_H

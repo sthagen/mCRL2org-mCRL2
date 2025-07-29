@@ -19,11 +19,7 @@
 #include "mcrl2/lts/lts_fsm.h"
 #include "mcrl2/lts/lts_dot.h"
 
-namespace mcrl2
-{
-namespace lts
-{
-namespace detail
+namespace mcrl2::lts::detail
 {
 
 template < class LTS_TYPE>
@@ -197,9 +193,9 @@ class bisim_partitioner
 
   private:
 
-    typedef std::size_t block_index_type;
-    typedef std::size_t state_type;
-    typedef std::size_t label_type;
+    using block_index_type = std::size_t;
+    using state_type = std::size_t;
+    using label_type = std::size_t;
 
     state_type max_state_index;
     LTS_TYPE& aut;
@@ -493,9 +489,7 @@ class bisim_partitioner
       BL.clear();
     }
 
-
-
-    void refine_partion_with_respect_to_divergences(void);
+    void refine_partion_with_respect_to_divergences();
 
     void split_the_blocks_in_BL(
       bool& partition_is_unstable,
@@ -1281,6 +1275,5 @@ bool destructive_bisimulation_compare(
 
 
 }
-}
-}
+
 #endif

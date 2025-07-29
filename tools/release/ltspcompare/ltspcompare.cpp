@@ -45,7 +45,7 @@ struct t_tool_options
   {}
 };
 
-typedef  input_tool ltscompare_base;
+using ltscompare_base = input_tool;
 class ltspcompare_tool : public ltscompare_base
 {
   private:
@@ -90,7 +90,7 @@ class ltspcompare_tool : public ltscompare_base
   private:
 
     template <class LTS_TYPE>
-    bool lts_probabilistic_compare(void)
+    bool lts_probabilistic_compare()
     {
       LTS_TYPE l1,l2;
       l1.load(tool_options.name_for_first);

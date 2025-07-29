@@ -72,7 +72,7 @@ class pbes2cvc4_tool: public pbes_input_tool<input_output_tool>
     bool opt_hasgoal;
     goal_t opt_goal;
 
-    typedef pbes_input_tool<input_output_tool> super;
+    using super = pbes_input_tool<input_output_tool>;
 
   public:
     pbes2cvc4_tool()
@@ -86,7 +86,7 @@ class pbes2cvc4_tool: public pbes_input_tool<input_output_tool>
     {}
 
   protected:
-    void parse_options(const command_line_parser& parser)
+    void parse_options(const command_line_parser& parser) override
     {
       super::parse_options(parser);
 
@@ -106,7 +106,7 @@ class pbes2cvc4_tool: public pbes_input_tool<input_output_tool>
       }
     }
 
-    void add_options(interface_description& desc)
+    void add_options(interface_description& desc) override
     {
       super::add_options(desc);
       desc.add_option("levels", make_mandatory_argument("NUM"), "unroll NUM levels", 'l');
@@ -119,7 +119,7 @@ class pbes2cvc4_tool: public pbes_input_tool<input_output_tool>
     }
 
   public:
-    bool run()
+    bool run() override
     {
       // load the pbes
       pbes p;

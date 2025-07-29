@@ -101,12 +101,10 @@ class output_policy
 {
   public:
     /// \brief Constructor.
-    output_policy()
-    {}
+    output_policy() = default;
 
     /// \brief Destructor.
-    virtual ~output_policy()
-    {}
+    virtual ~output_policy() = default;
 
     /// \brief Output message.
     /// \param[in] msg Message that is written to output.
@@ -326,12 +324,10 @@ class file_output: public output_policy
     }
 
   public:
-    file_output()
-    {}
+    file_output() = default;
 
-    virtual ~file_output()
-    {}
- 
+    ~file_output() override = default;
+
     /// \param[in] stream A file handle
     static
     void set_stream(FILE* stream)
@@ -348,7 +344,10 @@ class file_output: public output_policy
     ///
     /// \note This uses fprintf (and not e.g. <<) because fprintf is guaranteed to be
     /// atomic.
-    virtual void output(const log_level_t level, const time_t timestamp, const std::string& msg, const bool print_time_information) override
+    void output(const log_level_t level,
+        const time_t timestamp,
+        const std::string& msg,
+        const bool print_time_information) override
     {
       assert(quiet != level);
       FILE* p_stream = get_stream();

@@ -353,14 +353,14 @@ class pbesreach_algorithm
 
       for (const data::variable& param: m_process_parameters)
       {
-        m_data_index.push_back(symbolic::data_expression_index(param.sort()));
+        m_data_index.emplace_back(param.sort());
       }
       
       mCRL2log(log::debug) << "Final read/write matrix:" << std::endl;
       mCRL2log(log::debug) << symbolic::print_read_write_patterns(m_summand_patterns);
     }
 
-    virtual ~pbesreach_algorithm() {}
+    virtual ~pbesreach_algorithm() = default;
 
     ldd initial_state()
     {

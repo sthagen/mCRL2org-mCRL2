@@ -126,7 +126,7 @@ public:
   template <class U>
   struct rebind
   {
-    typedef _aterm_appl_allocator<U> other;
+    using other = _aterm_appl_allocator<U>;
   };
 
   /// \brief Allocates space for an _aterm_appl where the arity is given by the function symbol.
@@ -184,12 +184,9 @@ private:
 
 static_assert(sizeof(_term_appl) == sizeof(_aterm) + sizeof(aterm_core), "Sanity check: aterm size");
 
-template < class Derived, class Base >
+template <class Derived, class Base>
 term_appl_iterator<Derived> aterm_appl_iterator_cast(term_appl_iterator<Base> a,
-                                                                typename std::enable_if<
-                                                                     std::is_base_of<aterm, Base>::value &&
-                                                                     std::is_base_of<aterm, Derived>::value
->::type* = nullptr);
+    std::enable_if_t<std::is_base_of_v<aterm, Base> && std::is_base_of_v<aterm, Derived>>* = nullptr);
 
 } // namespace detail
 } // namespace atermpp

@@ -64,8 +64,7 @@ class todo_set
     atermpp::deque<state> todo;
 
   public:
-    explicit todo_set()
-    {}
+    explicit todo_set() = default;
 
     explicit todo_set(const state& init)
       : todo{init}
@@ -336,15 +335,12 @@ struct cache_hash
 
 } // end namespace detail
 
-
-typedef atermpp::utilities::unordered_map<atermpp::aterm,
-                                          atermpp::term_list<data::data_expression_list>,
-                                          detail::cache_hash,
-                                          detail::cache_equality,
-                                          std::allocator< std::pair<atermpp::aterm, atermpp::term_list<data::data_expression_list>> >,
-                                          true  // Thread_safe.
-                                        > summand_cache_map;
-
+using summand_cache_map = atermpp::utilities::unordered_map<atermpp::aterm,
+    atermpp::term_list<data::data_expression_list>,
+    detail::cache_hash,
+    detail::cache_equality,
+    std::allocator<std::pair<atermpp::aterm, atermpp::term_list<data::data_expression_list>>>,
+    true>;
 
 struct explorer_summand
 {
@@ -448,13 +444,12 @@ template <bool Stochastic, bool Timed, typename Specification>
 class explorer: public abortable
 {
   public:
-    using state_type = typename std::conditional<Stochastic, stochastic_state, state>::type;
-    using state_index_type = typename std::conditional<Stochastic, std::list<std::size_t>, std::size_t>::type;
+    using state_type = std::conditional_t<Stochastic, stochastic_state, state>;
+    using state_index_type = std::conditional_t<Stochastic, std::list<std::size_t>, std::size_t>;
     static constexpr bool is_stochastic = Stochastic;
     static constexpr bool is_timed = Timed;
 
-    typedef atermpp::indexed_set<state, mcrl2::utilities::detail::GlobalThreadSafe> indexed_set_for_states_type;
-
+    using indexed_set_for_states_type = atermpp::indexed_set<state, mcrl2::utilities::detail::GlobalThreadSafe>;
 
     struct transition
     {

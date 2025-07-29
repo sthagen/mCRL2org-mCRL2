@@ -23,12 +23,9 @@ class term_appl_iterator
 {
     friend class aterm;
 
-    template < class Derived, class Base >
+    template <class Derived, class Base>
     friend term_appl_iterator<Derived> detail::aterm_appl_iterator_cast(term_appl_iterator<Base> a,
-                                                                typename std::enable_if<
-                                                                     std::is_base_of<aterm, Base>::value &&
-                                                                     std::is_base_of<aterm, Derived>::value
-                                                                >::type*);
+        std::enable_if_t<std::is_base_of_v<aterm, Base> && std::is_base_of_v<aterm, Derived>>*);
 
 
   protected:
@@ -41,11 +38,11 @@ class term_appl_iterator
     {}
 
   public:
-    typedef Term value_type;
-    typedef const Term& reference;
-    typedef const Term* pointer;
-    typedef ptrdiff_t difference_type;
-    typedef std::random_access_iterator_tag iterator_category;
+    using value_type = Term;
+    using reference = const Term&;
+    using pointer = const Term*;
+    using difference_type = ptrdiff_t;
+    using iterator_category = std::random_access_iterator_tag;
 
     /// \brief The copy constructor.
     /// \param other The iterator that is copy constructed.
@@ -56,12 +53,8 @@ class term_appl_iterator
     /// \brief The assignment operator.
     /// \param other The term to be assigned.
     /// \return A reference to the assigned iterator.
-    term_appl_iterator& operator=(const term_appl_iterator& other)
-    {
-      m_term=other.m_term;
-      return *this;
-    }
-    
+    term_appl_iterator& operator=(const term_appl_iterator& other) = default;
+
     /// \brief The dereference operator.
     /// \return The dereferenced term.
     const Term& operator*() const
@@ -220,19 +213,16 @@ class term_appl_iterator
 
 namespace detail
 {
-  /// This function can be used to translate an term_appl_iterator of one sort into another. 
-  template < class Derived, class Base >
-  term_appl_iterator<Derived> aterm_appl_iterator_cast(term_appl_iterator<Base> a,
-                                                       typename std::enable_if<
-                                                                     std::is_base_of<aterm, Base>::value &&
-                                                                     std::is_base_of<aterm, Derived>::value
-                                                                >::type* /* = nullptr */)
-  {
-    static_assert(sizeof(Derived) == sizeof(_aterm*),
-                "term_appl_iterator only works on aterm classes to which no extra fields are added");
-    static_assert(sizeof(Base) == sizeof(_aterm*),
-                "term_appl_iterator only works on aterm classes to which no extra fields are added");
-    return term_appl_iterator<Derived>(reinterpret_cast<const Derived*>(a.m_term));
+  /// This function can be used to translate an term_appl_iterator of one sort into another.
+template <class Derived, class Base>
+term_appl_iterator<Derived> aterm_appl_iterator_cast(term_appl_iterator<Base> a,
+    std::enable_if_t<std::is_base_of_v<aterm, Base> && std::is_base_of_v<aterm, Derived>>* /* = nullptr */)
+{
+  static_assert(sizeof(Derived) == sizeof(_aterm*),
+      "term_appl_iterator only works on aterm classes to which no extra fields are added");
+  static_assert(sizeof(Base) == sizeof(_aterm*),
+      "term_appl_iterator only works on aterm classes to which no extra fields are added");
+  return term_appl_iterator<Derived>(reinterpret_cast<const Derived*>(a.m_term));
   }
 
 } // namespace detail
