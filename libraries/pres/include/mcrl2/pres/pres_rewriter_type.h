@@ -26,7 +26,7 @@ enum pres_rewriter_type
   quantifier_finite,
   quantifier_inside,
   quantifier_one_point,
-
+  prune_dataspec
 };
 
 /// \brief Parses a pres rewriter type
@@ -53,6 +53,10 @@ pres_rewriter_type parse_pres_rewriter_type(const std::string& type)
   {
     return quantifier_one_point;
   }
+  if (type == "prune-dataspec")
+  {
+    return prune_dataspec;
+  }
   throw mcrl2::runtime_error("unknown pres rewriter option " + type);
 }
 
@@ -72,8 +76,10 @@ std::string print_pres_rewriter_type(const pres_rewriter_type type)
       return "quantifier-inside";
     case quantifier_one_point:
       return "quantifier-one-point";
+    case prune_dataspec:
+      return "prune-dataspec";
     default:
-    return "unknown pres rewriter";
+      return "unknown pres rewriter";
   }
 }
 
@@ -93,7 +99,8 @@ std::string description(const pres_rewriter_type type)
       return "for pushing quantifiers inside";
     case quantifier_one_point :
       return "for one point rule quantifier elimination";
-
+    case prune_dataspec:
+      return "for removing unused data equations and mappings";
   }
   throw mcrl2::runtime_error("unknown pres rewriter");
 }
