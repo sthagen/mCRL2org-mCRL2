@@ -31,8 +31,10 @@ General
 Research
 --------
 
+.. [SKN25] A\. Stramaglia, J.J.A. Keiren, T. Neele. Unfolding State Variables Improves Model Checking. Theoretical Computer Science, vol. 1038, pp. 115181. `(DOI) <https://doi.org/10.1016/j.tcs.2025.115181>`__
 .. [SKN23] A\. Stramaglia, J.J.A. Keiren, T. Neele. Simplifying Process Parameters by Unfolding Algebraic Data Types. ICTAC 2023. LNCS vol. 14446, pp. 399-416. `(DOI) <https://doi.org/10.1007/978-3-031-47963-2_24>`__
 .. [MG23] J.J.M. Martens and J.F. Groote. Computing Minimal Distinguishing Hennessy-Milner Formulas is NP-Hard, but Variants are Tractable. CONCUR 2023, LIPIcs vol. 279. `(DOI) <https://doi.org/10.4230/LIPIcs.CONCUR.2023.32>`__
+.. [N22] T\. Neele. (Re)moving Quantifiers to Simplify Parameterised Boolean Equation Systems. ARQNL 2022. CEUR-WS, vol. 3326, pp. 64-80. `(link) <https://ceur-ws.org/Vol-3326/ARQNL2022_paper4.pdf>`__
 .. [JGKW20] D.N. Jansen, J.F. Groote, J.J.A. Keiren, A. Wijs. An O(m log n) algorithm for branching bisimilarity on labelled transition systems. TACAS 2020, LNCS vol. 12079, pp. 3-20. `(DOI) <https://doi.org/10.1007/978-3-030-45237-7_1>`__
 .. [NWW20] T\. Neele, W. Wesselink, T.A.C. Willemse. Partial-Order Reduction for Parity Games with an Application on Parameterised Boolean Equation Systems. TACAS 2020, LNCS vol. 12079, pp. 307-324. `(DOI) <https://doi.org/10.1007/978-3-030-45237-7_19>`__
 .. [NWG20] T\. Neele, T.A.C. Willemse and J.F. Groote. Finding compact proofs for infinite-data parameterised Boolean equation systems. Science of Computer Programming (FACS 2018 special issue), vol. 188, pp. 102389. `(DOI) <https://doi.org/10.1016/j.scico.2019.102389>`__
@@ -69,6 +71,7 @@ Research
 Applications
 ------------
 
+.. [BBGvdBB25] A\. Beers, J. Booy, J. F. Groote, J. Van Den Bogaard, M. Bouwman. A Complete Formal Specification and Verification of the BESW Software Control System of the Maeslant Storm Surge Barrier. Formal Methods for Industrial Critical Systems, vol. 16040, pp. 225–240. `(DOI) <https://doi.org/10.1007/978-3-032-00942-5_12>`__
 .. [vDKW24] D\. van Dortmont, J. J. A. Keiren, T. A. C. Willemse. Modelling and Analysing a Mechanical Lung Ventilator in mCRL2. In: Rigorous State-Based Methods., pp. 341--359. Springer Nature Switzerland, Cham. 2024. `(DOI) <https://doi.org/10.1007/978-3-031-63790-2_27>`__
 .. [HKG24] Y\. Hafidi, J. J. A. Keiren, J. F. Groote. Fair Mutual Exclusion for N Processes. In: Tools and Methods of Program Analysis. Communications in Computer and Information Science, pp. 149--160. Springer Nature Switzerland, Cham. 2024. Also appeared on `arXiv <https://arxiv.org/abs/2111.02251>`__. `(DOI) <https://doi.org/10.1007/978-3-031-50423-5_14>`__
 .. [SK23] A\. Stramaglia, J. J. A. Keiren. Formal Verification of an Industrial UML-like Model Using mCRL2. In: Formal Methods for Industrial Critical Systems. Lecture Notes in Computer Science, pp. 86--102. Springer International Publishing, Cham. 2022. Also appeared on `arXiv <https://arxiv.org/abs/2205.08146>`__. `(DOI) <http://doi.org/10.1007/978-3-031-15008-1_7>`__
