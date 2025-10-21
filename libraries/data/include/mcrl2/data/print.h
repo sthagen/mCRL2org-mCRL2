@@ -421,10 +421,13 @@ inline int precedence(const data_expression& x)
   return core::detail::max_precedence;
 }
 
+/// These should be consistent with the syntax.
+///
+/// We do not care about the abstractions (quantifiers).
 inline
 bool is_left_associative(const data_expression& x)
 {
-  return !sort_bool::is_implies_application(x) && !sort_list::is_cons_application(x);
+  return !sort_bool::is_implies_application(x) && !sort_list::is_cons_application(x) && !sort_bool::is_and_application(x) && !sort_bool::is_or_application(x);
 }
 
 inline
@@ -434,8 +437,9 @@ bool is_right_associative(const data_expression& x)
   {
     return false;
   }
-  const auto& x_ = atermpp::down_cast<application>(x);
-  return !detail::is_minus(x_) && !is_equal_to_application(x);
+
+  // For the binary operators this is one or the other.
+  return !is_left_associative(x);
 }
 
 namespace detail
