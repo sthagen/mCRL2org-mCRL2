@@ -27,6 +27,7 @@
 #include "mcrl2/pbes/rewriters/simplify_quantifiers_rewriter.h"
 #include "mcrl2/pbes/srf_pbes.h"
 #include "mcrl2/utilities/input_output_tool.h"
+#include "mcrl2/pbes/detail/pbes_remove_counterexample_info.h"
 
 using namespace mcrl2;
 using namespace mcrl2::log;
@@ -179,6 +180,13 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
         {
           bqnf_rewriter pbesr;
           pbes_rewrite(p, pbesr);
+          break;
+        }
+        case pbes_rewriter_type::remove_cex_variables:
+        {
+          auto result = pbes_system::detail::remove_counterexample_info(p, true, true, false);
+          save_pbes(result, output_filename(), m_pbes_output_format);
+          return true;
           break;
         }
       }
