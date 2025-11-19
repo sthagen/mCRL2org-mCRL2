@@ -10,6 +10,7 @@
 #ifndef MCRL2_PBES_PBESREACH_H
 #define MCRL2_PBES_PBESREACH_H
 
+#include "mcrl2/pbes/symbolic_pbessolve.h"
 #ifdef MCRL2_ENABLE_SYLVAN
 
 #include "mcrl2/utilities/detail/container_utility.h"
@@ -565,19 +566,24 @@ class pbesreach_algorithm
       return false;
     }
 
-    virtual sylvan::ldds::ldd W0() const
+    /// \returns LDD containing the vertices that were visited during reachability
+    virtual sylvan::ldds::ldd V() const
     {
-      return sylvan::ldds::empty_set();
+      return m_visited;
     }
 
-    virtual sylvan::ldds::ldd W1() const
+    /// \returns LDD containing the vertices that were seen but not visited upon completion of reachability.
+    ///          Note that these are (potentially) incomplete vertices
+    virtual sylvan::ldds::ldd I() const
     {
-      return sylvan::ldds::empty_set();
+      return m_todo;
     }
 
-    virtual sylvan::ldds::ldd S0() const { return sylvan::ldds::empty_set(); }
-
-    virtual sylvan::ldds::ldd S1() const { return sylvan::ldds::empty_set(); }
+    /// \returns Partial solution that has been computed during reachability
+    virtual symbolic_solution_t partial_solution() const
+    {
+      return symbolic_solution_t();
+    }
 
     std::vector<symbolic::summand_group> summand_groups() const
     {
@@ -631,6 +637,8 @@ class pbesreach_algorithm
       return m_group_patterns;
     }
 };
+
+
 
 } // namespace mcrl2::pbes_system
 
