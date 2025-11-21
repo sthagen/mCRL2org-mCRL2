@@ -13,7 +13,6 @@
 #define MCRL2_DATA_FIND_H
 
 #include "mcrl2/data/add_binding.h"
-#include "mcrl2/data/detail/data_functional.h"
 #include "mcrl2/data/traverser.h"
 
 namespace mcrl2::data
@@ -345,6 +344,47 @@ std::set<data::variable> find_free_variables_with_bound(const T& x, VariableCont
 {
   std::set<data::variable> result;
   data::find_free_variables_with_bound(x, std::inserter(result, result.end()), bound);
+  return result;
+}
+
+/// \\brief Returns all variables that occur in an object
+/// \\param[in] x an object containing variables
+/// \\return All free variables that occur in the object x
+template <typename T>
+std::vector<data::variable> find_free_variables_in_order(const T& x)
+{
+    std::vector<data::variable> seen;
+    data::find_free_variables(x, std::inserter(seen, seen.end()));
+  
+    // Filter duplicates
+    std::vector<data::variable> result;
+    for (const variable& var: seen)
+    {
+        if (std::find(result.begin(), result.end(), var) == result.end()) {
+            result.push_back(var);
+        }
+    }
+    return result;
+}
+
+/// \\brief Returns all variables that occur in an object
+/// \\param[in] x an object containing variables
+/// \\param[in] bound a bound a container of variables
+/// \\return All free variables that occur in the object x
+template <typename T, typename VariableContainer>
+std::vector<data::variable> find_free_variables_with_bound_in_order(const T& x, VariableContainer const& bound)
+{
+  std::vector<data::variable> seen;
+  data::find_free_variables_with_bound(x, std::inserter(seen, seen.end()), bound);
+  
+    // Filter duplicates
+  std::vector<data::variable> result;
+  for (const variable& var: seen)
+  {
+      if (std::find(result.begin(), result.end(), var) == result.end()) {
+          result.push_back(var);
+      }
+  }
   return result;
 }
 
