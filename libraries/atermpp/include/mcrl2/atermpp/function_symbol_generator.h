@@ -55,6 +55,8 @@ public:
   /// \pre The prefix may not be empty, and it may not have trailing digits
   function_symbol_generator(const std::string& prefix)
   {
+    assert(!prefix.empty() && !(std::isdigit(*prefix.rbegin())));
+
     if constexpr (mcrl2::utilities::detail::GlobalThreadSafe)
     {
       function_symbol_generator_mutex().lock();
@@ -63,7 +65,6 @@ public:
     m_prefix=prefix + (generator_sequence_number()>0?std::to_string(generator_sequence_number()) + "_":"");
     generator_sequence_number()++;
     m_string_buffer=m_prefix;
-    assert(!prefix.empty() && !(std::isdigit(*prefix.rbegin())));
 
     // Obtain a reference to the first index possible.
     m_central_index = detail::g_term_pool().get_symbol_pool().register_prefix(m_prefix);
@@ -118,6 +119,36 @@ public:
     function_symbol f(m_string_buffer, arity, false);
     return f;
   }
+
+  /// \brief Generate a unique function symbol, based on the prefix, followed by a number.
+  /// \details This function is not very efficient. 
+  /// \param [prefix] A prefix
+  function_symbol operator()(const std::string& prefix)
+  {
+
+    if constexpr (mcrl2::utilities::detail::GlobalThreadSafe)
+    {
+      function_symbol_generator_mutex().lock();
+    }
+
+    std::string function_name = prefix.substr(0,prefix.rfind("0123456789 ")); // Remove trailing digits.
+    assert(!function_name.empty() && !(std::isdigit(function_name.back())));
+
+    // Obtain a reference to the first index possible.
+    m_central_index = detail::g_term_pool().get_symbol_pool().register_prefix(function_name);
+    function_name.append(std::to_string(*m_central_index));
+
+    m_initial_index = m_index;
+
+    function_symbol f(function_name, 0, false);
+ 
+    if constexpr (mcrl2::utilities::detail::GlobalThreadSafe)
+    {
+      function_symbol_generator_mutex().unlock();
+    }
+    return f;
+  }
+
 };
 
 } // namespace atermpp

@@ -48,11 +48,6 @@ class pres_expression: public atermpp::aterm
     {}
 
     /// \\brief Constructor Z6.
-    pres_expression(const data::variable& x)
-      : atermpp::aterm(x)
-    {}
-
-    /// \\brief Constructor Z6.
     pres_expression(const data::untyped_data_parameter& x)
       : atermpp::aterm(x)
     {}
@@ -94,7 +89,6 @@ inline
 bool is_pres_expression(const atermpp::aterm& x)
 {
   return data::is_data_expression(x) ||
-         data::is_variable(x) ||
          data::is_untyped_data_parameter(x) ||
          pres_system::is_propositional_variable_instantiation(x) ||
          pres_system::is_minus(x) ||
@@ -1301,18 +1295,14 @@ pres_system::pres_expression translate_user_notation(const pres_system::pres_exp
 inline
 const pres_expression& true_()
 {
-  /* The dynamic cast is required, to prevent copying the data term true to
-     a local term on the stack. */
-  return reinterpret_cast<const pres_expression&>(data::sort_bool::true_());
+  return atermpp::down_cast<pres_expression>(data::sort_bool::true_());
 }
 
 /// \return Returns the value false
 inline
 const pres_expression& false_()
 {
-  /* The dynamic cast is required, to prevent copying the data term false to
-     a local term on the stack. */
-  return reinterpret_cast<const pres_expression&>(data::sort_bool::false_());
+  return atermpp::down_cast<pres_expression>(data::sort_bool::false_());
 }
 
 /// \brief Test for the value true

@@ -90,14 +90,6 @@ bool gsIsDataAppl_no_check(const atermpp::aterm& Term)
   }
 }
 
-// DataVarIdNoIndex
-inline
-const atermpp::function_symbol& function_symbol_DataVarIdNoIndex()
-{
-  static atermpp::function_symbol f = atermpp::function_symbol("DataVarIdNoIndex", 2);
-  return f;
-}
-
 // OpIdIndex
 inline
 const atermpp::function_symbol& function_symbol_OpIdNoIndex()
@@ -105,30 +97,6 @@ const atermpp::function_symbol& function_symbol_OpIdNoIndex()
   static atermpp::function_symbol f = atermpp::function_symbol("OpIdNoIndex", 2);
   return f;
 }
-
-// ProcVarIdNoIndex
-inline
-const atermpp::function_symbol& function_symbol_ProcVarIdNoIndex()
-{
-  static atermpp::function_symbol f = atermpp::function_symbol("ProcVarIdNoIndex", 2);
-  return f;
-}
-
-// BooleanVariableNoIndex
-inline
-const atermpp::function_symbol& function_symbol_BooleanVariableNoIndex()     // This function is deprecated and can be removed in the year 2025.
-{
-  static atermpp::function_symbol f = atermpp::function_symbol("BooleanVariableNoIndex", 1);
-  return f;
-}
-
-// PropVarInstNoIndex
-inline
-const atermpp::function_symbol& function_symbol_PropVarInstNoIndex()         // This function is deprecated and can be removed in the year 2025.
-{
-  static atermpp::function_symbol f = atermpp::function_symbol("PropVarInstNoIndex", 2);
-  return f;
-}  
 
 //--- start generated constructors ---//
 // ActAnd
