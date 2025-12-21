@@ -34,7 +34,16 @@ struct action_formula_builder_base: public core::builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
+  }
+
+  template <class T>
+  void apply(T& result, const data::untyped_data_parameter& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    // skip
+    static_cast<Derived&>(*this).leave(x);
+    result = atermpp::down_cast<T>(x);
   }
 };
 
@@ -51,29 +60,24 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_not_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -82,7 +86,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_and_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -91,7 +94,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_or_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -100,7 +102,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_imp(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -109,7 +110,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_forall(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -118,7 +118,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_exists(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -127,7 +126,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::at& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_at(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -136,7 +134,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::multi_action& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_multi_action(result, [&](process::action_list& result){ static_cast<Derived&>(*this).apply(result, x.actions()); });
     static_cast<Derived&>(*this).leave(x);
@@ -145,7 +142,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::action_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -224,29 +220,24 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_not_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -255,7 +246,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_and_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -264,7 +254,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_or_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -273,7 +262,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_imp(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -282,7 +270,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_forall(result, x.variables(), [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -291,7 +278,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_exists(result, x.variables(), [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -300,7 +286,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::at& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_at(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -309,7 +294,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::multi_action& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_multi_action(result, [&](process::action_list& result){ static_cast<Derived&>(*this).apply(result, x.actions()); });
     static_cast<Derived&>(*this).leave(x);
@@ -318,7 +302,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::action_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -397,29 +380,24 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_not_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -428,7 +406,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_and_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -437,7 +414,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_or_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -446,7 +422,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_imp(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -455,7 +430,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_forall(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -464,7 +438,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_exists(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -473,7 +446,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::at& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_at(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -482,7 +454,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::multi_action& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_multi_action(result, [&](process::action_list& result){ static_cast<Derived&>(*this).apply(result, x.actions()); });
     static_cast<Derived&>(*this).leave(x);
@@ -491,7 +462,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::action_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -570,29 +540,24 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_not_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -601,7 +566,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_and_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -610,7 +574,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_or_(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -619,7 +582,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_imp(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -628,7 +590,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_forall(result, x.variables(), [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -637,7 +598,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_exists(result, x.variables(), [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -646,7 +606,6 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::at& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     action_formulas::make_at(result, [&](action_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); }, x.time_stamp());
     static_cast<Derived&>(*this).leave(x);
@@ -655,18 +614,15 @@ struct add_action_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const action_formulas::multi_action& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const action_formulas::action_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -751,7 +707,7 @@ struct regular_formula_builder_base: public core::builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
  
   template <class T>
@@ -761,7 +717,7 @@ struct regular_formula_builder_base: public core::builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 };
 
@@ -778,7 +734,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::seq& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_seq(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -787,7 +742,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_alt(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -796,7 +750,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -805,7 +758,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans_or_nil& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans_or_nil(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -814,7 +766,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::untyped_regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_untyped_regular_formula(result, x.name(), [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -823,7 +774,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -878,7 +828,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::seq& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_seq(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -887,7 +836,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_alt(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -896,7 +844,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -905,7 +852,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans_or_nil& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans_or_nil(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -914,7 +860,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::untyped_regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_untyped_regular_formula(result, x.name(), [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -923,7 +868,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -978,7 +922,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::seq& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_seq(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -987,7 +930,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_alt(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -996,7 +938,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1005,7 +946,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans_or_nil& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans_or_nil(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1014,7 +954,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::untyped_regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_untyped_regular_formula(result, x.name(), [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1023,7 +962,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -1078,7 +1016,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::seq& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_seq(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1087,7 +1024,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_alt(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1096,7 +1032,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1105,7 +1040,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::trans_or_nil& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_trans_or_nil(result, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1114,7 +1048,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::untyped_regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     regular_formulas::make_untyped_regular_formula(result, x.name(), [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1123,7 +1056,6 @@ struct add_regular_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const regular_formulas::regular_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -1183,7 +1115,16 @@ struct state_formula_builder_base: public core::builder<Derived>
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
+  } 
+
+  template <class T>
+  void apply(T& result, const data::untyped_data_parameter& x)
+  {
+    static_cast<Derived&>(*this).enter(x);
+    // skip
+    static_cast<Derived&>(*this).leave(x);
+    result = atermpp::down_cast<T>(x);
   } 
 
 };
@@ -1201,29 +1142,24 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_not_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1232,7 +1168,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::minus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_minus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1241,7 +1176,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_and_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1250,7 +1184,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_or_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1259,7 +1192,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_imp(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1268,7 +1200,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::plus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_plus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1277,7 +1208,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1286,7 +1216,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply_alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply_alt(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1295,7 +1224,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_forall(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1304,7 +1232,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_exists(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1313,7 +1240,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::infimum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_infimum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1322,7 +1248,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::supremum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_supremum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1331,7 +1256,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::sum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_sum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1340,7 +1264,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::must& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_must(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1349,7 +1272,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::may& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_may(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1358,18 +1280,15 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::yaled& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::yaled_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_yaled_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1378,18 +1297,15 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::delay& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::delay_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_delay_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1398,7 +1314,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::variable& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_variable(result, x.name(), [&](data::data_expression_list& result){ static_cast<Derived&>(*this).apply(result, x.arguments()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1407,7 +1322,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::nu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_nu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1416,7 +1330,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::mu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_mu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1437,7 +1350,6 @@ struct add_sort_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::state_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -1568,29 +1480,24 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_not_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1599,7 +1506,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::minus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_minus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1608,7 +1514,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_and_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1617,7 +1522,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_or_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1626,7 +1530,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_imp(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1635,7 +1538,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::plus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_plus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1644,7 +1546,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1653,7 +1554,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply_alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply_alt(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1662,7 +1562,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_forall(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1671,7 +1570,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_exists(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1680,7 +1578,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::infimum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_infimum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1689,7 +1586,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::supremum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_supremum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1698,7 +1594,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::sum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_sum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1707,7 +1602,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::must& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_must(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1716,7 +1610,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::may& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_may(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1725,18 +1618,15 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::yaled& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::yaled_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_yaled_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1745,18 +1635,15 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::delay& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::delay_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_delay_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1765,7 +1652,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::variable& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_variable(result, x.name(), [&](data::data_expression_list& result){ static_cast<Derived&>(*this).apply(result, x.arguments()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1774,7 +1660,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::nu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_nu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1783,7 +1668,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::mu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_mu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1801,7 +1685,6 @@ struct add_data_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::state_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -1932,29 +1815,24 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_not_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1963,7 +1841,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::minus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_minus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1972,7 +1849,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_and_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1981,7 +1857,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_or_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1990,7 +1865,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_imp(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -1999,7 +1873,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::plus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_plus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2008,7 +1881,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2017,7 +1889,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply_alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply_alt(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2026,7 +1897,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_forall(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2035,7 +1905,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_exists(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2044,7 +1913,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::infimum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_infimum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2053,7 +1921,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::supremum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_supremum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2062,7 +1929,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::sum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_sum(result, [&](data::variable_list& result){ static_cast<Derived&>(*this).apply(result, x.variables()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2071,7 +1937,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::must& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_must(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2080,7 +1945,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::may& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_may(result, [&](regular_formulas::regular_formula& result){ static_cast<Derived&>(*this).apply(result, x.formula()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2089,18 +1953,15 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::yaled& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::yaled_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_yaled_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2109,18 +1970,15 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::delay& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::delay_timed& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_delay_timed(result, [&](data::data_expression& result){ static_cast<Derived&>(*this).apply(result, x.time_stamp()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2129,7 +1987,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::variable& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_variable(result, x.name(), [&](data::data_expression_list& result){ static_cast<Derived&>(*this).apply(result, x.arguments()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2138,7 +1995,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::nu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_nu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2147,7 +2003,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::mu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_mu(result, x.name(), [&](data::assignment_list& result){ static_cast<Derived&>(*this).apply(result, x.assignments()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2165,7 +2020,6 @@ struct add_variables: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::state_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {
@@ -2296,29 +2150,24 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::true_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::false_& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::not_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_not_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2327,7 +2176,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::minus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_minus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2336,7 +2184,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::and_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_and_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2345,7 +2192,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::or_& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_or_(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2354,7 +2200,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::imp& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_imp(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2363,7 +2208,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::plus& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_plus(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2372,7 +2216,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply(result, x.left(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.right()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2381,7 +2224,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::const_multiply_alt& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_const_multiply_alt(result, [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.left()); }, x.right());
     static_cast<Derived&>(*this).leave(x);
@@ -2390,7 +2232,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::forall& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_forall(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2399,7 +2240,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::exists& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_exists(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2408,7 +2248,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::infimum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_infimum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2417,7 +2256,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::supremum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_supremum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2426,7 +2264,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::sum& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_sum(result, x.variables(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.body()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2435,7 +2272,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::must& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_must(result, x.formula(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2444,7 +2280,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::may& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_may(result, x.formula(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2453,62 +2288,51 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::yaled& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::yaled_timed& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::delay& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::delay_timed& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::variable& x)
   { 
-    
-    result = x;
     static_cast<Derived&>(*this).enter(x);
     // skip
     static_cast<Derived&>(*this).leave(x);
-    result = x;
+    result = atermpp::down_cast<T>(x);
   }
 
   template <class T>
   void apply(T& result, const state_formulas::nu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_nu(result, x.name(), x.assignments(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2517,7 +2341,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::mu& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     state_formulas::make_mu(result, x.name(), x.assignments(), [&](state_formula& result){ static_cast<Derived&>(*this).apply(result, x.operand()); });
     static_cast<Derived&>(*this).leave(x);
@@ -2535,7 +2358,6 @@ struct add_state_formula_expressions: public Builder<Derived>
   template <class T>
   void apply(T& result, const state_formulas::state_formula& x)
   { 
-    
     static_cast<Derived&>(*this).enter(x);
     if (data::is_data_expression(x))
     {

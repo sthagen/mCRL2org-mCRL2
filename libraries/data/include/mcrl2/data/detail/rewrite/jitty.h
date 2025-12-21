@@ -104,7 +104,8 @@ class RewriterJitty: public Rewriter
                       data_expression& result,
                       const function_symbol& op,
                       const application& term,
-                      substitution_type& sigma);
+                      substitution_type& sigma,
+                      const std::size_t do_not_rewrite_first_arguments=0);
 
     void rewrite_aux_const_function_symbol(
                       data_expression& result,
@@ -121,6 +122,7 @@ class RewriterJitty: public Rewriter
     void rebuild_strategy(const data_specification& data_spec, const mcrl2::data::used_data_equation_selector& equation_selector);
 
     data_expression remove_normal_form_function(const data_expression& t);
+    void add_normal_form_function(data_expression& t);
     void subst_values(
             data_expression& result,
             const jitty_assignments_for_a_rewrite_rule& assignments,

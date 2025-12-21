@@ -53,7 +53,8 @@ data::data_specification construct_propositional_variable_data_specification(con
 
 struct symbolic_reachability_options: public symbolic::symbolic_reachability_options
 {
-  bool check_strategy = false;
+  bool compute_strategy = false; // compute strategy during solving and/or symbolic reachability
+  bool check_strategy = false;   // check strategy after solving
   bool make_total = false;
   bool reset_parameters = false;
   bool aggressive = false;
@@ -106,7 +107,7 @@ pbes_system::srf_pbes split_conditions(const pbes_system::srf_pbes& pbes, std::s
         // For disjunctive conditions we can introduce one summand per clause.
         for (const data::data_expression& clause : data::split_or(summand.condition()))
         {
-          split_summands.emplace_back(summand.parameters(), clause, summand.variable());
+          split_summands.emplace_back(summand.parameters(), atermpp::down_cast<pbes_expression>(clause), summand.variable());
           mCRL2log(log::debug) << "Added summand " << split_summands.back() << std::endl;
         }
       }
@@ -122,7 +123,7 @@ pbes_system::srf_pbes split_conditions(const pbes_system::srf_pbes& pbes, std::s
           {
             // For conjunctive equations add !condition => Xfalse, and !condition && Xtrue otherwise.
             split_summands_inner.emplace_back(data::variable_list(),
-                                              data::lazy::not_(clause),
+                                              atermpp::down_cast<pbes_expression>(data::lazy::not_(clause)),
                                               !equation.is_conjunctive()
                                               ? propositional_variable_instantiation(Xtrue.name(), {}) :
                                                 propositional_variable_instantiation(Xfalse.name(), {})
@@ -136,7 +137,7 @@ pbes_system::srf_pbes split_conditions(const pbes_system::srf_pbes& pbes, std::s
 
             split_summands_inner.emplace_back(data::variable_list(), true_(), propositional_variable_instantiation(Y1.name(), data::make_data_expression_list(Y1.parameters())));
             std::vector<srf_summand> summands;
-            summands.emplace_back(data::variable_list(), clause, summand.variable());
+            summands.emplace_back(data::variable_list(), atermpp::down_cast<pbes_expression>(clause), summand.variable());
             added_equations.emplace_back(equation.symbol(), Y1, summands, !equation.is_conjunctive());
             mCRL2log(log::debug) << "Added equation " << added_equations.back() << std::endl;
           }

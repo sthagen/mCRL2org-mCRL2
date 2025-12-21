@@ -112,6 +112,17 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
          : b(std::move(b_)), f(std::move(f_)), g0(std::move(g0_)), g1(std::move(g1_))
         {}
 
+        template<class E1, class E2>
+        stack_element(
+          E1 b_,
+          E2 f_,
+          pbes_expression g0_,
+          pbes_expression g1_
+        )
+         : b(std::move(atermpp::down_cast<pbes_expression>(b_))),
+           f(std::move(atermpp::down_cast<pbes_expression>(f_))), g0(std::move(g0_)), g1(std::move(g1_))
+        {}
+
         void mark(atermpp::term_mark_stack& todo) const
         {
           mark_term(b, todo);
@@ -169,7 +180,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
         }
         else
         {
-         throw mcrl2::runtime_error("Fail to evaluate the expression " + pbes_system::pp(x) + " as it should be equal to true or false.");
+         throw mcrl2::runtime_error("Fail to evaluate the expression " + data::pp(x) + " as it should be equal to true or false.");
         }
       }
 
@@ -334,7 +345,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
 
       void leave(const exists& x)
       {
-        enter(x); // Print an error message. 
+        enter(x); // Print an error message.
       }
 
       void enter(const forall& x)
@@ -344,7 +355,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
 
       void leave(const forall& x)
       {
-        enter(x); // Print an error. 
+        enter(x); // Print an error.
       }
     };
 
@@ -364,7 +375,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
     // Returns true if all nodes in the todo list are undefined (i.e. have not been processed yet)
     bool todo_has_only_undefined_nodes() const
     {
-      /* for (const propositional_variable_instantiation& X: todo.all_elements())  all_elements does not seem to work. Therefore split below. 
+      /* for (const propositional_variable_instantiation& X: todo.all_elements())  all_elements does not seem to work. Therefore split below.
       {
         structure_graph::index_type u = m_graph_builder.find_vertex(X);
         const structure_graph::vertex& u_ = m_graph_builder.vertex(u);
@@ -520,6 +531,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
                      const pbes_expression& psi
                     ) override
     {
+      assert(&result != &psi); // required by super::rewrite_psi
       super::rewrite_psi(thread_index, result, symbol, X, psi);
       auto rplus_result = Rplus(result);
       b[thread_index] = rplus_result.b;
@@ -611,7 +623,7 @@ class pbesinst_structure_graph_algorithm2: public pbesinst_structure_graph_algor
         }
       }
       else if (m_options.optimization == partial_solve_strategy::detect_winning_loops_original && (m_options.aggressive || find_loops_guard(m_iteration_count)))
-      {        
+      {
         mCRL2log(log::verbose) << "start partial solving\n"; report = true;
 
         simple_structure_graph G(m_graph_builder.vertices());

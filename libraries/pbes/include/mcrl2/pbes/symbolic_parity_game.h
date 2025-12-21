@@ -270,12 +270,12 @@ inline std::map<std::size_t, std::pair<std::size_t, bool>> compute_equation_info
 class symbolic_parity_game
 {
   protected:
-    ldd m_V[2]; // m_V[0] is the set of even nodes, m_V[1] is the set of odd nodes
+    std::array<ldd,2> m_V; // m_V[0] is the set of even nodes, m_V[1] is the set of odd nodes
     const std::vector<symbolic::summand_group> m_summand_groups;
     std::map<std::size_t, ldd> m_rank_map;
     bool m_no_relprod = false;
     bool m_chaining = false;
-    bool m_strategy = false;
+    bool m_compute_strategy = false;
 
     const std::vector<symbolic::data_expression_index>& m_data_index; // for debugging only
     ldd m_all_nodes; // for debugging only
@@ -293,11 +293,10 @@ class symbolic_parity_game
       bool chaining,
       bool strategy
     )
-      : m_summand_groups(summand_groups), m_no_relprod(no_relprod), m_chaining(chaining), m_strategy(strategy), m_data_index(data_index), m_all_nodes(V)
+      : m_summand_groups(summand_groups), m_no_relprod(no_relprod), m_chaining(chaining), m_compute_strategy(strategy), m_data_index(data_index), m_all_nodes(V)
     {
       using namespace sylvan::ldds;
       using utilities::detail::contains;
-      assert(!(strategy && chaining));
 
       // Determine priority and owner from the given pbes.
       auto equation_info = detail::compute_equation_info(pbes, data_index);
@@ -335,16 +334,20 @@ class symbolic_parity_game
 
     /// \brief Determine a symbolic parity game from the given pbes, transition groups and index.
     /// \param V the set of reachable vertices.
-    symbolic_parity_game(
-      const std::vector<symbolic::summand_group>& summand_groups,
+    symbolic_parity_game(const std::vector<symbolic::summand_group>& summand_groups,
       const std::vector<symbolic::data_expression_index>& data_index,
       const ldd& V,
       const ldd& Veven,
       const std::vector<ldd>& prio,
       bool no_relprod,
-      bool chaining
-    )
-      : m_summand_groups(summand_groups), m_no_relprod(no_relprod), m_chaining(chaining), m_data_index(data_index), m_all_nodes(V)
+      bool chaining,
+      bool strategy)
+      : m_summand_groups(summand_groups),
+        m_no_relprod(no_relprod),
+        m_chaining(chaining),
+        m_compute_strategy(strategy),
+        m_data_index(data_index),
+        m_all_nodes(V)
     {
       m_V[0] = Veven;
       m_V[1] = minus(V, Veven);
@@ -401,7 +404,11 @@ class symbolic_parity_game
       const ldd& T = sylvan::ldds::empty_set()) const
     {
       stopwatch attractor_watch;
-      mCRL2log(log::debug) << "start attractor set computation\n";
+      mCRL2log(log::debug) << "safe_attractor: start attractor set computation\n";
+      mCRL2log(log::trace) << "  player = " << alpha << "\n"
+                           << "  U = " << print_nodes(U) << "\n"
+                           << "  I = " << print_nodes(I) << "\n"
+                           << "  T = " << print_nodes(T) << "\n";
 
       using namespace sylvan::ldds;
 
@@ -413,28 +420,45 @@ class symbolic_parity_game
 
       while (todo != empty_set())
       {
+        mCRL2log(log::trace) << "safe_attractor: start iteration " << iter << "\n";
+        mCRL2log(log::trace) << "  Z = " << print_nodes(Z) << "\n"
+                             << "  todo = " << print_nodes(todo) << "\n"
+                             << "  Zoutside = " << print_nodes(Zoutside) << "\n"
+                             << "  strategy = " << print_strategy(strategy) << "\n";
+
         // Terminate early when a vertex in T was found.
         if (intersect(T, Z) != empty_set() )
         {
           return std::make_pair(Z, strategy);
         }
 
-        mCRL2log(log::trace) << "todo = " << print_nodes(todo) << std::endl;
-        mCRL2log(log::trace) << "Zoutside = " << print_nodes(Zoutside) << std::endl;
         stopwatch iter_start;
 
         const auto& [pred, pred_strategy] = safe_control_predecessors_impl(alpha, todo, Zoutside, Zoutside, V, Vplayer, I);
+        mCRL2log(log::trace) << "safe_attractor: computed safe_control_predecessors\n"
+          << "  pred = " << print_nodes(pred) << "\n"
+          << "  pred_strategy = " << print_strategy(pred_strategy) << "\n";
+
         todo = minus(pred, Z);
         strategy = union_(strategy, pred_strategy);
         Z = union_(Z, todo);
         Zoutside = minus(Zoutside, todo);
 
-        mCRL2log(log::debug) << "attractor set iteration " << iter << " (time = " << std::setprecision(2) << std::fixed << iter_start.seconds() << "s)" << std::endl;
+        mCRL2log(log::debug) << "safe_attractor: attractor set iteration " << iter
+                             << " (time = " << std::setprecision(2) << std::fixed << iter_start.seconds() << "s)"
+                             << std::endl;
 
         ++iter;
       }
 
-      mCRL2log(log::debug) << "finished attractor set computation (time = " << std::setprecision(2) << std::fixed << attractor_watch.seconds() << "s)" << std::endl;
+      mCRL2log(log::debug) << "safe_attractor: finished attractor set computation (time = " << std::setprecision(2)
+                           << std::fixed << attractor_watch.seconds() << "s)" << std::endl;
+
+      mCRL2log(log::trace) << "safe_attractor: start iteration " << iter << "\n";
+      mCRL2log(log::trace) << "  Z = " << print_nodes(Z) << "\n"
+                           << "  todo = " << print_nodes(todo) << "\n"
+                           << "  Zoutside = " << print_nodes(Zoutside) << "\n"
+                           << "  strategy = " << print_strategy(strategy) << "\n";
       return std::make_pair(Z, strategy);
     }
 
@@ -454,7 +478,7 @@ class symbolic_parity_game
       using namespace sylvan::ldds;
 
       stopwatch attractor_watch;
-      mCRL2log(log::debug) << "start monotone attractor set computation\n";
+      mCRL2log(log::debug) << "safe_monotone_attractor: start monotone attractor set computation\n";
 
       using namespace sylvan::ldds;
 
@@ -482,20 +506,23 @@ class symbolic_parity_game
           return Z;
         }
 
-        mCRL2log(log::trace) << "todo = " << print_nodes(todo) << std::endl;
-        mCRL2log(log::trace) << "Zoutside = " << print_nodes(Zoutside) << std::endl;
+        mCRL2log(log::trace) << "safe_monotone_attractor: todo = " << print_nodes(todo) << std::endl;
+        mCRL2log(log::trace) << "safe_monotone_attractor: Zoutside = " << print_nodes(Zoutside) << std::endl;
         stopwatch iter_start;
 
         todo = intersect(Vc, minus(safe_control_predecessors_impl(alpha, union_(todo, U), V, minus(Zoutside, U), Vc, Vplayer, I).first, Z));
         Z = union_(Z, todo);
         Zoutside = minus(Zoutside, todo);
 
-        mCRL2log(log::debug) << "monotone attractor set iteration " << iter << " (time = " << std::setprecision(2) << std::fixed << iter_start.seconds() << "s)" << std::endl;
+        mCRL2log(log::debug) << "safe_monotone_attractor: monotone attractor set iteration " << iter
+                             << " (time = " << std::setprecision(2) << std::fixed << iter_start.seconds() << "s)"
+                             << std::endl;
 
         ++iter;
       }
 
-      mCRL2log(log::debug) << "finished monotone attractor set computation (time = " << std::setprecision(2) << std::fixed << attractor_watch.seconds() << "s)" << std::endl;
+      mCRL2log(log::debug) << "safe_monotone_attractor: finished monotone attractor set computation (time = "
+                           << std::setprecision(2) << std::fixed << attractor_watch.seconds() << "s)" << std::endl;
       return Z;
     }
 
@@ -559,20 +586,51 @@ class symbolic_parity_game
       std::array<const ldd, 2> Vplayer = players(V);
 
       // After removing the deadlock (winning) states the resulting set of states is a total graph.
-      mCRL2log(log::debug) << "removing winning regions" << std::endl;
+      mCRL2log(log::debug) << "compute_total_graph: removing winning regions" << std::endl;
       if (Vsinks != empty_set())
       {
+        mCRL2log(log::trace) << "compute_total_graph: adding sinks to winning sets.\n"
+        << "  Vsinks = " << print_nodes(Vsinks) << std::endl;
         winning[0] = union_(winning[0], intersect(Vsinks, m_V[1]));
         winning[1] = union_(winning[1], intersect(Vsinks, m_V[0]));
+        mCRL2log(log::trace) << "compute_total_graph: new winning sets are:\n"
+                            << "  W[0] = " << print_nodes(winning[0]) << "\n"
+                            << "  W[1] = " << print_nodes(winning[1]) << "\n";
+      }
+      else
+      {
+        mCRL2log(log::trace) << "compute_total_graph: there are no sinks.\n";
       }
 
-      std::array<ldd, 2> attr_strategy;
+      mCRL2log(log::trace)
+        << "compute_total_graph: extending winning sets using attractor set computations. Initial winning sets are:\n"
+        << "  W[0] = " << print_nodes(winning[0]) << "\n"
+        << "  W[1] = " << print_nodes(winning[1]) << "\n"
+        << "  S[0] = " << print_strategy(strategy[0]) << "\n"
+        << "  S[1] = " << print_strategy(strategy[1]) << "\n";
+
+        std::array<ldd, 2>
+          attr_strategy;
+      mCRL2log(log::trace) << "compute_total_graph: compute safe attractor into W[0]\n";
       std::tie(winning[0], attr_strategy[0]) = safe_attractor(winning[0], 0, V, Vplayer, I);
+
+      mCRL2log(log::trace) << "compute_total_graph: compute safe attractor into W[1]\n";
       std::tie(winning[1], attr_strategy[1]) = safe_attractor(winning[1], 1, V, Vplayer, I);
+
+      mCRL2log(log::trace) << "compute_total_graph: extended winning sets to:\n"
+                           << "  W[0] = " << print_nodes(winning[0]) << "\n"
+                           << "  W[1] = " << print_nodes(winning[1]) << "\n"
+                           << "with attractor strategy:\n"
+                           << "  S[0] = " << print_strategy(attr_strategy[0]) << "\n"
+                           << "  S[1] = " << print_strategy(attr_strategy[1]) << "\n";
 
       // Update strategy with attractor strategy. Note this is done in-place
       strategy[0] = union_(strategy[0], attr_strategy[0]);
       strategy[1] = union_(strategy[1], attr_strategy[1]);
+
+      mCRL2log(log::trace) << "compute_total_graph: combined strategies are:\n"
+                           << "  S[0] = " << print_strategy(strategy[0]) << "\n"
+                           << "  S[1] = " << print_strategy(strategy[1]) << "\n";
 
       // After removing the deadlock (winning) states the resulting set of states is a total graph.
       return minus(minus(V, winning[0]), winning[1]);
@@ -607,7 +665,7 @@ class symbolic_parity_game
 
         stopwatch watch;
         result = union_(result, predecessors(U, V, group));
-        mCRL2log(log::trace) << "added predecessors for group " << i << " out of " << m_summand_groups.size()
+        mCRL2log(log::trace) << "predecessors: added predecessors for group " << i << " out of " << m_summand_groups.size()
                                << " (time = " << std::setprecision(2) << std::fixed << watch.seconds() << "s)\n";
       }
 
@@ -657,11 +715,12 @@ class symbolic_parity_game
         bool is_odd = (sylvan::ldds::intersect(sylvan::ldds::project(group.L, sylvan::ldds::cube(read_projection)), sylvan::ldds::project(m_V[0], group.Ip)) == sylvan::ldds::empty_set());
         if (is_odd)
         {
-          mCRL2log(log::trace) << "summand group " << summand_groups.size() << " belongs to player odd" << std::endl;
+          mCRL2log(log::trace) << "apply_strategy: summand group " << summand_groups.size() << " belongs to player odd" << std::endl;
         }
         else
         {
-          mCRL2log(log::trace) << "summand group " << summand_groups.size() << " belongs to player even" << std::endl;
+          mCRL2log(log::trace) << "apply_strategy: summand group " << summand_groups.size() << " belongs to player even"
+                               << std::endl;
         }
 
         if (is_odd == alpha)
@@ -715,7 +774,8 @@ class symbolic_parity_game
         m_V[0],
         prio,
         m_no_relprod,
-        m_chaining
+        m_chaining,
+        m_compute_strategy
       );
     }
 
@@ -726,13 +786,21 @@ private:
       return m_no_relprod ? symbolic::alternative_relprev(V, group, U) : relprev(V, group.L, group.Ir, U);
     }
 
-    /// \returns A set of vertices { u in U | exists v in V: u ->* v } where ->* only visits intermediate vertices in W (without chaining ->* = ->)
+    /// \returns A set of vertices P = { u in U | exists v in V: u ->* v } where ->* only visits intermediate vertices in W (but u may be outside W)
+    /// (without chaining ->* = ->), and a strategy for player alpha on P \setminus U.
+    ///
     /// \pre U,W subseteq V.
-    ldd predecessors_chaining(const ldd& U, const ldd& V, const ldd& W) const
+    std::pair<ldd, ldd> predecessors_chaining(const std::size_t alpha,
+      const ldd& U,
+      const ldd& V,
+      const ldd& W,
+      const std::array<const ldd, 2>& Vplayer) const
     {
       using namespace sylvan::ldds;
 
-      ldd P = empty_set();
+      ldd P(empty_set());
+      ldd strategy(empty_set());
+
       ldd todo = V;
       for (int i = m_summand_groups.size() - 1; i >= 0; --i)
       {
@@ -740,14 +808,16 @@ private:
 
         stopwatch watch;
         ldd todo1 = predecessors(U, todo, group);
-        mCRL2log(log::trace) << "added predecessors for group " << i << " out of " << m_summand_groups.size()
-                               << " (time = " << std::setprecision(2) << std::fixed << watch.seconds() << "s)\n";
+        mCRL2log(log::trace) << "predecessors_chaining: added predecessors for group " << i << " out of "
+                             << m_summand_groups.size() << " (time = " << std::setprecision(2) << std::fixed
+                             << watch.seconds() << "s)\n";
 
         P = union_(P, todo1);
+        strategy = union_(strategy, merge(minus(intersect(todo1, Vplayer[alpha]), todo), todo));
         todo = union_(todo, intersect(todo1, W));
       }
 
-      return P;
+      return {P, strategy};
     }
 
     /// \brief Compute the safe control attractor set for U where chaining is restricted to W and V are vertices considered as control predecessors (can be different from outside).
@@ -762,10 +832,39 @@ private:
     {
       using namespace sylvan::ldds;
 
-      ldd P = m_chaining ? predecessors_chaining(V, U, intersect(Vplayer[alpha], W)) : predecessors(V, U);
+      mCRL2log(log::trace) << "safe_control_predecessors_impl: computing safe control predecessors\n"
+        << "  alpha = " << alpha << "\n"
+        << "  U = " << print_nodes(U) << "\n"
+        << "  outside = " << print_nodes(outside) << "\n"
+        << "  W = " << print_nodes(W) << "\n"
+        << "  I = " << print_nodes(I) << "\n";
+
+      ldd P(empty_set());
+      ldd strategy(empty_set());
+      if(m_chaining)
+      {
+        std::tie(P, strategy) = predecessors_chaining(alpha, V, U, intersect(Vplayer[alpha], W), Vplayer);
+      }
+      else
+      {
+        P = predecessors(V, U);
+      }
+
       ldd Palpha = intersect(P, Vplayer[alpha]);
       ldd Pforced = minus(intersect(P, Vplayer[1-alpha]), I);
-      ldd strategy = m_strategy ? merge(Palpha, U) : empty_set();
+
+      // the predecessor computation without chaining does not compute a strategy
+      // so we still need to calculate it.
+      if(!m_chaining)
+      {
+        strategy = merge(minus(Palpha, U), U);
+      }
+
+      mCRL2log(log::trace) << "safe_control_predecessors_impl: initialized to\n"
+        << "  P = " << print_nodes(P) << "\n"
+        << "  Palpha = " << print_nodes(Palpha) << "\n"
+        << "  Pforced = " << print_nodes(Pforced) << "\n"
+        << "  strategy = " << print_strategy(strategy) << "\n";
 
       for (std::size_t i = 0; i < m_summand_groups.size(); ++i)
       {
@@ -774,7 +873,7 @@ private:
         stopwatch watch;
         Pforced = minus(Pforced, predecessors(Pforced, outside, group));
 
-        mCRL2log(log::trace) << "removed 1 - alpha predecessors for group " << i << " out of " << m_summand_groups.size()
+        mCRL2log(log::trace) << "safe_control_predecessors_impl: removed 1 - alpha predecessors for group " << i << " out of " << m_summand_groups.size()
                                << " (time = " << std::setprecision(2) << std::fixed << watch.seconds() << "s)\n";
       }
 

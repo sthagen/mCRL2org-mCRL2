@@ -67,24 +67,24 @@ struct add_data_rewriter: public Builder<Derived>
   {
     data::data_expression result_tmp;
     data_rewrite(result_tmp, x, R, sigma);
-    result = result_tmp;
+    result = atermpp::down_cast<T>(result_tmp);
   }
 
   template <class T>
   void apply(T& result, const propositional_variable_instantiation& x)
   {
     make_propositional_variable_instantiation(
-              result, 
-              x.name(), 
+              result,
+              x.name(),
               [this, &x](data::data_expression_list& r) -> void
                   { atermpp::make_term_list<data::data_expression>(
-                               r, 
+                               r,
                                x.parameters().begin(),
                                x.parameters().end(),
                                [this](data::data_expression& r1, const data::data_expression& arg) -> void
                                      { data_rewrite(r1, arg, R, sigma); } ) ;
-                  }); 
-  } 
+                  });
+  }
 };
 
 template <typename Derived, typename DataRewriter, typename SubstitutionFunction>

@@ -19,6 +19,8 @@
 #include "mcrl2/pbes/detail/pbes_io.h"
 #include "mcrl2/pbes/detail/pbes_remove_counterexample_info.h"
 #include "mcrl2/pbes/detail/pbessolve_algorithm.h"
+#include "mcrl2/pbes/pbes.h"
+#include "mcrl2/pbes/pbes_expression.h"
 #include "mcrl2/pbes/pbesinst_structure_graph.h"
 #include "mcrl2/pbes/pbesreach.h"
 #include "mcrl2/pbes/pbesreach_partial.h"
@@ -63,122 +65,163 @@ public:
       Valpha(Valpha_),
       Vall(Vall_),
       data_index(_data_index),
-      propvar_map(_propvar_map)
+      propvar_map(_propvar_map),
+      X_false(p.equations()[p.equations().size() - 2].variable().name()),
+      X_true(p.equations()[p.equations().size() - 1].variable().name())
   {}
 
-  /// Removes PBES expressions that are irrelevant w.r.t the given strategy
-  void rewrite_psi(const std::size_t thread_index,
-    pbes_expression& result,
+  std::function<pbes_expression(const propositional_variable_instantiation&)> phi_substitution(
+    const std::size_t thread_index,
     const fixpoint_symbol& symbol,
     const propositional_variable_instantiation& X,
-    const pbes_expression& psi) override
+    const pbes_expression& phi) override
   {
-    std::vector<std::uint32_t> singleton;
-    bool changed = false;
-    std::smatch match;
+    return compose_substitutions(X_false_X_true_substitution(X_false, X_true),
+     compose_substitutions(
+      rewrite_star_substitution(data_index, propvar_map, strategy, Valpha, X, alpha),
+      pbesinst_structure_graph_algorithm::phi_substitution(thread_index, symbol, X, phi)));
+  }
 
-    mCRL2log(log::debug) << "X = " << X << ", psi = " << psi << std::endl;
-    if (!std::regex_match(static_cast<const std::string&>(X.name()), match, mcrl2::pbes_system::detail::positive_or_negative))
+  private:
+    bool alpha;
+    sylvan::ldds::ldd strategy;
+    sylvan::ldds::ldd Valpha;
+    sylvan::ldds::ldd Vall;
+    const std::vector<symbolic::data_expression_index>& data_index;
+    const std::unordered_map<core::identifier_string, data::data_expression>& propvar_map;
+    const core::identifier_string &X_false;
+    const core::identifier_string &X_true;
+
+    struct X_false_X_true_substitution
     {
-      replace_propositional_variables(
-          result,
-          psi,
-          [&](const propositional_variable_instantiation& Y) -> pbes_expression
+      const core::identifier_string& X_false;
+      const core::identifier_string& X_true;
+
+      X_false_X_true_substitution(const core::identifier_string& X_false,
+      const core::identifier_string& X_true)
+      : X_false(X_false),
+        X_true(X_true)
+      {}
+
+      pbes_expression operator()(const propositional_variable_instantiation& x)
+      {
+        if (x.name() == X_false)
+        {
+          return false_();
+        }
+        else if (x.name() == X_true)
+        {
+          return true_();
+        }
+        else
+        {
+          return x;
+        }
+      }
+    };
+
+      /// Removes PBES expressions that are irrelevant w.r.t the given strategy
+      struct rewrite_star_substitution
+    {
+      mutable std::vector<std::uint32_t> singleton;
+      mutable std::smatch match;
+
+      const std::vector<symbolic::data_expression_index>& data_index;
+      const std::unordered_map<core::identifier_string, data::data_expression>& propvar_map;
+      const sylvan::ldds::ldd& strategy;
+      const sylvan::ldds::ldd& Valpha;
+      const propositional_variable_instantiation& X;
+      const bool alpha;
+
+      rewrite_star_substitution(const std::vector<symbolic::data_expression_index>& data_index,
+        const std::unordered_map<core::identifier_string, data::data_expression>& propvar_map,
+        const sylvan::ldds::ldd& strategy,
+        const sylvan::ldds::ldd& Valpha,
+        const propositional_variable_instantiation& X,
+        bool alpha)
+        : data_index(data_index),
+          propvar_map(propvar_map),
+          strategy(strategy),
+          Valpha(Valpha),
+          X(X),
+          alpha(alpha)
+      {}
+
+      pbes_expression operator()(const propositional_variable_instantiation& Y) const
+      {
+        if (std::regex_match(static_cast<const std::string&>(Y.name()),
+              match,
+              mcrl2::pbes_system::detail::positive_or_negative))
+        {
+          // If Y in L return Y
+          mCRL2log(log::debug) << "rewrite_star " << Y << " is counter example equation (in L)" << std::endl;
+          return Y;
+        }
+
+        // TODO: This depends on the encoding used in pbesreach.
+        // Determine whether X belongs to player alpha
+        singleton.clear();
+        singleton.emplace_back(data_index[0].index(propvar_map.at(X.name())));
+
+        std::size_t i = 1;
+        for (const auto& param: X.parameters())
+        {
+          singleton.emplace_back(data_index[i].index(param));
+          ++i;
+        }
+
+        if (sylvan::ldds::member_cube(Valpha, singleton))
+        {
+          // Determine whether (X, Y) is in the strategy.
+
+          // Add the propositional variables.
+          singleton.clear();
+          singleton.emplace_back(data_index[0].index(propvar_map.at(X.name())));
+          singleton.emplace_back(data_index[0].index(propvar_map.at(Y.name())));
+
+          // Add the interleaved data expressions.
+          std::size_t i = 1;
+          auto param_Y_it = Y.parameters().begin();
+
+          for (const data::data_expression& param_X_it: X.parameters())
           {
-            if (std::regex_match(static_cast<const std::string&>(Y.name()), match, mcrl2::pbes_system::detail::positive_or_negative))
+            singleton.emplace_back(data_index[i].index(param_X_it));
+            singleton.emplace_back(data_index[i].index(*param_Y_it));
+
+            ++param_Y_it;
+            ++i;
+          }
+
+          if (sylvan::ldds::member_cube(strategy, singleton))
+          {
+            // If Y in E0
+            mCRL2log(log::debug) << "rewrite_star " << Y << " is reachable" << std::endl;
+            return Y;
+          }
+          else
+          {
+            if (alpha == 0)
             {
-              // If Y in L return Y
-              mCRL2log(log::debug) << "rewrite_star " << Y << " is counter example equation (in L)" << std::endl;
-              return Y;
-            }
-
-            // TODO: This depends on the encoding used in pbesreach.
-            // Determine whether X belongs to player alpha
-            singleton.clear();
-            singleton.emplace_back(data_index[0].index(propvar_map.at(X.name())));
-
-            std::size_t i = 1;
-            for (const auto& param : X.parameters())
-            {
-              singleton.emplace_back(data_index[i].index(param));
-              ++i;
-            }
-
-            if (sylvan::ldds::member_cube(Valpha, singleton))
-            {
-              // Determine whether (X, Y) is in the strategy.
-
-              // Add the propositional variables.
-              singleton.clear();
-              singleton.emplace_back(data_index[0].index(propvar_map.at(X.name())));
-              singleton.emplace_back(data_index[0].index(propvar_map.at(Y.name())));
-
-              // Add the interleaved data expressions.
-              std::size_t i = 1;
-              auto param_Y_it = Y.parameters().begin();
-
-              for (const data::data_expression& param_X_it : X.parameters())
-              {
-                singleton.emplace_back(data_index[i].index(param_X_it));
-                singleton.emplace_back(data_index[i].index(*param_Y_it));
-
-                ++param_Y_it;
-                ++i;
-              }
-
-              if (sylvan::ldds::member_cube(strategy, singleton))
-              {
-                // If Y in E0
-                mCRL2log(log::debug) << "rewrite_star " << Y << " is reachable" << std::endl;
-                return Y;
-              }
-              else
-              {
-                changed = true;
-                if (alpha == 0)
-                {
-                  // If Y is not reachable, replace it by false
-                  mCRL2log(log::debug) << "rewrite_star " << Y << " is not reachable, becomes false" << std::endl;
-                  return false_();
-                }
-                else
-                {
-                  // If Y is not reachable, replace it by true
-                  mCRL2log(log::debug) << "rewrite_star " << Y << " is not reachable, becomes true" << std::endl;
-                  return true_();
-                }
-              }
+              // If Y is not reachable, replace it by false
+              mCRL2log(log::debug) << "rewrite_star " << Y << " is not reachable, becomes false" << std::endl;
+              return false_();
             }
             else
             {
-              mCRL2log(log::debug) << "rewrite_star " << Y << " is reachable" << std::endl;
-              return Y;
+              // If Y is not reachable, replace it by true
+              mCRL2log(log::debug) << "rewrite_star " << Y << " is not reachable, becomes true" << std::endl;
+              return true_();
             }
           }
-        );
-
-    }
-
-    if (changed)
-    {
-        simplify_rewriter simplify;
-        const pbes_expression result1 = result;
-        simplify(result, result1);
-    }
-
-    mCRL2log(log::debug) << "result = " << psi << std::endl;
-    const pbes_expression result2 = result;
-    pbesinst_structure_graph_algorithm::rewrite_psi(thread_index, result, symbol, X, result2);
-  }
-
-private:
-  bool alpha;
-  sylvan::ldds::ldd strategy;
-  sylvan::ldds::ldd Valpha;
-  sylvan::ldds::ldd Vall;
-  const std::vector<symbolic::data_expression_index>& data_index;
-  const std::unordered_map<core::identifier_string, data::data_expression>& propvar_map;
-};
+        }
+        else
+        {
+          mCRL2log(log::debug) << "rewrite_star " << Y << " is reachable" << std::endl;
+          return Y;
+        }
+      }
+    };
+  };
 
 } // namespace mcrl2::pbes_system
 
@@ -387,10 +430,15 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
         evidence_file = parser.option_argument("evidence-file");
       }
 
-      if (options.check_strategy && options.summand_groups.compare("none") != 0)
+      if (options.check_strategy)
       {
-        throw mcrl2::runtime_error("Cannot check strategy for merged summand groups");
+        if (options.summand_groups.compare("none") != 0)
+        {
+          throw mcrl2::runtime_error("Cannot check strategy for merged summand groups");
+        }
+        options.compute_strategy = true;
       }
+
     }
 
   public:
@@ -439,7 +487,7 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
       // This has to be done consistently with the LPS for the counter examples.
       data::mutable_map_substitution<> sigma = pbes_system::detail::instantiate_global_variables(pbesspec);
       pbes_system::detail::replace_global_variables(pbesspec, sigma);
-      pbes_system::srf_pbes_with_ce pre_srf_pbes = preprocess(pbesspec, options);
+      pbes_system::srf_pbes_with_ce pre_srf_pbes = preprocess(pbesspec, options_);
 
       mCRL2log(log::trace) << "============== Pre-SRF PBES ==============" << std::endl;
       mCRL2log(log::trace) << pre_srf_pbes.to_pbes() << std::endl;
@@ -447,24 +495,25 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
       pbes_system::srf_pbes srf_pbes = pre_srf2srfpbes(pre_srf_pbes);
 
       pbesspec = pre_srf_pbes.to_pbes();
-      PbesReachAlgorithm reach(srf_pbes,  options_);
-      if (options.info)
+      if (options_.info)
       {
+        PbesReachAlgorithm reach(srf_pbes, options_);
         std::cout << symbolic::print_read_write_patterns(reach.read_write_group_patterns());
       }
       else
       {
-        mCRL2log(log::debug) << pbes_system::detail::print_pbes_info(reach.pbes()) << std::endl;
-
         // If you provide a file, but the PBES has no counter example information, then use the two pass instantiation. This will be useless, but at least the file will be written.
         if ((!has_counter_example && lpsfile.empty() && ltsfile.empty()) || options_.naive_counter_example_instantiation)
         {
+          PbesReachAlgorithm reach(srf_pbes, options_);
+          mCRL2log(log::debug) << pbes_system::detail::print_pbes_info(reach.pbes()) << std::endl;
+
           timer().start("instantiation");
           reach.run();
           timer().finish("instantiation");
-          if (!options.dot_file.empty())
+          if (!options_.dot_file.empty())
           {
-            print_dot(options.dot_file, reach.V());
+            print_dot(options_.dot_file, reach.V());
           }
 
           if (reach.solution_found())
@@ -473,18 +522,17 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
           }
           else
           {
-            if (options.max_iterations == 0)
+            if (options_.max_iterations == 0)
             {
-              bool chaining = options.chaining;
-              if (options.check_strategy && options.chaining)
-              {
-                mCRL2log(log::info) << "Solving will not use chaining since it cannot be used while checking the strategy" << std::endl;
-                chaining = false;
-              }
-
-              pbes_system::symbolic_parity_game G(reach.pbes(), reach.summand_groups(), reach.data_index(), reach.V(), options.no_relprod, chaining, options.check_strategy);
+              pbes_system::symbolic_parity_game G(reach.pbes(),
+                reach.summand_groups(),
+                reach.data_index(),
+                reach.V(),
+                options_.no_relprod,
+                options_.chaining,
+                options_.compute_strategy);
               G.print_information();
-              pbes_system::symbolic_pbessolve_algorithm solver(G);
+              pbes_system::symbolic_pbessolve_algorithm solver(G, options_.check_strategy);
 
               mCRL2log(log::debug) << pbes_system::detail::print_pbes_info(reach.pbes()) << std::endl;
               timer().start("solving");
@@ -502,6 +550,12 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
         }
         else
         {
+          // We are generating a counterexample, so the strategy must be computed, irregardless of
+          // whether we check the strategy afterwards.
+          options_.compute_strategy = true;
+
+          PbesReachAlgorithm reach(srf_pbes, options_);
+
           timer().start("first-instantiation");
           reach.run();
           timer().finish("first-instantiation");
@@ -511,19 +565,20 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
           // vertices
           ldd V = union_(reach.V(), reach.I());
 
-          if (!options.dot_file.empty())
+          if (!options_.dot_file.empty())
           {
-            print_dot(options.dot_file, V);
+            print_dot(options_.dot_file, V);
           }
 
-          if (options.chaining)
-          {
-            mCRL2log(log::info) << "Solving will not use chaining since it cannot be used while computing the strategy" << std::endl;
-          }
-
-          pbes_system::symbolic_parity_game G(reach.pbes(), reach.summand_groups(), reach.data_index(), V, options.no_relprod, false, true);
+          pbes_system::symbolic_parity_game G(reach.pbes(),
+            reach.summand_groups(),
+            reach.data_index(),
+            V,
+            options_.no_relprod,
+            options_.chaining,
+            options_.compute_strategy);
           G.print_information();
-          pbes_system::symbolic_pbessolve_algorithm solver(G, options.check_strategy);
+          pbes_system::symbolic_pbessolve_algorithm solver(G, options_.check_strategy);
 
           timer().start("first-solving");
           // Solve the remainder of the partially solved game.
@@ -564,7 +619,7 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
 
             // Based on the result remove the unnecessary equations related to counter example information.
             mCRL2log(log::verbose) << "Removing unnecessary counter example information for other player." << std::endl;
-            auto pbesspec_simplified = mcrl2::pbes_system::detail::remove_counterexample_info(pbesspec, !result, result);
+            pbes_system::pbes pbesspec_simplified = mcrl2::pbes_system::detail::remove_counterexample_info(pbesspec, !result, result);
             mCRL2log(log::trace) << pbesspec_simplified << std::endl;
 
             structure_graph SG;
@@ -575,6 +630,7 @@ class pbessolvesymbolic_tool: public parallel_tool<rewriter_tool<input_output_to
             //pbessolve_options.optimization = std::min(partial_solve_strategy::remove_self_loops, options_.solve_strategy);
             pbessolve_options.rewrite_strategy = options_.rewrite_strategy;
             pbessolve_options.remove_unused_rewrite_rules = options_.remove_unused_rewrite_rules;
+            pbessolve_options.check_strategy = options_.check_strategy;
             pbessolve_options.number_of_threads = 1; // If we spawn multiple threads here, the threads of Sylvan and the explicit exploration will interfere
 
             PbesInstAlgorithm second_instantiate(SG, pbessolve_options, pbesspec_simplified, !result, reach.propvar_map(), reach.data_index(), G.players(V)[result ? 0 : 1], V, result ? solution.strategy[0] : solution.strategy[1], reach.rewriter());
