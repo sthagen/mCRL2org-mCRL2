@@ -13,6 +13,7 @@
 #define MCRL2_PROCESS_DETAIL_ALPHABET_PUSH_ALLOW_H
 
 #include "mcrl2/process/allow_set.h"
+#include "mcrl2/process/action_names.h"
 #include "mcrl2/process/alphabet_pcrl.h"
 #include "mcrl2/process/expand_process_instance_assignments.h"
 #include "mcrl2/process/is_multi_action.h"
@@ -589,7 +590,8 @@ struct push_allow_traverser: public process_expression_traverser<Derived>
   void apply(const process::comm& x)
   {
     const communication_expression_list& C = x.comm_set();
-    allow_set A1 = alphabet_operations::comm_inverse(C, A);
+    const action_name_set action_names = process::action_names(x.operand(), equations);
+    allow_set A1 = alphabet_operations::comm_inverse(C, action_names, A);
     push_allow_node node = push_allow(x.operand(), A1, equations, W);
     communication_expression_list C1 = alphabet_operations::filter_comm_set(C, node.alphabet);
     push(push_allow_node(alphabet_operations::comm(C1, node.alphabet), make_comm(C1, node.expression)));
@@ -738,7 +740,7 @@ process_expression push_allow(const process_expression& x,
                               std::map<process_identifier, multi_action_name_set>& pcrl_equation_cache
                             )
 {
-  allow_set A(alphabet_operations::make_name_set(V));
+  allow_set A(process::make_name_set(V));
   detail::push_allow_cache W(id_generator, pcrl_equation_cache);
   detail::push_allow_node node = detail::push_allow(x, A, equations, W, true);
   return node.expression;
