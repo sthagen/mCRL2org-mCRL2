@@ -20,6 +20,7 @@
 #include "mcrl2/utilities/logger.h"
 
 #include "convert_concrete_lts.h"
+#include "mcrl2/utilities/parallel_tool.h"
 
 using namespace mcrl2;
 using namespace mcrl2::lts;
@@ -36,6 +37,19 @@ enum class symbolic_lts_equivalence
   none,
   bisim
 };
+
+/// \brief The arguments for the lace task.
+struct arguments
+{
+  std::string input_filename;
+  std::string output_filename;
+  symbolic_lts_equivalence equivalence;
+  mcrl2::lts::lts_type outtype;
+  lps::symbolic_lts input;
+};
+
+TASK_DECL_1(bool, ltsconvertsymbolic_task, arguments*);
+#define ltsconvertsymbolic_task(a) RUN(ltsconvertsymbolic_task, a)
 
 // \overload
 inline
@@ -94,12 +108,11 @@ inline std::string description(const symbolic_lts_equivalence eq)
   }
 }
 
-class ltsconvert_tool : public input_output_tool
+class ltsconvert_tool : public parallel_tool<input_output_tool>
 {
-  using super = input_output_tool;
+  using super = parallel_tool<input_output_tool>;
 
   // Lace options
-  std::size_t lace_n_workers = 1;
   std::size_t lace_dqsize = static_cast<std::size_t>(1024 * 1024 * 4); // set large default
   std::size_t lace_stacksize = 0;            // use default
 
@@ -110,7 +123,7 @@ class ltsconvert_tool : public input_output_tool
 
 public:
   ltsconvert_tool()
-      : input_output_tool("ltsconvertsymbolic", "Maurice Laveaux", "applies various conversions to symbolic LTSs", "")
+      : parallel_tool<input_output_tool>("ltsconvertsymbolic", "Maurice Laveaux", "applies various conversions to symbolic LTSs", "")
   {}
 
   void add_options(utilities::interface_description& desc) override
@@ -123,9 +136,6 @@ public:
             .add_value(symbolic_lts_equivalence::bisim),
         "generate an equivalent LTS, preserving equivalence NAME:",
         'e');
-    desc.add_option("lace-workers",
-        utilities::make_optional_argument("NUM", "1"),
-        "set number of Lace workers (threads for parallelization), (0=autodetect, default 1)");
     desc.add_option("lace-dqsize",
         utilities::make_optional_argument("NUM", "4194304"),
         "set length of Lace task queue (default 1024*1024*4)");
@@ -144,10 +154,6 @@ public:
     {
       super::parse_options(parser);
 
-      if (parser.has_option("lace-workers"))
-      {
-        lace_n_workers = parser.option_argument_as<int>("lace-workers");
-      }
       if (parser.has_option("lace-dqsize"))
       {
         lace_dqsize = parser.option_argument_as<int>("lace-dqsize");
@@ -202,53 +208,17 @@ public:
     
     bool run() override
     {      
-      lace_init(lace_n_workers, lace_dqsize);
-      lace_startup(lace_stacksize, nullptr, nullptr);
+      lace_set_stacksize(lace_stacksize);
+      lace_start(number_of_threads(), lace_dqsize);
       sylvan::sylvan_set_limits(memory_limit * 1024 * 1024 * 1024, std::log2(table_ratio), std::log2(initial_ratio));
       sylvan::sylvan_init_package();
       sylvan::sylvan_init_ldd();
 
-      if (input_filename().empty() || input_filename() == "-")
-      {
-        std::cin >> m_input;
-      }
-      else
-      {
-        std::ifstream ifs(input_filename(), std::ifstream::in | std::ios_base::binary);
-        if (!ifs.good())
-        {
-          throw mcrl2::runtime_error("Could not open file " + input_filename() + ".");
-        }
-        ifs >> m_input;
-      }
-
-      if (m_equivalence == symbolic_lts_equivalence::none)
-      {
-        // Convert into a concrete LTS.
-        lps::specification lpsspec;
-        lps::explorer_options options;
-        options.save_at_end = false;
-        
-        if (outtype == lts_none)
-        {
-          mCRL2log(verbose) << "Trying to detect output format by extension..." << std::endl;
-
-          outtype = mcrl2::lts::detail::guess_format(output_filename(), true);
-        }
-        
-        std::unique_ptr<lts_builder> builder = create_lts_builder(lpsspec, options, outtype, output_filename());
-
-        convert_concrete_lts algorithm(m_input, std::move(builder));
-        algorithm.run();
-        algorithm.save(output_filename());
-      }
-      else
-      {
-        bisim(m_input);
-      }
+      auto args = arguments{.input_filename = input_filename(), .output_filename = output_filename(), .equivalence = m_equivalence, .outtype = outtype};
+      ltsconvertsymbolic_task(&args);
 
       sylvan::sylvan_quit();
-      lace_exit();
+      lace_stop();
       return true;
     }
 
@@ -258,6 +228,50 @@ public:
 
     lps::symbolic_lts m_input;
 };
+
+TASK_IMPL_1(bool, ltsconvertsymbolic_task, arguments*, args)
+{
+  if (args->input_filename.empty() || args->input_filename == "-")
+  {
+    std::cin >> args->input;
+  }
+  else
+  {
+    std::ifstream ifs(args->input_filename, std::ifstream::in | std::ios_base::binary);
+    if (!ifs.good())
+    {
+      throw mcrl2::runtime_error("Could not open file " + args->input_filename + ".");
+    }
+    ifs >> args->input;
+  }
+
+  if (args->equivalence == symbolic_lts_equivalence::none)
+  {
+    // Convert into a concrete LTS.
+    lps::specification lpsspec;
+    lps::explorer_options options;
+    options.save_at_end = false;
+    
+    if (args->outtype == lts_none)
+    {
+      mCRL2log(verbose) << "Trying to detect output format by extension..." << std::endl;
+
+      args->outtype = mcrl2::lts::detail::guess_format(args->output_filename, true);
+    }
+    
+    std::unique_ptr<lts_builder> builder = create_lts_builder(lpsspec, options, args->outtype, args->output_filename);
+
+    convert_concrete_lts algorithm(args->input, std::move(builder));
+    algorithm.run();
+    algorithm.save(args->output_filename);
+  }
+  else
+  {
+    bisim(args->input);
+  }
+
+  return true;
+}
 
 int main(int argc, char* argv[])
 {
