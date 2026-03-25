@@ -19,14 +19,16 @@
 #include "mcrl2/data/rewrite_strategy.h"
 #include "mcrl2/data/rewriter.h"
 #include "mcrl2/pbes/algorithms.h"
+#include "mcrl2/pbes/detail/instantiate_global_variables.h"
 #include "mcrl2/pbes/detail/iteration_builders.h"
 #include "mcrl2/pbes/detail/stategraph_pbes.h"
 #include "mcrl2/pbes/io.h"
 #include "mcrl2/pbes/pbes_equation.h"
 #include "mcrl2/pbes/pbes_expression.h"
-#include "mcrl2/pbes/pbesreach.h"
 #include "mcrl2/pbes/rewrite.h"
+#include "mcrl2/pbes/resolve_name_clashes.h"
 #include "mcrl2/pbes/srf_pbes.h"
+#include "mcrl2/pbes/unify_parameters.h"
 #include "mcrl2/utilities/logger.h"
 #include <chrono>
 #include <cstddef>
@@ -523,6 +525,16 @@ inline pbes fill_pvi(pbes& p, data::rewriter data_rewriter)
   return res;
 }
 
+pbes tosrf(pbes_system::pbes pbesspec)
+{
+  pbes_system::detail::instantiate_global_variables(pbesspec);
+  auto result = pbes2pre_srf(pbesspec, true);
+  // Unify the parameters of the original PBES (which has potential counter example information)
+  unify_parameters(result, true, false);
+  pbes_system::resolve_summand_variable_name_clashes(result, result.equations().front().variable().parameters()); // N.B. This is a required preprocessing step.
+  return pre_srf2srfpbes(result).to_pbes();
+}
+
 struct pbeschain_pbes_backward_substituter
 {
   void run(pbes& p, pbeschain_options options)
@@ -586,13 +598,8 @@ struct pbeschain_pbes_backward_substituter
       if (pvi_set.size() > 0 && options.srf_factor > 0)
       {
         // Use the same SRF form as pbessolvesymbolic
-#ifdef MCRL2_ENABLE_SYLVAN
-        symbolic_reachability_options opts;
-        pbes_system::srf_pbes_with_ce result_presrf_pbes = preprocess(p, opts);
-        pbes result_srf_pbes = pre_srf2srfpbes(result_presrf_pbes).to_pbes();
-
-        pbes_system::srf_pbes_with_ce original_presrf_pbes = preprocess(original_pbes, opts);
-        pbes original_srf_pbes = pre_srf2srfpbes(original_presrf_pbes).to_pbes();
+        pbes result_srf_pbes = tosrf(p);
+        pbes original_srf_pbes = tosrf(original_pbes);
 
         // Find our equation in both PBESs
         pbes_equation original_eq = original_pbes.equations()[original_i];
@@ -612,13 +619,13 @@ struct pbeschain_pbes_backward_substituter
 
         std::size_t original_size = pp(original_srf_eq->formula()).size();
         std::size_t new_size = pp(result_srf_eq->formula()).size();
+        mCRL2log(log::debug) << "Original size: " << original_size << " New size: " << new_size << "\n";
         if (options.srf_factor * (double)original_size <= (double)new_size)
         {
           log_number_pvi(initial_sizes[original_i], initial_sizes[original_i]);
           (*i).formula() = original_eq.formula();
           pvi_set = find_propositional_variable_instantiations((*i).formula());
         }
-#endif // MCRL2_ENABLE_SYLVAN
       }
 
       mCRL2log(log::verbose) << "How many unique PVI are left? " << pvi_set.size() << "\n";
