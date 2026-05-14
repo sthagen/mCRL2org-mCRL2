@@ -269,7 +269,7 @@ class specification_basic_type
 
     /***************** temporary helper function to compare substitutions ******************/
 
-    template <class Expression, class Substitution>
+    template <class Expression, IsSubstitution Substitution>
     Expression replace_variables_capture_avoiding_alt(const Expression& e, Substitution& sigma)
     {
       return process::replace_variables_capture_avoiding_with_an_identifier_generator(e, sigma, fresh_identifier_generator);
@@ -498,11 +498,11 @@ class specification_basic_type
       }
     }
 
-    template <class SUBSTITUTION>
-    std::set<data::variable> sigma_variables(const SUBSTITUTION& sigma)
+    template <data::IsSubstitution Substitution>
+    std::set<data::variable> sigma_variables(const Substitution& sigma)
     {
       std::set<data::variable> result;
-      for (typename SUBSTITUTION::const_iterator i = sigma.begin(); i != sigma.end(); ++i)
+      for (typename Substitution::const_iterator i = sigma.begin(); i != sigma.end(); ++i)
       {
         std::set<data::variable> V = data::find_free_variables(i->second);
         V.erase(i->first);
@@ -1408,7 +1408,7 @@ class specification_basic_type
       return false;
     }
 
-    template <class MutableSubstitution>
+    template <IsSubstitution MutableSubstitution>
     void alphaconvertprocess(
       variable_list& sumvars,
       MutableSubstitution& sigma,
@@ -1435,7 +1435,7 @@ class specification_basic_type
       sumvars=variable_list(newsumvars.begin(), newsumvars.end());
     }
 
-    template <class MutableSubstitution>
+    template <IsSubstitution MutableSubstitution>
     void alphaconvert(
       variable_list& sumvars,
       MutableSubstitution& sigma,
@@ -1507,7 +1507,7 @@ class specification_basic_type
     /******************* substitute *****************************************/
 
 
-    template <class Substitution>
+    template <IsSubstitution Substitution>
     assignment_list substitute_assignmentlist(
       const assignment_list& assignments,
       const variable_list& parameters,
@@ -1667,7 +1667,7 @@ class specification_basic_type
     /* The function below cannot be replace by replace_variables_capture_avoiding although
      * the interfaces are the same. As yet it is unclear why, but the difference shows itself
      * for instance when linearising lift3-final.mcrl2 and lift3_init.mcrl2 */
-    template <class Substitution>
+    template <IsSubstitution Substitution>
     process_expression substitute_pCRLproc(
       const process_expression& p,
       Substitution& sigma)

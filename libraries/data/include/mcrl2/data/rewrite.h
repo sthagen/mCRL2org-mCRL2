@@ -12,6 +12,7 @@
 #ifndef MCRL2_DATA_REWRITE_H
 #define MCRL2_DATA_REWRITE_H
 
+#include "mcrl2/data/concepts.h"
 #include "mcrl2/data/builder.h"
 
 namespace mcrl2::data {
@@ -48,7 +49,7 @@ make_rewrite_data_expressions_builder(Rewriter R)
   return rewrite_data_expressions_builder<Builder, Rewriter>(R);
 }
 
-template <template <class> class Builder, class Rewriter, class Substitution>
+template <template <class> class Builder, class Rewriter, IsSubstitution Substitution>
 struct rewrite_data_expressions_with_substitution_builder: public Builder<rewrite_data_expressions_with_substitution_builder<Builder, Rewriter, Substitution> >
 {
   using super = Builder<rewrite_data_expressions_with_substitution_builder<Builder, Rewriter, Substitution>>;
@@ -72,7 +73,7 @@ struct rewrite_data_expressions_with_substitution_builder: public Builder<rewrit
   }
 };
 
-template <template <class> class Builder, class Rewriter, class Substitution>
+template <template <class> class Builder, class Rewriter, IsSubstitution Substitution>
 rewrite_data_expressions_with_substitution_builder<Builder, Rewriter, Substitution>
 make_rewrite_data_expressions_with_substitution_builder(Rewriter R, Substitution sigma)
 {
@@ -113,7 +114,7 @@ T rewrite(const T& x,
 /// \\param x an object containing expressions
 /// \\param R a rewriter
 /// \\param sigma a substitution
-template <typename T, typename Rewriter, typename Substitution>
+template <typename T, typename Rewriter, data::IsSubstitution Substitution>
 void rewrite(T& x,
              Rewriter R,
              const Substitution& sigma
@@ -128,7 +129,7 @@ void rewrite(T& x,
 /// \\param R a rewriter
 /// \\param sigma a substitution
 /// \\return the rewrite result
-template <typename T, typename Rewriter, typename Substitution>
+template <typename T, typename Rewriter, data::IsSubstitution Substitution>
 T rewrite(const T& x,
           Rewriter R,
           const Substitution& sigma
