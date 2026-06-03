@@ -135,7 +135,8 @@ public:
   /// \param last The end of a range of elements.
   /// \param convert_to_aterm A class with a () operation, which is applied to each element
   ///                   before it is put into the list.
-  /// \param aterm_filter A class with an operator () that is used to determine whether elements can be inserted in the list.
+  /// \param aterm_filter A class with an operator () that yields a bool, and if true the elements is inserted in the list.
+  ///                     Otherwise, it is ignored. 
   template <class Iter, class ATermConverter, class ATermFilter>
   explicit term_list(Iter first,
       Iter last,
@@ -201,7 +202,8 @@ public:
   /// \param last The end of a range of elements.
   /// \param convert_to_aterm A class with a () operation, whic is applied to each element
   ///                      before it is put into the list.
-  /// \param aterm_filter A class with an operator () that is used to determine whether elements can be inserted in the list.
+  /// \param aterm_filter A class with an operator () yielding a bool that if true allows the element to be added to the list.
+  ///                     Otherwise, the element is not added. 
   template <class Iter, class ATermConverter, class ATermFilter>
   explicit term_list(Iter first,
       Iter last,
@@ -520,6 +522,25 @@ public:
 /// \brief A term_list with elements of type aterm.
 using aterm_list = term_list<aterm>;
 
+/// \brief Returns whether the given list is sorted according to the given ordering which is by default the standard ordering on Term. 
+/// \param l A list.
+/// \param ordering A total orderings relation on Term, by default the ordering relation on Terms. 
+/// \details This operator has linear complexity. 
+/// \return A boolean indicating whether the list is sorted. 
+template <typename Term>
+inline
+bool is_sorted(const term_list<Term>& l,
+               const std::function<bool(const Term&, const Term&)>& ordering
+                                   = [](const Term& t1, const Term& t2){ return t1<t2;} )
+{
+  return std::is_sorted(l.begin(), l.end(), ordering);
+} 
+
+
+/// \brief Returns the list with the elements sorted according to the given ordering which is by default standard ordering on Term. 
+/// \param l A list.
+/// \param ordering A total orderings relation on Term, by default the ordering relation on Terms. 
+
 /// \brief Returns the list with the elements in reversed order.
 /// \param l A list.
 /// \details This operator is linear in the size of the list.
@@ -539,10 +560,22 @@ term_list<Term> sort_list(const term_list<Term>& l,
                           const std::function<bool(const Term&, const Term&)>& ordering 
                                       = [](const Term& t1, const Term& t2){ return t1<t2;});
 
-/// \brief Returns the merged list sorted according to the <-operator, which is by default the ordering of addresses of terms. 
+/// \brief Returns the list with element t inserted in l lexicographically according to the provided ordering. 
+/// \param t An element to be inserted.
+/// \param l A list.
+/// \param ordering A total orderings relation on Term, by default the ordering relation on Terms. 
+/// \details This operator has linear complexity. It is assumed that the list l is ordered for it to work. 
+/// \return The sorted list.
+template <typename Term>
+inline
+term_list<Term> insert_sorted(const Term& t, const term_list<Term>& l,
+                              const std::function<bool(const Term&, const Term&)>& ordering
+                                       = [](const Term& t1, const Term& t2){ return t1<t2;} );
+
+/// \brief Returns the merged list sorted according to the given ordering, which is by default the ordering of addresses of terms. 
 /// \param l1 An ordered list.
 /// \param l2 Another ordered list.
-/// \param ordering An total orderings relation on Term, by default the ordering relation on Terms. 
+/// \param ordering A total orderings relation on Term, by default the ordering relation on Terms. 
 /// \details This operator is linear in the cumulative length of l1 and l2. In debug mode it checks whether l1 and l2 are ordered.
 /// \return The sorted list.
 template <typename Term>
