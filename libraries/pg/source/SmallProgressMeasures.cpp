@@ -11,6 +11,7 @@
 #include "mcrl2/pg/attractor.h"
 #include "mcrl2/pg/SCC.h"
 
+#include <array>
 #include <cstring>
 #include <memory>
 
@@ -197,7 +198,6 @@ verti SmallProgressMeasures::solve_one(LiftingStrategy2 &ls)
     lift_to(v, vec(get_successor(v)), compare_strict(v));
     assert(success);
     dirty_[v] = false;
-    // debug_print_vertex(v);
 
     for ( const verti *it  = game_.graph().pred_begin(v),
                       *end = game_.graph().pred_end(v); it != end; ++it )
@@ -285,7 +285,7 @@ void SmallProgressMeasures::get_strategy(ParityGame::Strategy &strat) const
 }
 
 // Returns the same result as lift_to, but doesn't actually change anything:
-bool SmallProgressMeasures::less_than(verti v, const verti vec2[], bool carry)
+bool SmallProgressMeasures::less_than(verti v, const verti* vec2, bool carry)
 {
   if (is_top(v))
   {
@@ -299,7 +299,7 @@ bool SmallProgressMeasures::less_than(verti v, const verti vec2[], bool carry)
     return comparison < 0 || (comparison <= 0 && carry);
 }
 
-bool SmallProgressMeasures::lift_to(verti v, const verti vec2[], bool carry)
+bool SmallProgressMeasures::lift_to(verti v, const verti* vec2, bool carry)
 {
   if (is_top(v))
   {
@@ -492,7 +492,7 @@ ParityGame::Strategy SmallProgressMeasuresSolver::solve_normal()
 ParityGame::Strategy SmallProgressMeasuresSolver::solve_alternate()
 {
     // Create two SPM and two lifting strategy instances:
-    std::unique_ptr<SmallProgressMeasures> spm[2];
+    std::array<std::unique_ptr<SmallProgressMeasures>, 2> spm;
     spm[0] = std::make_unique<DenseSPM>(game_, PLAYER_EVEN, stats_, vmap_, vmap_size_);
     spm[1] = std::make_unique<DenseSPM>(game_, PLAYER_ODD, stats_, vmap_, vmap_size_);
 
@@ -663,7 +663,7 @@ ParityGame::Strategy SmallProgressMeasuresSolver2::solve_normal()
 ParityGame::Strategy SmallProgressMeasuresSolver2::solve_alternate()
 {
     // Create two SPM and two lifting strategy instances:
-    std::unique_ptr<SmallProgressMeasures> spm[2];
+    std::array<std::unique_ptr<SmallProgressMeasures>, 2> spm;
     spm[0] = std::make_unique<DenseSPM>(game_, PLAYER_EVEN, stats_, vmap_, vmap_size_);
     spm[1] = std::make_unique<DenseSPM>(game_, PLAYER_ODD, stats_, vmap_, vmap_size_);
 
@@ -758,7 +758,7 @@ DenseSPM::~DenseSPM()
     delete[] spm_;
 }
 
-void DenseSPM::set_vec(verti v, const verti src[], bool carry)
+void DenseSPM::set_vec(verti v, const verti* src, bool carry)
 {
     verti *dst = &spm_[(std::size_t)len_*v];
     const int l = len(v);                   // l: vector length

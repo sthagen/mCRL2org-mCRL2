@@ -352,7 +352,7 @@ void MainWindow::onParse()
 
 void MainWindow::parseError(QString err)
 {
-  mCRL2log(error) << err.toStdString() << std::endl;
+  mCRL2log(mcrl2::log::error) << err.toStdString() << std::endl;
 
   int line = m_lastErrorPosition.x();
   int col = m_lastErrorPosition.y();
@@ -410,7 +410,7 @@ void MainWindow::onRewriteAbort()
 
 void MainWindow::rewriteError(QString err)
 {
-  mCRL2log(error) << err.toStdString() << std::endl;
+  mCRL2log(mcrl2::log::error) << err.toStdString() << std::endl;
   m_ui.editRewriteExpr->selectAll();
 }
 
@@ -449,7 +449,7 @@ void MainWindow::solvedPart(QString output)
 
 void MainWindow::solveError(QString err)
 {
-  mCRL2log(error) << err.toStdString() << std::endl;
+  mCRL2log(mcrl2::log::error) << err.toStdString() << std::endl;
   m_ui.editSolveExpr->selectAll();
 }
 
@@ -480,10 +480,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::findErrorPosition(QString err)
 {
   QStringList lines = err.split("\n");
-  for (int i = 0; i < lines.size(); i++)
+  for (const auto & line : lines)
   {
     QRegularExpression rxlen("Line (\\d+), column (\\d+): syntax error");
-    QRegularExpressionMatch match = rxlen.match(lines[i]);
+    QRegularExpressionMatch match = rxlen.match(line);
 
     if (match.isValid()) {
       m_lastErrorPosition.setX(match.captured(1).toInt());

@@ -188,13 +188,13 @@ struct pfnf_traverser: public pbes_expression_traverser<pfnf_traverser>
     std::set<data::variable> left_variables;
     std::set<data::variable> right_variables;
     std::set<data::variable> name_clashes;
-    for (std::vector<pfnf_traverser_quantifier>::const_iterator i = left.quantifiers.begin(); i != left.quantifiers.end(); ++i)
+    for (const auto& quantifier: left.quantifiers)
     {
-      left_variables.insert(i->second.begin(), i->second.end());
+      left_variables.insert(quantifier.second.begin(), quantifier.second.end());
     }
-    for (std::vector<pfnf_traverser_quantifier>::const_iterator j = right.quantifiers.begin(); j != right.quantifiers.end(); ++j)
+    for (const auto& quantifier: right.quantifiers)
     {
-      for (const data::variable& v: j->second)
+      for (const data::variable& v: quantifier.second)
       {
         right_variables.insert(v);
         if (left_variables.find(v) != left_variables.end())
@@ -365,7 +365,6 @@ std::cout << "RIGHT AFTER\n"; print_expression(right);
     std::vector<pfnf_traverser_quantifier> q = concat(left.quantifiers, right.quantifiers);
     pbes_expression h = make_and(left, right);
     std::vector<pfnf_traverser_implication> g = concat(left.implications, right.implications);
-//std::cout << "AND RESULT\n"; print_expression(pfnf_traverser_expression(h, q, g));
     expression_stack.emplace_back(h, q, g);
   }
 
@@ -412,7 +411,6 @@ std::cout << "RIGHT AFTER\n"; print_expression(right);
         g.emplace_back(make_and(i.g, k.g), concat(i.rhs, k.rhs));
       }
     }
-//std::cout << "OR RESULT\n"; print_expression(pfnf_traverser_expression(h, q, g));
     expression_stack.emplace_back(h, q, g);
   }
 

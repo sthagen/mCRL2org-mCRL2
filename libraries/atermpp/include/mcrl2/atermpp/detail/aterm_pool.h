@@ -15,6 +15,8 @@
 
 #include "mcrl2/utilities/shared_mutex.h"
 
+#include <atomic>
+
 
 namespace atermpp::detail
 {

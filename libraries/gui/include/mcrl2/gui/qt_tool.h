@@ -159,7 +159,7 @@ class qt_tool: public Tool
       return Tool::execute(argc, argv);
     }
 
-    bool pre_run(int& argc, char** argv)
+    bool pre_run(int& argc, char** argv) override
     {
 #ifdef MCRL2_PLATFORM_WINDOWS
       // Disable the dark mode on Windows 11 until the icons have been adapted
@@ -173,14 +173,15 @@ class qt_tool: public Tool
       try
       {
         qInstallMessageHandler(myMessageOutput); // Install the handler
-        m_application = std::unique_ptr<QApplication>(new QApplication(argc, argv));
+        m_application = std::make_unique<QApplication>(argc, argv);
 #ifdef MCRL2_PLATFORM_WINDOWS
         m_application->setStyle("windowsvista");
 #endif // MCRL2_PLATFORM_WINDOWS
       }
       catch (...)
       {
-        mCRL2log(mcrl2::log::debug) << "Creating QApplication failed." << std::endl;
+        mCRL2log(mcrl2::log::error) << "Creating QApplication failed." << std::endl;
+        return false;
       }
       return true;
     }
@@ -194,7 +195,7 @@ class qt_tool: public Tool
       return m_application->exec() == 0;
     }
 
-    virtual ~qt_tool() {}
+    ~qt_tool() override = default;
 };
 
 } // namespace mcrl2::gui::qt

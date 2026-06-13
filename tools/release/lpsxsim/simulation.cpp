@@ -13,7 +13,6 @@
 
 void Simulation::init(const QString& filename, bool do_not_use_dummies)
 {
-  // mcrl2::lps::stochastic_specification spec;
   try
   {
     load_lps(m_stochastic_spec, filename.toStdString());
@@ -100,15 +99,15 @@ void Simulation::updateTrace(unsigned long long firstChangedState)
 Simulation::State Simulation::renderState(const mcrl2::lps::state& state)
 {
   State output;
-  for (unsigned long long i = 0; i < state.size(); i++)
+  for (const auto & argument : state)
   {
-    if (mcrl2::data::is_variable(state[i]))
+    if (mcrl2::data::is_variable(argument))
     {
       output += "_";
     }
     else
     {
-      output += QString::fromStdString(mcrl2::data::pp(state[i]));
+      output += QString::fromStdString(mcrl2::data::pp(argument));
     }
   }
   return output;
@@ -116,7 +115,7 @@ Simulation::State Simulation::renderState(const mcrl2::lps::state& state)
 
 void Simulation::select(unsigned long long transitionNumber, unsigned long long selected_state, QSemaphore *semaphore)
 {
-  assert(selected_state<static_cast<unsigned long long>(m_trace.size()));
+  assert(std::cmp_less(selected_state,m_trace.size()));
   if (m_trace[selected_state].is_probabilistic)
   {
     m_simulation->select_state(transitionNumber);

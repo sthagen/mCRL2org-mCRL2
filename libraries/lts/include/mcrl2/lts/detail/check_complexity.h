@@ -70,8 +70,8 @@
 ///
 /// \author David N. Jansen, Radboud Universiteit, Nijmegen, The Netherlands
 
-#ifndef _CHECK_COMPLEXITY_H
-#define _CHECK_COMPLEXITY_H
+#ifndef MCRL2_LTS_DETAIL_CHECK_COMPLEXITY_H
+#define MCRL2_LTS_DETAIL_CHECK_COMPLEXITY_H
 
 // If the preprocessor constant `COUNT_WORK_BALANCE` is defined, the temporary
 // work is even counted in non-debug modes.  No checks are executed; we only
@@ -89,6 +89,7 @@
 //#define TEST_WORK_COUNTER_NAMES
 
 #include <cstring>       // for std::size_t and std::memset()
+#include <array>
 #include <cassert>
 #include <cmath>         // for std::log2()
 #include <climits>       // for CHAR_BIT
@@ -148,19 +149,6 @@ class check_complexity
             {
                 return sizeof(size) * CHAR_BIT - 1 - __builtin_clzll(size);
             }
-        //#elif defined(_MSC_VER)
-        //    if constexpr (sizeof(long) == sizeof(size))
-        //    {
-        //        long result;
-        //        _BitScanReverse(result, size);
-        //        return result - 1;
-        //    }
-        //    else if constexpr(sizeof(__int64) == sizeof(size))
-        //    {
-        //        long result;
-        //        _BitScanReverse64(result, size);
-        //        return result - 1;
-        //    }
         #endif
         return (int) std::log2(size);
     }
@@ -519,7 +507,7 @@ class check_complexity
   public:
 #ifndef NDEBUG
     /// \brief printable names of the counter types (for error messages)
-    static const char *work_names[TRANS_gj_MAX - BLOCK_MIN + 1];
+    static const std::array<const char*, TRANS_gj_MAX - BLOCK_MIN + 1> work_names;
 #endif
 
     /// \brief do some work that cannot be assigned directly
@@ -571,7 +559,6 @@ class check_complexity
     {
         #ifndef NDEBUG
             assert(-1 <= sensible_work);
-            //assert(0 == no_of_waiting_cycles);
             sensible_work = 0;
             cannot_wait_before_reset = false;
         #endif
@@ -617,23 +604,7 @@ class check_complexity
             {
                 assert(counters[ctr - FirstCounter] <= 1);
                 cancel_work_units(counters[ctr - FirstCounter]);
-                //if (0 != counters[ctr-FirstCounter])
-                //{
-                //    mCRL2log(log::debug) << "Cancelling work ("
-                //        << counters[ctr - FirstCounter] << ") for counter \""
-                //        << work_names[ctr - BLOCK_MIN] << "\" done on ";
-                //    counters[ctr - FirstCounter] = 0;
-                //    return complexity_print;
-                //}
             }
-            //else if (DONT_COUNT_TEMPORARY == counters[ctr - FirstCounter])
-            //{
-            //    mCRL2log(log::debug) << "Work was artificially assigned "
-            //              "(without changing the balance) to counter \""
-            //                  << work_names[ctr - BLOCK_MIN] << "\" of ";
-            //    counters[ctr - FirstCounter] = 0;
-            //    return complexity_print;
-            //}
             counters[ctr - FirstCounter] = 0;
             return complexity_ok;
         }
@@ -767,19 +738,6 @@ class check_complexity
                                     "maximum value (" << max_value << ") for ";
                 return complexity_error;
             }
-            /*
-            if ((FirstTempCounter == TRANS_MIN_TEMP ||
-                 FirstTempCounter == TRANS_dnj_MIN_TEMP) &&
-                    FirstTempCounter <= to && to < FirstPostprocessCounter &&
-                         DONT_COUNT_TEMPORARY == counters[from - FirstCounter])
-            {
-                assert(1 == max_value);
-                // the next assertion is always satisfied if 1 == max_value.
-                // assert(0 == counters[to - FirstCounter]);
-                counters[to - FirstCounter] = DONT_COUNT_TEMPORARY;
-            }
-            else
-            */
             {
                 counters[to - FirstCounter] = max_value;
                 assert(1 == counters[from - FirstCounter]);
@@ -788,10 +746,6 @@ class check_complexity
             (void) to; (void) max_value; // avoid unused variable warning
 #endif
             counters[from - FirstCounter] = 0;
-            //mCRL2log(log::debug) << "moving work from counter \""
-            //    << work_names[from - BLOCK_MIN] << "\" to \""
-            //    << work_names[to - BLOCK_MIN] << "\" for ";
-            //return complexity_print;
             return complexity_ok;
         }
     };
@@ -1259,7 +1213,6 @@ class check_complexity
             {
                 assert(counters[ctr - STATE_dnj_MIN] <= 0);
             }
-            // assert((unsigned) bottom <= 1);
             for (enum counter_type ctr =
                     (enum counter_type) (STATE_dnj_MAX_TEMP + 1);
                      ctr <= STATE_dnj_MAX; ctr = (enum counter_type) (ctr + 1))
@@ -1429,7 +1382,6 @@ class check_complexity
             {
                 assert(counters[ctr - TRANS_dnj_MIN] <= 0);
             }
-            // assert((unsigned) bottom <= 1);
             for (enum counter_type ctr =
                     (enum counter_type) (TRANS_dnj_MAX_TEMP + 1);
                      ctr <= TRANS_dnj_MAX; ctr = (enum counter_type) (ctr + 1))
@@ -1883,8 +1835,6 @@ class check_complexity
              ((steps)*(trans_type)200+(total))/(total)/2)
         if (0 != overall_total)
         {
-            //auto old_log_level=log::logger::get_reporting_level();
-            //log::logger::set_reporting_level(log::verbose);
             mCRL2log(log::verbose) << "In the coroutines, "
                 << (sensible_work_grand_total + cancelled_work_grand_total)
                 << " states and transitions were inspected.  ";
@@ -1914,7 +1864,6 @@ class check_complexity
             {
                 mCRL2log(log::verbose) << ").\n";
             }
-            //log::logger::set_reporting_level(old_log_level);
             sensible_work_grand_total=0;
             cancelled_work_grand_total=0;
             no_of_waiting_cycles_grand_total=0;
@@ -1986,4 +1935,4 @@ class check_complexity
 // end namespace lts
 // end namespace mcrl2
 
-#endif
+#endif // MCRL2_LTS_DETAIL_CHECK_COMPLEXITY_H

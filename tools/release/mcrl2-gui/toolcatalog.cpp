@@ -36,7 +36,7 @@ QStringList ToolCatalog::fileTypes(QString extension)
 
 void ToolCatalog::load()
 {
-  typedef QMap<QString, QList<ToolInformation> > categorymap;
+  using categorymap = QMap<QString, QList<ToolInformation> >;
 
   QDir toolsetDir = QDir(QCoreApplication::applicationDirPath());
   if (toolsetDir.dirName().toLower() == "bin")
@@ -100,22 +100,3 @@ QList<ToolInformation> ToolCatalog::tools(QString category)
   return m_categories.value(category);
 }
 
-/*
-QList<ToolInformation> ToolCatalog::tools(QString category, QString extension)
-{
-  QStringList inputTypes = fileTypes(extension);
-  QList<ToolInformation> all = tools(category);
-  QList<ToolInformation> ret;
-  for (QList<ToolInformation>::iterator tool = all.begin(); tool != all.end(); ++tool)
-  {
-    for (QStringList::const_iterator it = inputTypes.begin(); it != inputTypes.end(); ++it)
-    {
-      if (tool->input.contains(*it)) {
-        ret.append(*tool);
-        break;
-      }
-    }
-  }
-  return ret;
-}
-*/

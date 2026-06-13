@@ -48,16 +48,16 @@ static std::vector<verti> get_complement(verti V, const DenseSet<verti> &s)
     cardinality(q) > 0 && cardinality(p) > 0 && q < p && q%2 != p%2.
 
     If there are no inversions, the priority limit, d, is returned instead. */
-int first_inversion(const ParityGame &game)
+priority_t first_inversion(const ParityGame &game)
 {
-    int d = game.d();
-    int q = 0;
-    while (q < d && game.cardinality(q) == 0)
+    const priority_t d = game.d();
+    priority_t q = 0;
+    while (q < d && game.cardinality(static_cast<int>(q)) == 0)
     {
       ++q;
     }
-    int p = q + 1;
-    while (p < d && game.cardinality(p) == 0)
+    priority_t p = q + 1;
+    while (p < d && game.cardinality(static_cast<int>(p)) == 0)
     {
       p += 2;
     }
@@ -115,7 +115,6 @@ bool RecursiveSolver::solve(ParityGame &game, Substrategy &strat)
         // Compute attractor set of minimum priority vertices:
         {
             ParityGame::Player player = (ParityGame::Player)((prio - 1)%2);
-            //std::set<verti> min_prio_attr;
             DenseSet<verti> min_prio_attr(0, V);
             for (verti v = 0; v < V; ++v)
             {
@@ -148,14 +147,12 @@ bool RecursiveSolver::solve(ParityGame &game, Substrategy &strat)
 
             // Compute attractor set of all vertices won by the opponent:
             ParityGame::Player opponent = (ParityGame::Player)(prio%2);
-            //std::set<verti> lost_attr;
             DenseSet<verti> lost_attr(0, V);
-            for ( std::vector<verti>::const_iterator it = unsolved.begin();
-                  it != unsolved.end(); ++it )
+            for (verti v : unsolved)
             {
-                if (strat.winner(*it, game.player(*it)) == opponent)
+                if (strat.winner(v, game.player(v)) == opponent)
                 {
-                    lost_attr.insert(*it);
+                    lost_attr.insert(v);
                 }
             }
             mCRL2log(mcrl2::log::debug) << "|lost|=" << lost_attr.size() << std::endl;

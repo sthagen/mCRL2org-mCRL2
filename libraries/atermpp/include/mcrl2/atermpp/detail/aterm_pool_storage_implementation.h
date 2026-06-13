@@ -24,11 +24,11 @@ namespace atermpp::detail
 ///        to each element in the iterator.
 template <std::size_t N,
     typename InputIterator,
-    typename TermConverter,
-    std::enable_if_t<mcrl2::utilities::is_iterator<InputIterator>::value, void>* = nullptr>
+    typename TermConverter>
 inline std::array<unprotected_aterm_core, N>
 construct_arguments(InputIterator it, [[maybe_unused]] InputIterator end, TermConverter converter)
-  requires std::is_convertible_v<std::invoke_result_t<TermConverter, typename InputIterator::value_type>, aterm>
+  requires (mcrl2::utilities::is_iterator<InputIterator>::value
+        && std::is_convertible_v<std::invoke_result_t<TermConverter, typename InputIterator::value_type>, aterm>)
 {
   // Copy the arguments into this array.
   std::array<unprotected_aterm_core, N> arguments;
@@ -48,13 +48,13 @@ construct_arguments(InputIterator it, [[maybe_unused]] InputIterator end, TermCo
 ///        to each element in the iterator.
 template <std::size_t N,
     typename InputIterator,
-    typename TermConverter,
-    std::enable_if_t<mcrl2::utilities::is_iterator<InputIterator>::value, void>* = nullptr>
+    typename TermConverter>
 inline std::array<unprotected_aterm_core, N>
 construct_arguments(InputIterator it, [[maybe_unused]] InputIterator end, TermConverter converter)
-  requires std::is_same_v<
+  requires (mcrl2::utilities::is_iterator<InputIterator>::value
+        && std::is_same_v<
       std::invoke_result_t<TermConverter, typename InputIterator::value_type&, typename InputIterator::value_type>,
-      void>
+      void>)
 {
   // Copy the arguments into this array. Doesn't change any reference count, because they are unprotected terms.
   std::array<unprotected_aterm_core, N> arguments;
@@ -74,7 +74,12 @@ void mark_term(const _aterm& root, std::stack<std::reference_wrapper<_aterm>>& t
 {
   if (!root.is_marked())
   {
-    // Do not use the stack, because this might run out of stack memory for large lists.
+    // Mark root before pushing. If root also appears as a subterm of another root processed
+    // later in the same marking pass, the is_marked() check below will prevent it from being
+    // pushed a second time and processed redundantly.
+    root.mark();
+
+    // Do not use recursion, because this might run out of stack memory for large lists.
     todo.emplace(const_cast<_aterm&>(root));
 
     // Mark the term depth-first to reduce the maximum todo size required.
@@ -83,8 +88,6 @@ void mark_term(const _aterm& root, std::stack<std::reference_wrapper<_aterm>>& t
       _aterm& term = todo.top();
       todo.pop();
 
-      // Each term should be marked.
-      term.mark();
       // Determine the arity of the function application.
       const std::size_t arity = term.function().arity();
       _term_appl& term_appl = static_cast<_term_appl&>(term);
@@ -102,7 +105,6 @@ void mark_term(const _aterm& root, std::stack<std::reference_wrapper<_aterm>>& t
           todo.emplace(argument);
         }
       }
-
     }
   }
 }
@@ -163,7 +165,6 @@ void store_in_argument_array_(std::array<unprotected_aterm_core, N>& argument_ar
   // Otherwise function_or_term is supposed to  have type void(term& result), putting the term in result. 
   else
   {
-    // function_or_term(static_cast<Term&>(argument_array[I]));
 
     using traits = mcrl2::utilities::function_traits<decltype(&FUNCTION_OR_TERM_TYPE::operator())>;
     function_or_term(static_cast<typename traits::template arg<0>::type&>(argument_array[I]));
@@ -307,7 +308,7 @@ void ATERM_POOL_STORAGE::print_performance_stats(const char* identifier) const
 ATERM_POOL_STORAGE_TEMPLATES
 void ATERM_POOL_STORAGE::sweep()
 {
-  // Iterate over all terms and removes the ones that are marked.
+  // Iterate over all terms and remove the ones that are not marked (unreachable).
   for (auto it = m_term_set.begin(); it != m_term_set.end(); )
   {
     const Element& term = *it;

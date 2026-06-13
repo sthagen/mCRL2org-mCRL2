@@ -264,9 +264,8 @@ std::size_t Graph::add_probabilistic_state(
 
     // The following map recalls where probabilities are stored in
     // transitionLabels.
-    typedef std::map<typename lts_t::probabilistic_state_t::probability_t,
-                     std::size_t>
-        probability_map_t;
+    using probability_map_t = std::map<typename lts_t::probabilistic_state_t::probability_t,
+                     std::size_t>;
     probability_map_t probability_label_indices;
     for (const typename lts_t::probabilistic_state_t::state_probability_pair&
             p : probabilistic_state)
@@ -731,7 +730,6 @@ DebugView::DebugView(std::size_t log_duration, std::size_t min_interval)
 
 void DebugView::push(double value){
   std::size_t current_time = m_timer.elapsed();
-  //mCRL2log(mcrl2::log::debug) << "current_time: " << current_time << " current interval time: " << m_current_interval_start << " min interval time: " << m_min_interval << std::endl;
 
   bool changed = false;
   if (m_lock->tryLock(0))
@@ -746,7 +744,7 @@ void DebugView::push(double value){
 
   // Then we check whether the last interval has passed
   if (current_time - m_current_interval_start > m_min_interval){
-    m_values.push_back({current_time, DataView(m_current_interval)});
+    m_values.emplace_back(current_time, DataView(m_current_interval));
     m_current_interval.clear();
     m_current_interval_start = current_time;
     changed = true;
@@ -801,10 +799,8 @@ void DebugView::drawLine(QPainter& painter, std::vector<QPointF>& line, double c
 void DebugView::draw(QPainter& painter, QBrush& brush, QPen& pen){
   if (m_values.size() <= 1)
   {
-    //mCRL2log(mcrl2::log::debug) << "Not enough values to draw: " << m_values.size() << std::endl;
       return;
   }
-  //mCRL2log(mcrl2::log::debug) << "Drawing." << std::endl;
   std::vector<QPointF> pointsMin;
   std::vector<QPointF> pointsMax;
   std::vector<QPointF> pointsAvg;

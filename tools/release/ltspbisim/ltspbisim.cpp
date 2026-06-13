@@ -32,8 +32,6 @@ class t_tool_options
     lts_type outtype = lts_none;
     lts_probabilistic_equivalence equivalence = lts_probabilistic_eq_none;
     std::vector<std::string> tau_actions;   // Actions with these labels must be considered equal to tau.
-    // bool print_dot_state = true;
-    // bool determinise = false;
     bool check_reach = true;
 
     inline t_tool_options()  = default;
@@ -146,13 +144,6 @@ class ltsconvert_tool : public input_output_tool
         mCRL2log(verbose) << "After reduction: " << l.num_states() << " states and " << l.num_transitions() << " transitions." << std::endl;
       }
     
-      /* if (tool_options.determinise)
-      {
-        mCRL2log(verbose) << "determinising LTS..." << std::endl;
-        mCRL2log(verbose) << "before determinisation: " << l.num_states() << "u states and " << l.num_transitions() << " transitions" << std::endl;
-        determinise(l);
-        mCRL2log(verbose) << "after determinisation: " << l.num_states() << "u states and " << l.num_transitions() << " transitions" << std::endl;
-      } */
     
       mcrl2::lps::specification spec;
 
@@ -327,9 +318,7 @@ class ltsconvert_tool : public input_output_tool
       set_tau_actions(tool_options.tau_actions, parser.option_argument("tau"));
     }
 
-    // tool_options.determinise = 0 < parser.options.count("determinise");
     tool_options.check_reach = parser.options.count("no-reach") == 0;
-    // tool_options.print_dot_state = parser.options.count("no-state") == 0;
 
     /* if (tool_options.determinise && (tool_options.equivalence != lts_probabilistic_eq_none))
     {

@@ -115,7 +115,6 @@ class probabilistic_arbitrary_precision_fraction
     */
     bool operator==(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      // return this->m_enumerator*other.m_denominator==other.m_enumerator*this->m_denominator;
       buffer1().clear();
       this->m_enumerator.multiply(other.m_denominator, buffer1(), buffer3());
       buffer2().clear();
@@ -134,7 +133,6 @@ class probabilistic_arbitrary_precision_fraction
     */
     bool operator<(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      // return this->m_enumerator*other.m_denominator<other.m_enumerator*this->m_denominator;
       buffer1().clear();
       this->m_enumerator.multiply(other.m_denominator, buffer1(), buffer3());
       buffer2().clear();
@@ -167,11 +165,6 @@ class probabilistic_arbitrary_precision_fraction
      */
     probabilistic_arbitrary_precision_fraction operator+(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      /* utilities::big_natural_number enumerator=this->enumerator()*other.denominator() +
-                                               other.enumerator()*this->denominator();
-      utilities::big_natural_number denominator=this->denominator()*other.denominator();
-      remove_common_factors(enumerator,denominator);
-      return probabilistic_arbitrary_precision_fraction(enumerator,denominator); */
 
       buffer1().clear();
       m_enumerator.multiply(other.m_denominator, buffer1(), buffer3());
@@ -188,11 +181,6 @@ class probabilistic_arbitrary_precision_fraction
      */
     probabilistic_arbitrary_precision_fraction operator-(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      /* utilities::big_natural_number enumerator= this->enumerator()*other.denominator() -
-                                    other.enumerator()*this->denominator();
-      utilities::big_natural_number denominator=this->denominator()*other.denominator();
-      remove_common_factors(enumerator,denominator);
-      return probabilistic_arbitrary_precision_fraction(enumerator,denominator); */
 
       buffer1().clear();
       m_enumerator.multiply(other.m_denominator, buffer1(), buffer3());
@@ -209,10 +197,6 @@ class probabilistic_arbitrary_precision_fraction
      */
     probabilistic_arbitrary_precision_fraction operator*(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      /* utilities::big_natural_number enumerator= this->enumerator()*other.enumerator();
-      utilities::big_natural_number denominator=this->denominator()*other.denominator();
-      remove_common_factors(enumerator,denominator);
-      return probabilistic_arbitrary_precision_fraction(enumerator,denominator); */
 
       buffer1().clear();
       m_enumerator.multiply(other.m_enumerator, buffer1(), buffer3());
@@ -226,11 +210,6 @@ class probabilistic_arbitrary_precision_fraction
      */
     probabilistic_arbitrary_precision_fraction operator/(const probabilistic_arbitrary_precision_fraction& other) const
     {
-      /* assert(other>probabilistic_arbitrary_precision_fraction::zero());
-      utilities::big_natural_number enumerator= this->enumerator()*other.denominator();
-      utilities::big_natural_number denominator=this->denominator()*other.enumerator();
-      remove_common_factors(enumerator,denominator);
-      return probabilistic_arbitrary_precision_fraction(enumerator,denominator); */
 
       buffer1().clear();
       m_enumerator.multiply(other.m_denominator, buffer1(), buffer3());
@@ -255,13 +234,11 @@ class probabilistic_arbitrary_precision_fraction
       {
         utilities::swap(x,y);
       }
-      // utilities::big_natural_number remainder=y % x;
       y.div_mod(x,buffer_divide,buffer_remainder,buffer);  // buffer_remainder contains remainder.
       while (!buffer_remainder.is_zero())
       {
         y=x;
         x=buffer_remainder;
-        // remainder=y % x;
         y.div_mod(x,buffer_divide,buffer_remainder,buffer);
       }
       return;  // the value x is now the result.
@@ -280,10 +257,6 @@ class probabilistic_arbitrary_precision_fraction
 
     static void remove_common_factors(utilities::big_natural_number& enumerator, utilities::big_natural_number& denominator)
     {
-      /* const utilities::big_natural_number gcd=greatest_common_divisor(enumerator,denominator);
-      enumerator=enumerator/gcd;
-      denominator=denominator/gcd;
-      assert(greatest_common_divisor(enumerator,denominator).is_number(1)); */
 
       thread_local utilities::big_natural_number enumerator_copy;
       thread_local utilities::big_natural_number denominator_copy;

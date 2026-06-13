@@ -81,16 +81,6 @@ inline bool head_matches_undefined_symbol(const data_expression& x, const core::
   return false;
 }
 
-/* inline
-data_expression remove_numeric_casts(data_expression x)
-{
-  while (is_numeric_cast(x))
-  {
-    x = *atermpp::down_cast<application>(x).begin();
-  }
-  return x;
-} */
-
 inline
 bool is_plus(const application& x)
 {
@@ -319,7 +309,6 @@ int precedence(const application& x)
   {
     const data_expression& numerator = sort_real::left(x);
     const data_expression& denominator = sort_real::right(x);
-    // if (sort_pos::is_c1_function_symbol(denominator))
     if (detail::is_one(denominator))
     {
       return precedence(numerator);
@@ -1650,26 +1639,6 @@ struct printer: public data::add_traverser_sort_expressions<core::detail::printe
       derived().print(max_machine_number_string());
       derived().print(" )");
     }
-    /* else if (sort_machine_word::is_minus_word_application(x))
-    {
-      derived().print("(if(");
-      derived().print_binary_operation(x, " >= ");
-      derived().print(", ");
-      derived().print_binary_operation(x, " - ");
-      derived().print(", ");
-      derived().print(max_machine_number_string());
-      derived().print(" + ");
-      derived().print_binary_operation(x, " - ");
-      derived().print(")");
-    } 
-    else if (sort_machine_word::is_div_word_application(x))
-    {
-      derived().print_binary_operation(x, " div ");
-    }
-    else if (sort_machine_word::is_mod_word_application(x))
-    {
-      derived().print_binary_operation(x, " mod ");
-    } */
 
 /* TODO: Handle the following cases. 
  
@@ -2512,7 +2481,6 @@ struct printer: public data::add_traverser_sort_expressions<core::detail::printe
       print_variables(variables, true, true, true, "var  ", ";\n", ";\n     ");
 
       // N.B. We print normalized equations instead of user defined equations.
-      // print_list(std::vector<data_equation>(first, i), opener, closer, separator);
       auto first1 = normalized_equations.begin() + (first - equations.begin());
       auto i1 = normalized_equations.begin() + (i - equations.begin());
       print_list(std::vector<data_equation>(first1, i1), opener, closer, separator);

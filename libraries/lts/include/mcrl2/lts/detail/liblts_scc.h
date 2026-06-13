@@ -8,8 +8,9 @@
 //
 /// \file lts/detail/liblts_scc.h
 
-#ifndef _LIBLTS_SCC_H
-#define _LIBLTS_SCC_H
+#ifndef MCRL2_LTS_DETAIL_LIBLTS_SCC_H
+#define MCRL2_LTS_DETAIL_LIBLTS_SCC_H
+
 #include <unordered_set>
 #include "mcrl2/lts/lts.h"
 #include "mcrl2/utilities/logger.h"
@@ -348,7 +349,7 @@ void scc_partitioner<LTS_TYPE>::number_sccs()
           const state_type v = src_tgt.get_transitions()[i];
           if (disc[v] == uninitialised)
           {
-            work.emplace_back(std::make_pair(s, i + 1));
+            work.emplace_back(s, i + 1);
             work.emplace_back(std::make_pair(v, src_tgt.lowerbound(v)));
             disc[v]=0;
             recurse = true;
@@ -399,4 +400,4 @@ void scc_reduce(LTS_TYPE& l,const bool preserve_divergence_loops = false)
 
 }
 
-#endif // _LIBLTS_SCC_H
+#endif // MCRL2_LTS_DETAIL_LIBLTS_SCC_H

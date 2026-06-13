@@ -9,22 +9,22 @@
 #include "mcrl2/gui/logwidget.h"
 #include "ui_logwidget.h"
 
-using namespace mcrl2::gui;
 using namespace mcrl2::gui::qt;
+using namespace mcrl2::log;
 
 void LogRelay::output(const log_level_t level,
-                      const time_t timestamp, 
-                      const std::string& msg, 
+                      const time_t timestamp,
+                      const std::string& msg,
                       const bool /* print_time_information */)
 {
   emit logMessage(QString::fromStdString(log_level_to_string(level).data()),
-                  QDateTime::fromSecsSinceEpoch(timestamp), 
+                  QDateTime::fromSecsSinceEpoch(timestamp),
                   QString::fromStdString(msg));
 }
 
 LogWidget::LogWidget(QWidget *parent)
   : QWidget(parent),
-    m_ui(new Ui::LogWidget)
+    m_ui(std::make_unique<Ui::LogWidget>())
 {
   m_ui->setupUi(this);
   connect(&m_relay, SIGNAL(logMessage(QString, QDateTime, QString)), this, SLOT(writeMessage(QString, QDateTime, QString)));
@@ -33,7 +33,7 @@ LogWidget::LogWidget(QWidget *parent)
 
 LogWidget::~LogWidget()
 {
-  delete m_ui;
+  logger::unregister_output_policy(m_relay);
 }
 
 void LogWidget::writeMessage(QString level, QDateTime timestamp, QString message)
@@ -44,10 +44,10 @@ void LogWidget::writeMessage(QString level, QDateTime timestamp, QString message
     QString formattedMessage = QString("[%1 %2] %3").arg(timestamp.toString("hh:mm:ss")).arg(level).arg(message).trimmed();
     switch (log_level_from_string(level.toStdString()))
     {
-      case error:
+      case log_level_t::error:
         m_ui->editOutput->setTextColor(Qt::red);
         break;
-      case warning:
+      case log_level_t::warning:
         m_ui->editOutput->setTextColor(QColor("orange"));
         break;
       default:

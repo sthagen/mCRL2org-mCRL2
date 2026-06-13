@@ -136,11 +136,11 @@ public:
         is greater than the current value, and returns whether it changed.
         val[] must be an array of length len(v). If carry is set, the new
         value must be strictly greater (or top). */
-    bool lift_to(verti v, const verti vec2[], bool carry = false);
+    bool lift_to(verti v, const verti* vec2, bool carry = false);
 
     /*! Returns the same result as lift_to() but without changing any
         progress measure vectors. */
-    bool less_than(verti v, const verti vec2[], bool carry = false);
+    bool less_than(verti v, const verti* vec2, bool carry = false);
 
     /*! For debugging: print current state to stdout */
     void debug_print() const;
@@ -184,12 +184,11 @@ public:
     /*! Return the SPM vector for vertex `v`.
         This array contains only the components with odd (for Even) or even
         (for Odd) indices of the vector (since the reset is fixed at zero). */
-    // virtual verti *vec(verti v) = 0;
     virtual const verti *vec(verti v) const = 0;
 
     /*! Assign the first `len(v)` elements of the vector for vertex `w` to the
         vector for `v`, or its successor if `carry` is set. */
-    virtual void set_vec(verti v, const verti src[], bool carry) = 0;
+    virtual void set_vec(verti v, const verti* src, bool carry) = 0;
 
     /*! Set the value for vertex `v` to top. */
     virtual void set_vec_to_top(verti v) = 0;
@@ -293,7 +292,7 @@ public:
 
   // verti *vec(verti v) { return &spm_[(std::size_t)len_*v]; }
   const verti* vec(verti v) const override { return &spm_[(std::size_t)len_ * v]; }
-  void set_vec(verti v, const verti src[], bool carry) override;
+  void set_vec(verti v, const verti* src, bool carry) override;
   void set_vec_to_top(verti v) override;
 
 protected:

@@ -258,10 +258,9 @@ void ParityGame::assign_pbes(mcrl2::pbes_system::pbes &pbes, verti *goal_vertex,
     for (verti v = begin; v < end; ++v)
     {
         std::set<std::size_t> deps = pgg.get_dependencies(v);
-        for ( std::set<std::size_t>::const_iterator it = deps.begin();
-                it != deps.end(); ++it )
+        for (std::size_t dep : deps)
         {
-            verti w = (verti)*it;
+            verti w = (verti)dep;
             assert(w >= begin);
             if (w >= end)
             {
@@ -329,7 +328,6 @@ void ParityGame::write_dot(std::ostream &os) const
                   it != graph_.succ_end(v); ++it )
             {
                 os << v << " -> " << *it;
-                // if (*it < v) os << " [color=red]";
                 os << ";\n";
             }
         }

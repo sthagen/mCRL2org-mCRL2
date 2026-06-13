@@ -53,14 +53,14 @@ class CodeHighlighter : public QSyntaxHighlighter
    * @param light Whether the application has a light colour palette
    * @param parent The document on which the code highlighter should operate
    */
-  CodeHighlighter(bool spec, bool light, QTextDocument* parent = 0);
+  CodeHighlighter(bool spec, bool light, QTextDocument* parent = nullptr);
 
   protected:
   /**
    * @brief highlightBlock Highlights a single block of text
    * @param text The text to highlight
    */
-  void highlightBlock(const QString& text);
+  void highlightBlock(const QString& text) override;
 
   private:
   std::vector<HighlightingRule> highlightingRules;
@@ -126,8 +126,8 @@ class CodeEditor : public QPlainTextEdit
    * @brief CodeEditor Constructor
    * @param parent The parent of this widget
    */
-  explicit CodeEditor(QWidget* parent = 0);
-  ~CodeEditor();
+  explicit CodeEditor(QWidget* parent = nullptr);
+  ~CodeEditor() override;
 
   /**
    * @brief setPurpose Set whether this code editor is for editing
@@ -213,7 +213,7 @@ class CodeEditor : public QPlainTextEdit
   QFont lineNumberFont;
   LineNumberArea* lineNumberArea = nullptr;
   CodeHighlighter* highlighter = nullptr;
-  int lastCursor;
+  int lastCursor = -1;
 
   QAction* zoomInAction = nullptr;
   QAction* zoomOutAction = nullptr;

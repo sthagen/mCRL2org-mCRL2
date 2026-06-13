@@ -40,9 +40,6 @@ struct make_timed_lps_summand
       data::variable t(m_generator("T"), data::sort_real::real_());
       s.deadlock().time() = t;
       s.summation_variables() = push_back(s.summation_variables(), t);
-      /* data::variable_vector v = data::variable_vector(s.summation_variables().begin(),s.summation_variables().end());
-      v.push_back(t);
-      s.summation_variables() = data::variable_list(v.begin(),v.end()); */
     }
   }
 
@@ -55,10 +52,6 @@ struct make_timed_lps_summand
       data::variable t(m_generator("T"), data::sort_real::real_());
       s.multi_action() = multi_action(s.multi_action().actions(), t);
       s.summation_variables()=push_back(s.summation_variables(), t);
-      /* data::variable_vector v = data::variable_vector(s.summation_variables().begin(),s.summation_variables().end());
-      v.push_back(t);
-      s.summation_variables() = data::variable_list(v.begin(),v.end());
-      */
     }
   }
 };
@@ -69,10 +62,10 @@ struct make_timed_lps_summand
 /// \param context A term
 /// \return A timed linear process
 template <class LINEAR_PROCESS>
+  requires(std::is_same_v<LINEAR_PROCESS, linear_process>
+           || std::is_same_v<LINEAR_PROCESS, stochastic_linear_process>)
 void make_timed_lps(LINEAR_PROCESS& lps,
-    const std::set<core::identifier_string>& context,
-    std::enable_if_t<std::is_same_v<LINEAR_PROCESS, linear_process>
-                     || std::is_same_v<LINEAR_PROCESS, stochastic_linear_process>>* = nullptr)
+    const std::set<core::identifier_string>& context)
 {
   data::set_identifier_generator generator;
   generator.add_identifiers(context);

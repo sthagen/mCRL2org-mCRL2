@@ -12,6 +12,7 @@
 #ifndef MCRL2_CORE_ADD_BINDING_H
 #define MCRL2_CORE_ADD_BINDING_H
 
+#include <cassert>
 #include "mcrl2/atermpp/type_traits.h"
 
 namespace mcrl2::core
@@ -36,7 +37,8 @@ class add_binding : public TraverserOrBuilder<Derived>
 
     /// \brief Add a sequence of variables to the multiset of bound variables.
     template <typename Container>
-    void increase_bind_count(const Container& variables, typename atermpp::enable_if_container<Container, variable_type>::type* = nullptr)
+      requires atermpp::is_container<Container, variable_type>::value
+    void increase_bind_count(const Container& variables)
     {
       for (typename Container::const_iterator i = variables.begin(); i != variables.end(); ++i)
       {
@@ -47,16 +49,21 @@ class add_binding : public TraverserOrBuilder<Derived>
     /// \brief Remove a variable from the multiset of bound variables.
     void decrease_bind_count(const variable_type& var)
     {
-      m_bound_variables.erase(m_bound_variables.find(var));
+      auto it = m_bound_variables.find(var);
+      assert(it != m_bound_variables.end());
+      m_bound_variables.erase(it);
     }
 
     /// \brief Remove a sequence of variables from the multiset of bound variables.
     template <typename Container>
-    void decrease_bind_count(const Container& variables, typename atermpp::enable_if_container<Container, variable_type>::type* = nullptr)
+      requires atermpp::is_container<Container, variable_type>::value
+    void decrease_bind_count(const Container& variables)
     {
       for (typename Container::const_iterator i = variables.begin(); i != variables.end(); ++i)
       {
-        m_bound_variables.erase(m_bound_variables.find(*i));
+        auto it = m_bound_variables.find(*i);
+        assert(it != m_bound_variables.end());
+        m_bound_variables.erase(it);
       }
     }
 

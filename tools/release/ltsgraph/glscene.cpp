@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <list>
+#include <utility>
 
 /// \brief Number of orthogonal slices from which a circle representing a node
 /// is constructed.
@@ -97,7 +98,7 @@ void GLScene::initialize()
     nodeborder[0] = QVector3D(0.0f, 0.0f, 0.0f);
     for (int i = 0; i < RES_NODE_SLICE; ++i)
     {
-      float t = -i * 2.0f * PI / (RES_NODE_SLICE - 1);
+      float t = -static_cast<float>(i) * 2.0f * PI / (RES_NODE_SLICE - 1);
       nodeborder[static_cast<std::size_t>(i) + 1] = QVector3D(std::sin(t), std::cos(t), 0.0f);
     }
   }
@@ -113,7 +114,7 @@ void GLScene::initialize()
     {
       for (int i = 0; i < RES_NODE_SLICE - 1; ++i)
       {
-        float slice = i * 2.0f * PI / (RES_NODE_SLICE - 2);
+        float slice = static_cast<float>(i) * 2.0f * PI / (RES_NODE_SLICE - 2);
         node[n++] = QVector3D(std::sin(stack + stackd) * std::sin(slice),
             std::sin(stack + stackd) * std::cos(slice),
             std::cos(stack + stackd));
@@ -166,7 +167,7 @@ void GLScene::initialize()
 
     for (int i = 0; i < RES_ARROWHEAD; ++i)
     {
-      float t = -i * 2.0f * PI / (RES_ARROWHEAD - 1);
+      float t = -static_cast<float>(i) * 2.0f * PI / (RES_ARROWHEAD - 1);
       arrowhead[static_cast<std::size_t>(i) + 1] = QVector3D(-1.0f, 0.3f * std::sin(t), 0.3f * std::cos(t));
     }
   }
@@ -177,7 +178,7 @@ void GLScene::initialize()
 
     for (int i = 0; i < RES_ARROWHEAD; ++i)
     {
-      float t = i * 2.0f * PI / (RES_ARROWHEAD - 1);
+      float t = static_cast<float>(i) * 2.0f * PI / (RES_ARROWHEAD - 1);
       arrowhead_base[static_cast<std::size_t>(i) + 1] = QVector3D(-1.0f, 0.3f * std::sin(t), 0.3f * std::cos(t));
     }
   }
@@ -242,7 +243,7 @@ void GLScene::initialize()
   m_node_shader.setAttributeBuffer(vertex_attrib_location, GL_FLOAT, 0, 3);
   m_node_shader.enableAttributeArray(vertex_attrib_location);
 
-  m_current_scene_size = std::max(m_batch_size, std::max(m_graph.nodeCount(), m_graph.edgeCount()));
+  m_current_scene_size = std::max({m_batch_size, m_graph.nodeCount(), m_graph.edgeCount()});
   m_drawInstances.resize(m_batch_size);
 
   m_colorBuffer.create();
@@ -337,12 +338,12 @@ void GLScene::initialize()
   m_arrow_shader.enableAttributeArray(arrow_vertex_attrib_location);
 
   m_offsetBuffer.bind();
-  m_arrow_shader.setAttributeArray(arrow_offset_attrib_location, GL_FLOAT, 0, 3);
+  m_arrow_shader.setAttributeArray(arrow_offset_attrib_location, GL_FLOAT, nullptr, 3);
   m_arrow_shader.enableAttributeArray(arrow_offset_attrib_location);
   glVertexAttribDivisor(arrow_offset_attrib_location, 1);
 
   m_colorBuffer.bind();
-  m_arrow_shader.setAttributeArray(arrow_color_attrib_location, GL_FLOAT, 0, 4);
+  m_arrow_shader.setAttributeArray(arrow_color_attrib_location, GL_FLOAT, nullptr, 4);
   m_arrow_shader.enableAttributeArray(arrow_color_attrib_location);
   glVertexAttribDivisor(arrow_color_attrib_location, 1);
 
@@ -350,7 +351,7 @@ void GLScene::initialize()
   m_directionBuffer.setUsagePattern(QOpenGLBuffer::UsagePattern::StreamDraw);
   m_directionBuffer.bind();
   m_directionBuffer.allocate(static_cast<int>(m_current_scene_size * sizeof(QVector3D)));
-  m_arrow_shader.setAttributeArray(arrow_dir_attrib_location, GL_FLOAT, 0, 3);
+  m_arrow_shader.setAttributeArray(arrow_dir_attrib_location, GL_FLOAT, nullptr, 3);
   m_arrow_shader.enableAttributeArray(arrow_dir_attrib_location);
   glVertexAttribDivisor(arrow_dir_attrib_location, 1);
 
@@ -583,7 +584,7 @@ void GLScene::render()
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   QColor clear(Qt::white);
-  glClearColor(clear.red(), clear.green(), clear.blue(), 1.0);
+  glClearColor(static_cast<GLfloat>(clear.red()), static_cast<GLfloat>(clear.green()), static_cast<GLfloat>(clear.blue()), 1.0);
   glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
   m_arc_shader.bind();
@@ -591,7 +592,7 @@ void GLScene::render()
 
   m_arc_shader.setViewMatrix(m_camera.viewMatrix());
   m_arc_shader.setViewProjMatrix(viewProjMatrix);
-  m_arc_shader.setFogDensity(m_drawfog * m_fogdensity);
+  m_arc_shader.setFogDensity(static_cast<float>(m_drawfog) * m_fogdensity);
   if (m_drawArc.size() > 0)
   {
     std::size_t amount_to_render = m_drawArc.size();
@@ -669,7 +670,7 @@ void GLScene::render()
         std::size_t n = std::min(m_batch_size, amount_to_render);
         // NB: sizeof(QMatrix4x4) is NOT the same as 16 * sizeof(float)
         m_offsetBuffer.bind();
-        m_offsetBuffer.write(0, &di_ptr->offsets[index * 3], n * 3 * sizeof(float));
+        m_offsetBuffer.write(0, &di_ptr->offsets[index * 3], static_cast<int>(n * 3 * sizeof(float)));
 
         m_colorBuffer.bind();
         m_colorBuffer.write(0, &di_ptr->colors[index * 4], static_cast<int>(n * sizeof(QVector4D)));
@@ -682,11 +683,8 @@ void GLScene::render()
     }
     else
     {
-      // mCRL2log(mcrl2::log::debug) << "Skipping \"" << di_ptr->identifier <<
-      // "\" because it is empty." << std::endl;
     }
   }
-  // delete[] matValues;
   m_vaoNode.release();
   m_node_shader.release();
 
@@ -702,8 +700,6 @@ void GLScene::render()
   // unpredictably.
   glDisable(GL_CULL_FACE);
 
-  // mCRL2log(mcrl2::log::debug) << "Frame time: " << render_timer.elapsed() <<
-  // " OpenGL: " << openglTimer.elapsed() << std::endl;
 }
 
 void GLScene::renderText(QPainter& painter)
@@ -731,7 +727,7 @@ void GLScene::renderText(QPainter& painter)
     QVector3D closest_node;
     QVector3D cam_pos = m_camera.position();
     QVector3D center_of_screen
-        = m_camera.windowToWorld(QVector3D(m_camera.viewport().width() * 0.5, m_camera.viewport().height() * 0.5, 0));
+        = m_camera.windowToWorld(QVector3D(static_cast<float>(m_camera.viewport().width()) * 0.5f, static_cast<float>(m_camera.viewport().height()) * 0.5f, 0.0f));
     double distance_to_closest_node = 1e15;
 
     for (std::size_t i = 0; i < nodeCount; i++)
@@ -796,18 +792,18 @@ void GLScene::renderText(QPainter& painter)
       }
     };
     for (std::size_t i = 0; i < std::min(nodeCount,
-                                std::max(static_cast<std::size_t>(m_textLimitStateLabels),
-                                    static_cast<std::size_t>(m_textLimitStateNumbers)));
+                              std::max(static_cast<std::size_t>(m_textLimitStateLabels),
+                                static_cast<std::size_t>(m_textLimitStateNumbers)));
          ++i)
     {
-      font.setPixelSize(getScale(indices[i]) * m_fontsize);
+      font.setPixelSize(static_cast<int>(getScale(indices[i]) * m_fontsize));
       painter.setFont(font);
-      if (m_drawstatenumbers && i < static_cast<std::size_t>(m_textLimitStateNumbers))
+      if (m_drawstatenumbers && std::cmp_less(i, m_textLimitStateNumbers))
       {
         renderStateNumber(painter, exploration_active ? m_graph.explorationNode(indices[i]) : indices[i]);
       }
 
-      if (m_drawstatelabels && i < static_cast<std::size_t>(m_textLimitStateLabels))
+      if (m_drawstatelabels && std::cmp_less(i, m_textLimitStateLabels))
       {
         renderStateLabel(painter, exploration_active ? m_graph.explorationNode(indices[i]) : indices[i]);
       }
@@ -821,7 +817,7 @@ void GLScene::renderText(QPainter& painter)
     QVector3D closest_node;
     QVector3D cam_pos = m_camera.position();
     QVector3D center_of_screen
-        = m_camera.windowToWorld(QVector3D(m_camera.viewport().width() * 0.5, m_camera.viewport().height() * 0.5, 0));
+        = m_camera.windowToWorld(QVector3D(static_cast<float>(m_camera.viewport().width()) * 0.5f, static_cast<float>(m_camera.viewport().height()) * 0.5f, 0.0f));
     double distance_to_closest_node = 1e15;
     for (std::size_t i = 0; i < edgeCount; i++)
     {
@@ -887,7 +883,7 @@ void GLScene::renderText(QPainter& painter)
     {
       for (std::size_t i = 0; i < std::min(edgeCount, static_cast<std::size_t>(m_textLimitTransLabels)); ++i)
       {
-        font.setPixelSize(getScale(indices[i]) * m_fontsize);
+        font.setPixelSize(static_cast<int>(getScale(indices[i]) * m_fontsize));
         painter.setFont(font);
         renderTransitionLabel(painter, exploration_active ? m_graph.explorationEdge(indices[i]) : indices[i]);
       }
@@ -897,7 +893,7 @@ void GLScene::renderText(QPainter& painter)
 
 GLScene::Selection GLScene::select(int x, int y)
 {
-  Selection s{SelectableObject::none, 0};
+  Selection s{.selectionType=SelectableObject::none, .index=0};
   selectObject(s, x, y, SelectableObject::node)
       || selectObject(s, x, y, SelectableObject::handle)
       // Only select transition labels when they are rendered
@@ -961,7 +957,7 @@ bool GLScene::isVisible(const QVector3D& position, float& fogamount)
   // Should match the vertex shader: fogAmount = (1.0f - exp(-1.0f *
   // pow(distance * g_density, 2)));
   float distance = (m_camera.position() - position).length();
-  fogamount = m_drawfog * (1.0f - std::exp(-1.0f * std::pow(distance * m_fogdensity, 2.0f)));
+  fogamount = static_cast<float>(m_drawfog) * (1.0f - std::exp(-1.0f * std::pow(distance * m_fogdensity, 2.0f)));
   return (distance < m_camera.viewdistance() && fogamount < 0.99f);
 }
 
@@ -985,14 +981,14 @@ void GLScene::renderEdge(std::size_t i)
   QVector3D tip;
   QVector3D vec;
   {
-    const Math::Circle to_node{to, 0.5f * nodeSizeScaled()};
+    const Math::Circle to_node{.center=to, .radius=0.5f * nodeSizeScaled()};
     const Math::CubicBezier arc(control);
     Math::Scalar t = Math::make_intersection(to_node, arc).guessNearBack();
     tip = to_node.project(arc.at(t));
-    const Math::Circle from_node{from, 0.5f * nodeSizeScaled()};
+    const Math::Circle from_node{.center=from, .radius=0.5f * nodeSizeScaled()};
     t = Math::make_intersection(from_node, arc).guessNearFront();
     start = from_node.project(arc.at(t));
-    const Math::Circle head{to, 0.5f * nodeSizeScaled() + arrowheadSizeScaled()};
+    const Math::Circle head{.center=to, .radius=0.5f * nodeSizeScaled() + arrowheadSizeScaled()};
     const Math::Scalar s = Math::make_intersection(head, arc).guessNearBack();
     const QVector3D top = arc.at(s);
     vec = tip - top;
@@ -1082,7 +1078,7 @@ void GLScene::renderNode(std::size_t i, bool transparent)
   {
     // Node border color: red when selected, blue when probabilistic, and black otherwise. Apply fogging
     // afterwards.
-    QVector3D line(0.6f * node.selected(), 0.0f, 1.0f*node.is_probabilistic());
+    QVector3D line(0.6f * node.selected(), 0.0f, static_cast<float>(node.is_probabilistic()));
 
     QVector4D color = QVector4D(applyFog(line, fog), alpha);
     m_drawNodeBorder.push_back(node.pos(), color);

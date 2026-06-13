@@ -8,8 +8,9 @@
 //
 /// \file lts/detail/liblts_bisim.h
 
-#ifndef _LIBLTS_BISIM_H
-#define _LIBLTS_BISIM_H
+#ifndef MCRL2_LTS_DETAIL_LIBLTS_BISIM_H
+#define MCRL2_LTS_DETAIL_LIBLTS_BISIM_H
+
 #include <fstream>
 #include "mcrl2/modal_formula/state_formula.h"
 #include "mcrl2/lts/lts_utilities.h"
@@ -302,9 +303,8 @@ class bisim_partitioner
         std::size_t initial_partition_non_inert_counter=0;
         std::size_t current_inert_transition_counter=0;
         const std::vector<transition> & trans=aut.get_transitions();
-        for (std::vector<transition>::const_iterator r=trans.begin(); r!=trans.end(); ++r)
+        for (auto t: trans)
         {
-          const transition t= *r;
           if (branching && aut.is_tau(aut.apply_hidden_label_map(t.label())))
           {
             if (preserve_divergences && t.from()==t.to())
@@ -376,9 +376,8 @@ class bisim_partitioner
       // Store the non-inert transitions (i.e. the non tau transitions)
       sort_transitions(aut.get_transitions(), aut.hidden_label_set(), mcrl2::lts::lbl_tgt_src);
       const std::vector<transition> & trans1=aut.get_transitions();
-      for (std::vector<transition>::const_iterator r=trans1.begin(); r!=trans1.end(); ++r)
+      for (auto t: trans1)
       {
-        const transition t= *r;
         if (!branching || !aut.is_tau(aut.apply_hidden_label_map(t.label())))
         {
           // Note that by sorting the transitions first, the non_inert_transitions are grouped per label.
@@ -386,7 +385,6 @@ class bisim_partitioner
         }
       }
 
-      // block_is_active.push_back(true);
       initial_partition.block_index=0;
       initial_partition.state_index=0;
       max_state_index=1;
@@ -438,7 +436,6 @@ class bisim_partitioner
         }
 
         const block_index_type splitter_index=to_be_processed.back();
-        // assert(block_is_in_to_be_processed[splitter_index]||!block_is_active[splitter_index]);
         to_be_processed.pop_back();
         block_is_in_to_be_processed[splitter_index]=false;
 
@@ -494,33 +491,30 @@ class bisim_partitioner
       const label_type splitter_label,
       const block_index_type splitter_block)
     {
-      for (std::vector < block_index_type > :: const_iterator i1=BL.begin();
-           i1!=BL.end(); ++i1)
+      for (block_index_type i1: BL)
       {
-        // assert(block_is_active[*i1]);
-        block_flags[*i1]=false;
+        block_flags[i1] = false;
         std::vector < state_type > flagged_states;
         std::vector < state_type > non_flagged_states;
         std::vector < state_type > i1_bottom_states;
-        i1_bottom_states.swap(blocks[*i1].bottom_states);
+        i1_bottom_states.swap(blocks[i1].bottom_states);
 
-        for (std::vector < state_type >::const_iterator j=i1_bottom_states.begin();
-             j!=i1_bottom_states.end(); ++j)
+        for (state_type bottom_state: i1_bottom_states)
         {
-          if (state_flags[*j])
+          if (state_flags[bottom_state])
           {
             // state is flagged.
-            flagged_states.push_back(*j);
+            flagged_states.push_back(bottom_state);
           }
           else
           {
             // state is not flagged. It will be moved to a new block.
-            non_flagged_states.push_back(*j);
-            block_index_of_a_state[*j]=blocks.size();
+            non_flagged_states.push_back(bottom_state);
+            block_index_of_a_state[bottom_state] = blocks.size();
           }
         }
-        assert(!flagged_states.empty()||!blocks[*i1].non_bottom_states.empty()||i1_bottom_states.empty());
-        block_index_type reset_state_flags_block=*i1;
+        assert(!flagged_states.empty()||!blocks[i1].non_bottom_states.empty()||i1_bottom_states.empty());
+        block_index_type reset_state_flags_block = i1;
 
         if (!non_flagged_states.empty())
         {
@@ -539,11 +533,10 @@ class bisim_partitioner
           // Create a first new block.
           blocks.push_back(block());
           block_index_type new_block1=blocks.size()-1;
-          // block_is_active.push_back(true);
           blocks.back().state_index=max_state_index;
           max_state_index++;
           blocks.back().block_index=new_block1;
-          blocks.back().parent_block_index=*i1;
+          blocks.back().parent_block_index = i1;
 
           non_flagged_states.swap(blocks.back().bottom_states);
           // Put the indices of first split block to to_be_processed.
@@ -553,28 +546,26 @@ class bisim_partitioner
           // Create a second new block.
           blocks.push_back(block());
           block_index_type new_block2=blocks.size()-1;
-          // block_is_active.push_back(true);
-          blocks.back().state_index=blocks[*i1].state_index;
+          blocks.back().state_index = blocks[i1].state_index;
           blocks.back().block_index=new_block2;
           reset_state_flags_block=new_block2;
-          blocks.back().parent_block_index=*i1;
+          blocks.back().parent_block_index = i1;
 
           // Move the flagged states to the second block, and let the block index of these states refer to this block.
           flagged_states.swap(blocks.back().bottom_states);
           std::vector < state_type > &reference_to_flagged_states_of_block2=blocks.back().bottom_states;
-          for (std::vector < state_type >::const_iterator j=reference_to_flagged_states_of_block2.begin();
-               j!=reference_to_flagged_states_of_block2.end(); ++j)
+          for (state_type j: reference_to_flagged_states_of_block2)
           {
-            block_index_of_a_state[*j]=new_block2;
+            block_index_of_a_state[j] = new_block2;
           }
 
           // NOTES: new_block1 = R, new_block2 = L
           // Store counter formula info
           if (store_counter_info)
           {
-            right_child[*i1] = new_block1;
-            split_by_action[*i1] = splitter_label;
-            split_by_block[*i1] = splitter_block;
+            right_child[i1] = new_block1;
+            split_by_action[i1] = splitter_label;
+            split_by_block[i1] = splitter_block;
 
             // compute r_alpha[new_block1]
             std::set<block_index_type> reachable_blocks = {};
@@ -585,7 +576,7 @@ class bisim_partitioner
               {
                 state_type target_state = to(i);
                 block_index_type target_block = block_index_of_a_state[target_state];
-                reachable_blocks.insert(target_block == new_block1 || target_block == new_block2 ? *i1 : target_block);
+                reachable_blocks.insert(target_block == new_block1 || target_block == new_block2 ? i1 : target_block);
               }
             }
             r_alpha[new_block1] = reachable_blocks;
@@ -604,7 +595,7 @@ class bisim_partitioner
                     {
                       state_type target_state = to(i);
                       block_index_type target_block = block_index_of_a_state[target_state];
-                      if (!(target_block == *i1 || target_block == new_block1 || target_block == new_block2))
+                      if (!(target_block == i1 || target_block == new_block1 || target_block == new_block2))
                       {
                         tau_reachable_blocks.insert(target_block);
                       }
@@ -621,8 +612,7 @@ class bisim_partitioner
           block_is_in_to_be_processed.push_back(true);
 
           // reset the flag of block *i1, which is being split.
-          block_is_in_to_be_processed[*i1]=false;
-          // block_is_active[*i1]=false;
+          block_is_in_to_be_processed[i1] = false;
 
           // The flag fields of the new blocks is set to false;
           block_flags.push_back(false);
@@ -637,8 +627,8 @@ class bisim_partitioner
           std::vector < transition > non_flagged_non_inert_transitions;
           // Reserve enough space for transitions to be copied. Otherwise, resizing may lead to
           // lot of unneccesary copying...
-          flagged_non_inert_transitions.reserve(blocks[*i1].non_inert_transitions.size());
-          non_flagged_non_inert_transitions.reserve(blocks[*i1].non_inert_transitions.size());
+          flagged_non_inert_transitions.reserve(blocks[i1].non_inert_transitions.size());
+          non_flagged_non_inert_transitions.reserve(blocks[i1].non_inert_transitions.size());
 
           // Next we scan the non-bottom states of *i1. If for some non-bottom state the flag is not raised
           // and if none of the outgoing P-inert transitions leads to a state in the old block then this
@@ -647,7 +637,7 @@ class bisim_partitioner
           std::vector < non_bottom_state > flagged_non_bottom_states;
           std::vector < non_bottom_state > non_flagged_non_bottom_states;
           std::vector < non_bottom_state > i1_non_bottom_states;
-          i1_non_bottom_states.swap(blocks[*i1].non_bottom_states);
+          i1_non_bottom_states.swap(blocks[i1].non_bottom_states);
           for (typename std::vector < non_bottom_state >::iterator k=i1_non_bottom_states.begin();
                k!=i1_non_bottom_states.end(); ++k)
           {
@@ -677,20 +667,20 @@ class bisim_partitioner
             // Move *k to the flagged block; note that the transitions can have become
             // non-inert. So, investigate them separately.
             std::vector < state_type > remaining_inert_transitions;
-            for (std::vector < state_type > :: const_iterator l=inert_transitions.begin();
-                 l!=inert_transitions.end(); ++l)
+            for (state_type inert_transition: inert_transitions)
             {
-              if (block_index_of_a_state[*l]==new_block1)
+              if (block_index_of_a_state[inert_transition] == new_block1)
               {
                 // The transition *l (*k,tau_label,*l) becomes a non inert transition in the new
                 // block.
-                non_flagged_non_inert_transitions.push_back(transition(k->state,aut.tau_label_index(),*l));
+                non_flagged_non_inert_transitions.push_back(
+                  transition(k->state, aut.tau_label_index(), inert_transition));
               }
               else
               {
                 // The transition represented by *l remains an inert transition.
-                block_index_of_a_state[*l]=new_block2;
-                remaining_inert_transitions.push_back(*l);
+                block_index_of_a_state[inert_transition] = new_block2;
+                remaining_inert_transitions.push_back(inert_transition);
               }
             }
             if (remaining_inert_transitions.empty()) // The last outgoing inert tau transition just became non inert.
@@ -713,20 +703,19 @@ class bisim_partitioner
           // Finally the non-inert transitions are distributed over both blocks in the obvious way.
           // Note that this must be done after all states are properly put into a new block.
 
-          assert(*i1 < blocks.size());
+          assert(i1 < blocks.size());
           std::vector < transition > i1_non_inert_transitions;
-          i1_non_inert_transitions.swap(blocks[*i1].non_inert_transitions);
-          for (std::vector < transition >::iterator k=i1_non_inert_transitions.begin();
-               k!=i1_non_inert_transitions.end(); ++k)
+          i1_non_inert_transitions.swap(blocks[i1].non_inert_transitions);
+          for (auto& i1_non_inert_transition: i1_non_inert_transitions)
           {
-            if (block_index_of_a_state[k->to()]==new_block1)
+            if (block_index_of_a_state[i1_non_inert_transition.to()] == new_block1)
             {
-              non_flagged_non_inert_transitions.push_back(*k);
+              non_flagged_non_inert_transitions.push_back(i1_non_inert_transition);
             }
             else
             {
-              block_index_of_a_state[k->to()]=new_block2;
-              flagged_non_inert_transitions.push_back(*k);
+              block_index_of_a_state[i1_non_inert_transition.to()] = new_block2;
+              flagged_non_inert_transitions.push_back(i1_non_inert_transition);
             }
           }
 
@@ -739,30 +728,27 @@ class bisim_partitioner
           // flagged_non_inert_transitions.swap(blocks[new_block2].non_inert_transitions);
 
           blocks[new_block1].non_inert_transitions.reserve(non_flagged_non_inert_transitions.size());
-          for(std::vector < transition > ::const_iterator i=non_flagged_non_inert_transitions.begin();
-                    i!=non_flagged_non_inert_transitions.end(); i++)
+          for (const auto& non_flagged_non_inert_transition: non_flagged_non_inert_transitions)
           {
-            blocks[new_block1].non_inert_transitions.push_back(*i);
+            blocks[new_block1].non_inert_transitions.push_back(non_flagged_non_inert_transition);
           }
 
           blocks[new_block2].non_inert_transitions.reserve(flagged_non_inert_transitions.size());
-          for(std::vector < transition > ::const_iterator i=flagged_non_inert_transitions.begin();
-                    i!=flagged_non_inert_transitions.end(); i++)
+          for (const auto& flagged_non_inert_transition: flagged_non_inert_transitions)
           {
-            blocks[new_block2].non_inert_transitions.push_back(*i);
+            blocks[new_block2].non_inert_transitions.push_back(flagged_non_inert_transition);
           }
         }
         else
         {
           // Nothing changed, so put the bottom states back again.
-          i1_bottom_states.swap(blocks[*i1].bottom_states);
+          i1_bottom_states.swap(blocks[i1].bottom_states);
         }
         // reset the state flags
         std::vector < state_type > &flagged_states_to_be_unflagged=blocks[reset_state_flags_block].bottom_states;
-        for (std::vector < state_type >::const_iterator j=flagged_states_to_be_unflagged.begin();
-             j!=flagged_states_to_be_unflagged.end(); ++j)
+        for (state_type j: flagged_states_to_be_unflagged)
         {
-          state_flags[*j]=false;
+          state_flags[j] = false;
         }
 
         std::vector < non_bottom_state > &flagged_states_to_be_unflagged1=blocks[reset_state_flags_block].non_bottom_states;
@@ -787,10 +773,12 @@ class bisim_partitioner
         {
           visited.insert(s);
           std::vector < state_type> &inert_transitions=inert_transition_map[s];
-          for (std::vector < state_type>::const_iterator j=inert_transitions.begin();
-               j!=inert_transitions.end(); j++)
+          for (state_type inert_transition: inert_transitions)
           {
-            order_recursively_on_tau_reachability(*j,inert_transition_map,new_non_bottom_states,visited);
+            order_recursively_on_tau_reachability(inert_transition,
+              inert_transition_map,
+              new_non_bottom_states,
+              visited);
           }
           new_non_bottom_states.push_back(non_bottom_state(s));
           inert_transitions.swap(new_non_bottom_states.back().inert_transitions);
@@ -986,13 +974,12 @@ class bisim_partitioner
         // Check the bottom states.
         const std::vector < state_type > &i_bottom_states=i->bottom_states;
 
-        for (std::vector < state_type >::const_iterator j=i_bottom_states.begin();
-             j!=i_bottom_states.end(); ++j)
+        for (state_type bottom_state: i_bottom_states)
         {
           total_number_of_states++;
-          assert(*j<aut.num_states());
+          assert(bottom_state < aut.num_states());
           // Check that the block number of the state is maintained properly.
-          assert(block_index_of_a_state[*j]==i->block_index);
+          assert(block_index_of_a_state[bottom_state] == i->block_index);
         }
 
         // Check the non bottom states. In particular check that there is no tau loop
@@ -1014,13 +1001,12 @@ class bisim_partitioner
           // Check that the block number of the state is maintained properly.
           assert(block_index_of_a_state[j->state]==i->block_index);
           const std::vector < state_type > &j_inert_transitions=j->inert_transitions;
-          for (std::vector < state_type >::const_iterator k=j_inert_transitions.begin();
-               k!=j_inert_transitions.end(); k++)
+          for (state_type inert_transition: j_inert_transitions)
           {
             total_number_of_transitions++;
-            assert(*k<aut.num_states());
+            assert(inert_transition < aut.num_states());
             // Check that the inert transitions are well ordered.
-            assert(visited.count(*k)>0 || local_bottom_states.count(*k)==0);
+            assert(visited.count(inert_transition) > 0 || local_bottom_states.count(inert_transition) == 0);
           }
           visited.insert(j->state);
         }
@@ -1063,34 +1049,30 @@ class bisim_partitioner
 
       // Check block_index_of_a_state
       assert(block_index_of_a_state.size()==aut.num_states());
-      for (std::vector < state_type >::const_iterator i=block_index_of_a_state.begin();
-           i!=block_index_of_a_state.end(); ++i)
+      for (block_index_type i: block_index_of_a_state)
       {
-        assert(blocks[*i].block_index== *i);
+        assert(blocks[i].block_index == i);
       }
 
       // Check block_flags that the block flags are all set to false
-      for (std::vector < bool >::const_iterator i=block_flags.begin();
-           i!=block_flags.end(); ++i)
+      for (bool block_flag: block_flags)
       {
-        assert(!*i);
+        assert(!block_flag);
       }
 
       // Check that state_flags are all false.
-      for (std::vector < bool >::const_iterator i=state_flags.begin();
-           i!=state_flags.end(); ++i)
+      for (bool state_flag: state_flags)
       {
-        assert(!*i);
+        assert(!state_flag);
       }
 
       // Check to_be_processed
       // Check block_is_in_to_be_processed
       std::vector < bool > temporary_block_is_in_to_be_processed(blocks.size(),false);
 
-      for (std::vector< block_index_type > ::const_iterator i=to_be_processed.begin();
-           i!=to_be_processed.end(); ++i)
+      for (block_index_type i: to_be_processed)
       {
-        temporary_block_is_in_to_be_processed[*i]=true;
+        temporary_block_is_in_to_be_processed[i] = true;
       }
       for (state_type i=0; i<blocks.size(); ++i)
       {
@@ -1263,4 +1245,4 @@ bool destructive_bisimulation_compare(
 
 }
 
-#endif
+#endif // MCRL2_LTS_DETAIL_LIBLTS_BISIM_H

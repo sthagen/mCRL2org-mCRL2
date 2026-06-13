@@ -20,7 +20,7 @@ CorrlPlot::CorrlPlot(QWidget *parent, Graph* graph, int attributeIndex1, int att
   minRadHintPx =  5;
   maxRadHintPx = 25;
 
-  diagram         = 0;
+  diagram         = nullptr;
   showDgrm        = false;
   attrValIdx1Dgrm = NON_EXISTING;
   attrValIdx2Dgrm = NON_EXISTING;
@@ -100,12 +100,12 @@ template <Visualizer::Mode mode> void CorrlPlot::drawLabels()
     // x-axis label
     double x =  0.0;
     double y = -0.5*size.height()+9*pix;
-    VisUtils::drawLabelCenter(texCharId, x, y, scaling, xLabel);
+    VisUtils::drawLabelCenter(&texCharId[0], x, y, scaling, xLabel);
 
     // y-axis labels
     x = -0.5*size.width()+9*pix;
     y =  0;
-    VisUtils::drawLabelVertCenter(texCharId, x, y, scaling, yLabel);
+    VisUtils::drawLabelVertCenter(&texCharId[0], x, y, scaling, yLabel);
   }
 }
 
@@ -125,7 +125,6 @@ template <Visualizer::Mode mode> void CorrlPlot::drawPlot()
         double rad = radii[i][j];
 
         glPushName((GLuint) j);
-        //VisUtils::fillCirc( x, y, rad, 21);
         VisUtils::fillEllipse(x, y, rad, rad, 21);
         glPopName();
       }
@@ -148,15 +147,12 @@ template <Visualizer::Mode mode> void CorrlPlot::drawPlot()
         VisUtils::setColor(VisUtils::coolGreen, 0.35);
 
         VisUtils::enableBlending();
-        //VisUtils::fillCirc( x, y, rad, 21);
         VisUtils::fillEllipse(x, y, rad, rad, 21);
         VisUtils::disableBlending();
 
         VisUtils::enableLineAntiAlias();
-        //VisUtils::drawCirc( x, y, rad, 21);
         VisUtils::drawEllipse(x, y, rad, rad, 21);
         VisUtils::setColor(Qt::black, 0.1);
-        //VisUtils::drawCirc( x, y, rad, 21);
         VisUtils::drawEllipse(x, y, rad, rad, 21);
         VisUtils::disableLineAntiAlias();
 
@@ -182,12 +178,12 @@ template <Visualizer::Mode mode> void CorrlPlot::drawDiagram()
   attrs.push_back(attribute2);
 
   std::vector< double > vals;
-  vals.push_back(attrValIdx1Dgrm);
-  vals.push_back(attrValIdx2Dgrm);
+  vals.push_back(static_cast<double>(attrValIdx1Dgrm));
+  vals.push_back(static_cast<double>(attrValIdx2Dgrm));
 
   glPushMatrix();
-  glTranslatef(posDgrm.x, posDgrm.y, 0.0);
-  glScalef(scaleDgrm, scaleDgrm, scaleDgrm);
+  glTranslatef(static_cast<GLfloat>(posDgrm.x), static_cast<GLfloat>(posDgrm.y), 0.0F);
+  glScalef(static_cast<GLfloat>(scaleDgrm), static_cast<GLfloat>(scaleDgrm), static_cast<GLfloat>(scaleDgrm));
 
   // drop shadow
   VisUtils::setColor(VisUtils::mediumGray);
@@ -200,7 +196,7 @@ template <Visualizer::Mode mode> void CorrlPlot::drawDiagram()
   diagram->draw<mode>(pixelSize(), attrs, vals);
 
   VisUtils::setColor(Qt::black);
-  VisUtils::drawLabelRight(texCharId, -0.98, 1.1, scaleTxt, msgDgrm);
+  VisUtils::drawLabelRight(&texCharId[0], -0.98, 1.1, scaleTxt, msgDgrm);
 
   glPopMatrix();
 }
@@ -317,15 +313,15 @@ void CorrlPlot::calcMaxNumber()
 
   // calc totals
   {
-    for (std::size_t i = 0; i < maxNumX.size(); ++i)
+    for (int i : maxNumX)
     {
-      sumMaxNumX += maxNumX[i];
+      sumMaxNumX += i;
     }
   }
   {
-    for (std::size_t i = 0; i < maxNumY.size(); ++i)
+    for (int i : maxNumY)
     {
-      sumMaxNumY += maxNumY[i];
+      sumMaxNumY += i;
     }
   }
 }
@@ -338,7 +334,7 @@ void CorrlPlot::showTooltip(std::size_t xIndex, std::size_t yIndex, const QPoint
   msgDgrm = Utils::dblToStr(number[xIndex][yIndex]) + " nodes; "
     + Utils::dblToStr(Utils::perc((double) number[xIndex][yIndex], (double) m_graph->getSizeNodes())) + '%';
 
-  if (diagram == 0)
+  if (diagram == nullptr)
   {
     QToolTip::showText(QCursor::pos(), QString::fromStdString(msgDgrm));
   }
@@ -378,8 +374,8 @@ void CorrlPlot::calcPositions()
     double yBot = -0.5*size.height()+20*pix;
 
     // get number of values per axis
-    double numX = attribute1->getSizeCurValues();
-    double numY = attribute2->getSizeCurValues();
+    double numX = static_cast<double>(attribute1->getSizeCurValues());
+    double numY = static_cast<double>(attribute2->getSizeCurValues());
 
     // calc intervals per axis
     double fracX = 1.0;
@@ -424,8 +420,8 @@ void CorrlPlot::calcPositions()
         }
         radii[i].push_back(radius);
 
-        double x = xLft + 0.5*fracX + i*fracX;
-        double y = yBot + 0.5*fracY + mapXToY[i][j]*fracY;
+        double x = xLft + 0.5*fracX + static_cast<double>(i) * fracX;
+        double y = yBot + 0.5*fracY + static_cast<double>(mapXToY[i][j]) * fracY;
         Position2D pos;
         pos.x = x;
         pos.y = y;

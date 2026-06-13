@@ -96,7 +96,6 @@ public:
         // convert to snoc list
         sort_expression element_sort(*function_sort(head.sort()).domain().begin());
         
-        // result = sort_list::list(element_sort, derived().apply(data_expression_list(x.begin(), x.end())));
         result = sort_list::list(element_sort, 
                                  data_expression_list(
                                            x.begin(), 
@@ -164,13 +163,15 @@ struct translate_user_notation_function
 } // namespace detail
 
 template <typename T>
-void translate_user_notation(T& x, std::enable_if_t<!std::is_base_of_v<atermpp::aterm, T>>* = 0)
+  requires(!std::is_base_of_v<atermpp::aterm, T>)
+void translate_user_notation(T& x)
 {
   core::make_update_apply_builder<data::data_expression_builder>(detail::translate_user_notation_function()).update(x);
 }
 
 template <typename T>
-T translate_user_notation(const T& x, std::enable_if_t<std::is_base_of_v<atermpp::aterm, T>>* = nullptr)
+  requires(std::is_base_of_v<atermpp::aterm, T>)
+T translate_user_notation(const T& x)
 {
   T result;
   core::make_update_apply_builder<data::data_expression_builder>(detail::translate_user_notation_function()).apply(result, x);

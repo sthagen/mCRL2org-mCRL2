@@ -14,6 +14,7 @@
 
 #include <QMessageBox>
 #include <QToolTip>
+#include <utility>
 
 static const int labelHeight = 40;
 static const int timerInterval = 10;
@@ -32,8 +33,8 @@ Simulator::Simulator(
     m_settings(s)
 {
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-  m_diagram   = 0;
-  m_currentFrame = 0;
+  m_diagram   = nullptr;
+  m_currentFrame = nullptr;
 
   m_currentSelection = -1;
   m_currentSelectionIndex = -1;
@@ -56,7 +57,7 @@ Simulator::Simulator(
 
 Simulator::~Simulator()
 {
-  m_graph = 0;
+  m_graph = nullptr;
 
   clearDiagram();
   clearFrames();
@@ -81,7 +82,7 @@ std::size_t Simulator::SelectedClusterIndex()
   }
   else if (m_currentSelection == ID_FRAME_CURR)
   {
-    if (m_currentFrame != 0)
+    if (m_currentFrame != nullptr)
     {
       result = m_currentFrame->getNode(0)->getCluster()->getIndex();
     }
@@ -128,9 +129,9 @@ void Simulator::initFrameCurr(
   {
     // update new data
     m_attributes = attrs;
-    for (std::size_t i = 0; i < m_attributes.size(); ++i)
+    for (auto & attribute : m_attributes)
     {
-      connect(m_attributes[i], SIGNAL(deleted()), this, SLOT(reset()));
+      connect(attribute, SIGNAL(deleted()), this, SLOT(reset()));
     }
 
     m_currentFrame = new Cluster(*frame);
@@ -210,7 +211,7 @@ void Simulator::handleMouseLeaveEvent()
     m_previousBundleFocusIndex = -1;
     m_nextBundleFocusIndex = -1;
 
-    emit hoverCluster(0);
+    emit hoverCluster(nullptr);
   }
   else
   {
@@ -260,7 +261,7 @@ void Simulator::handleKeyEvent(QKeyEvent* e)
       m_currentSelection = -1;
       m_currentSelectionIndex = -1;
 
-      emit hoverCluster(0);
+      emit hoverCluster(nullptr);
     }
 
     markFrameClusts();
@@ -330,13 +331,13 @@ void Simulator::initFramesPrevNext()
     m_nextFrames);
 
   // clear memory
-  temp = 0;
+  temp = nullptr;
   tempPrev.clear();
   tempNext.clear();
   delete nodesPrev;
-  nodesPrev = 0;
+  nodesPrev = nullptr;
   delete nodesNext;
-  nodesNext = 0;
+  nodesNext = nullptr;
 }
 
 
@@ -362,11 +363,11 @@ void Simulator::initBundles()
   // get all edges from previous frames to current frame
   lbls.clear();
   {
-    for (std::size_t i = 0; i < m_previousFrames.size(); ++i)
+    for (auto & previousFrame : m_previousFrames)
     {
       bdls.clear();
 
-      clst = m_previousFrames[i];
+      clst = previousFrame;
       for (std::size_t j = 0; j < clst->getSizeNodes(); ++j)
       {
         node = clst->getNode(j);
@@ -430,10 +431,10 @@ void Simulator::initBundles()
   // get all edges from current frame to next frames
   lbls.clear();
   {
-    for (std::size_t i = 0; i < m_nextFrames.size(); ++i)
+    for (auto & nextFrame : m_nextFrames)
     {
       bdls.clear();
-      clst = m_nextFrames[i];
+      clst = nextFrame;
       for (std::size_t j = 0; j < clst->getSizeNodes(); ++j)
       {
         node = clst->getNode(j);
@@ -494,9 +495,9 @@ void Simulator::initBundles()
 
   lbls.clear();
   {
-    for (std::size_t i = 0; i < m_bundlesPreviousByLabel.size(); ++i)
+    for (auto & i : m_bundlesPreviousByLabel)
     {
-      bdl = m_bundlesPreviousByLabel[i];
+      bdl = i;
 
       std::map< std::string, Bundle* >::iterator pos;
       pos = lbls.find(bdl->getChild(0)->getEdge(0)->getLabel());
@@ -519,9 +520,9 @@ void Simulator::initBundles()
   }
 
   {
-    for (std::size_t i = 0; i < m_bundlesNextByLabel.size(); ++i)
+    for (auto & i : m_bundlesNextByLabel)
     {
-      bdl = m_bundlesNextByLabel[i];
+      bdl = i;
 
       std::map< std::string, Bundle* >::iterator pos;
       pos = lbls.find(bdl->getChild(0)->getEdge(0)->getLabel());
@@ -551,14 +552,14 @@ void Simulator::initBundles()
   }
 
   // clear memory
-  clst = 0;
-  edge = 0;
+  clst = nullptr;
+  edge = nullptr;
   currNodes.clear();
   bdls.clear();
-  bdl = 0;
+  bdl = nullptr;
 
   lbls.clear();
-  bdlLbls = 0;
+  bdlLbls = nullptr;
 }
 
 
@@ -568,15 +569,15 @@ void Simulator::sortFramesPrevNext()
 
   // sort previous frames
   {
-    for (std::size_t i = 0; i < m_previousFrames.size(); ++i)
+    for (auto & previousFrame : m_previousFrames)
     {
       int key = 0;
-      for (std::size_t j = 0; j < m_previousFrames[i]->getSizeOutBundles(); ++j)
+      for (std::size_t j = 0; j < previousFrame->getSizeOutBundles(); ++j)
       {
-        key += (int)pow(10.0, (int) m_previousFrames[i]->getOutBundle(j)->getParent()->getIndex());
+        key += (int)pow(10.0, (int) previousFrame->getOutBundle(j)->getParent()->getIndex());
       }
 
-      sorted.insert(std::pair< int, Cluster* >(key, m_previousFrames[i]));
+      sorted.insert(std::pair< int, Cluster* >(key, previousFrame));
     }
   }
 
@@ -589,15 +590,15 @@ void Simulator::sortFramesPrevNext()
   sorted.clear();
 
   // sort previous frames
-  for (std::size_t i = 0; i < m_nextFrames.size(); ++i)
+  for (auto & nextFrame : m_nextFrames)
   {
     int key = 0;
-    for (std::size_t j = 0; j < m_nextFrames[i]->getSizeInBundles(); ++j)
+    for (std::size_t j = 0; j < nextFrame->getSizeInBundles(); ++j)
     {
-      key += (int)pow(10.0, (int) m_nextFrames[i]->getInBundle(j)->getParent()->getIndex());
+      key += (int)pow(10.0, (int) nextFrame->getInBundle(j)->getParent()->getIndex());
     }
 
-    sorted.insert(std::pair< int, Cluster* >(key, m_nextFrames[i]));
+    sorted.insert(std::pair< int, Cluster* >(key, nextFrame));
   }
 
   m_nextFrames.clear();
@@ -735,7 +736,6 @@ void Simulator::calcPosBundles()
         {
           for (std::size_t j = 0; j < m_previousFrames[i]->getSizeOutBundles(); ++j)
           {
-            ///*
             posTopLft.x = m_previousFramePositions[i].x + 1.0*m_verticalFrameScale + 3.0*pix;
             posTopLft.y = m_previousFramePositions[i].y
                           + 1.0*m_verticalFrameScale
@@ -744,17 +744,6 @@ void Simulator::calcPosBundles()
 
             posBotRgt.x = m_previousBundleLabelPositionTL[ m_previousFrames[i]->getOutBundle(j)->getParent()->getIndex() ].x;
             posBotRgt.y = posTopLft.y;
-            //*/
-            /*
-            posTopLft.x = posBdlLblGridPrevTopLft[ framesPrev[i]->getOutBundle(j)->getParent()->getIndex() ].x - 1.0*pix;
-            posTopLft.y = posBotRgt.y = posFramesPrev[i].y
-                + 1.0*scaleDgrmVert
-                - 0.5*itv*scaleDgrmVert
-                - framesPrev[i]->getOutBundle(j)->getParent()->getIndex()*itv*scaleDgrmVert;
-
-            posBotRgt.x = posFrameCurr.x - 1.0*scaleDgrmHori - 3.0*pix;
-            posBotRgt.y = posTopLft.y;
-            */
             m_previousBundlePositionTL[i].push_back(posTopLft);
             m_previousBundlePositionBR[i].push_back(posBotRgt);
           }
@@ -1035,7 +1024,7 @@ void Simulator::markFrameClusts()
   }
   else if (m_currentSelection == ID_FRAME_CURR)
   {
-    if (m_currentFrame != 0)
+    if (m_currentFrame != nullptr)
     {
       emit hoverCluster(m_currentFrame, makeQList<Attribute*>(m_attributes.begin(), m_attributes.end()));
     }
@@ -1060,30 +1049,30 @@ void Simulator::clearAttributes()
 
 void Simulator::clearDiagram()
 {
-  m_diagram = 0;
+  m_diagram = nullptr;
 }
 
 
 void Simulator::clearFrames()
 {
-  if (m_currentFrame != 0)
+  if (m_currentFrame != nullptr)
   {
     delete m_currentFrame;
-    m_currentFrame = 0;
+    m_currentFrame = nullptr;
   }
 
   {
-    for (std::size_t i = 0; i < m_previousFrames.size(); ++i)
+    for (auto & previousFrame : m_previousFrames)
     {
-      delete m_previousFrames[i];
+      delete previousFrame;
     }
   }
   m_previousFrames.clear();
 
   {
-    for (std::size_t i = 0; i < m_nextFrames.size(); ++i)
+    for (auto & nextFrame : m_nextFrames)
     {
-      delete m_nextFrames[i];
+      delete nextFrame;
     }
   }
   m_nextFrames.clear();
@@ -1096,33 +1085,33 @@ void Simulator::clearFrames()
 void Simulator::clearBundles()
 {
   {
-    for (std::size_t i = 0; i < m_bundles.size(); ++i)
+    for (auto & bundle : m_bundles)
     {
-      delete m_bundles[i];
+      delete bundle;
     }
     m_bundles.clear();
   }
 
   {
-    for (std::size_t i = 0; i < m_bundlesPreviousByLabel.size(); ++i)
+    for (auto & i : m_bundlesPreviousByLabel)
     {
-      delete m_bundlesPreviousByLabel[i];
+      delete i;
     }
   }
   m_bundlesPreviousByLabel.clear();
 
   {
-    for (std::size_t i = 0; i < m_bundlesNextByLabel.size(); ++i)
+    for (auto & i : m_bundlesNextByLabel)
     {
-      delete m_bundlesNextByLabel[i];
+      delete i;
     }
   }
   m_bundlesNextByLabel.clear();
 
   {
-    for (std::size_t i = 0; i < m_bundlesByLabel.size(); ++i)
+    for (auto & i : m_bundlesByLabel)
     {
-      delete m_bundlesByLabel[i];
+      delete i;
     }
   }
   m_bundlesByLabel.clear();
@@ -1153,7 +1142,7 @@ void Simulator::handleHits(const std::vector< int > &ids)
         m_currentSelection = -1;
         m_currentSelectionIndex = -1;
 
-        emit hoverCluster(0);
+        emit hoverCluster(nullptr);
       }
 
       m_previousBundleFocusIndex = -1;
@@ -1166,7 +1155,7 @@ void Simulator::handleHits(const std::vector< int > &ids)
     {
       if (m_lastMouseEvent->type() == QEvent::MouseButtonPress)
       {
-        if (ids[1] == ID_ICON_CLEAR && (m_previousFrames.size() > 0 || m_currentFrame != 0 || m_nextFrames.size() > 0))
+        if (ids[1] == ID_ICON_CLEAR && (m_previousFrames.size() > 0 || m_currentFrame != nullptr || m_nextFrames.size() > 0))
         {
           if(QMessageBox::question(this, "Confirm simulator clear", "Are you sure you want to clear the simulator?", QMessageBox::Ok | QMessageBox::Cancel) == QMessageBox::Ok)
           {
@@ -1279,7 +1268,7 @@ template <Visualizer::Mode mode> void Simulator::drawFrameCurr()
 {
   if constexpr (mode == Marking)
   {
-    if (m_currentFrame != 0)
+    if (m_currentFrame != nullptr)
     {
       double x = m_currentFramePosition.x;
       double y = m_currentFramePosition.y;
@@ -1312,22 +1301,15 @@ template <Visualizer::Mode mode> void Simulator::drawFrameCurr()
     double pix = pixelSize();
     std::vector< double > valsFrame;
 
-    if (m_currentFrame != 0)
+    if (m_currentFrame != nullptr)
     {
       double x = m_currentFramePosition.x;
       double y = m_currentFramePosition.y;
-      /*
-      for ( int j = 0; j < attributes.size(); ++j )
-          valsFrame.push_back(
-              attributes[j]->mapToValue(
-                  frameCurr->getNode(0)->getTupleVal(
-                      attributes[j]->getIndex() ) )->getIndex() );
-      */
       Attribute* attr;
       Node* node;
-      for (std::size_t j = 0; j < m_attributes.size(); ++j)
+      for (auto & attribute : m_attributes)
       {
-        attr = m_attributes[j];
+        attr = attribute;
         node = m_currentFrame->getNode(0);
         if (attr->getSizeCurValues() > 0)
         {
@@ -1339,8 +1321,8 @@ template <Visualizer::Mode mode> void Simulator::drawFrameCurr()
           valsFrame.push_back(val);
         }
       }
-      attr = 0;
-      node = 0;
+      attr = nullptr;
+      node = nullptr;
 
       glPushMatrix();
       glTranslatef(x, y, 0.0);
@@ -1394,7 +1376,7 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
       glPushMatrix();
       glTranslatef(x, y, 0.0);
 
-      if (m_currentSelection == ID_FRAME_PREV &&  static_cast <std::size_t>(m_currentSelectionIndex) == i)
+      if (m_currentSelection == ID_FRAME_PREV &&  std::cmp_equal(m_currentSelectionIndex, i))
       {
         glScalef(m_horizontalFrameScale, m_horizontalFrameScale, m_horizontalFrameScale);
       }
@@ -1408,7 +1390,7 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
         -1.0,  1.0,
         1.0, -1.0);
 
-      if (m_currentSelection == ID_FRAME_PREV &&  static_cast <std::size_t>(m_currentSelectionIndex) == i)
+      if (m_currentSelection == ID_FRAME_PREV &&  std::cmp_equal(m_currentSelectionIndex, i))
       {
         glPushName(ID_DIAGRAM_MORE);
         VisUtils::fillRect(-0.98, -0.8, -0.8, -0.98);
@@ -1426,7 +1408,7 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
     double pix = pixelSize();
     std::vector< double > valsFrame;
 
-    for (int i = 0; i < (int) m_previousFramePositions.size(); ++i)
+    for (int i = 0; std::cmp_less(i , m_previousFramePositions.size()); ++i)
     {
       if (m_currentSelection != ID_FRAME_PREV ||  i != m_currentSelectionIndex)
       {
@@ -1444,18 +1426,11 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
 
         if (2.0*m_verticalFrameScale > 30.0*pix)
         {
-          /*
-          for ( int j = 0; j < attributes.size(); ++j )
-              valsFrame.push_back(
-                  attributes[j]->mapToValue(
-                      framesPrev[i]->getNode(0)->getTupleVal(
-                          attributes[j]->getIndex() ) )->getIndex() );
-          */
           Attribute* attr;
           Node* node;
-          for (std::size_t j = 0; j < m_attributes.size(); ++j)
+          for (auto & attribute : m_attributes)
           {
-            attr = m_attributes[j];
+            attr = attribute;
             node = m_previousFrames[i]->getNode(0);
             if (attr->getSizeCurValues() > 0)
             {
@@ -1467,8 +1442,8 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
               valsFrame.push_back(val);
             }
           }
-          attr = 0;
-          node = 0;
+          attr = nullptr;
+          node = nullptr;
 
           m_diagram->draw<mode>(pixelSize(), m_attributes, valsFrame);
         }
@@ -1490,18 +1465,11 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
     {
       if (0 <= m_currentSelectionIndex &&  static_cast <std::size_t>(m_currentSelectionIndex) < m_previousFramePositions.size())
       {
-        /*
-        for ( int j = 0; j < attributes.size(); ++j )
-            valsFrame.push_back(
-                attributes[j]->mapToValue(
-                    framesPrev[focusFrameIdx]->getNode(0)->getTupleVal(
-                        attributes[j]->getIndex() ) )->getIndex() );
-        */
         Attribute* attr;
         Node* node;
-        for (std::size_t j = 0; j < m_attributes.size(); ++j)
+        for (auto & attribute : m_attributes)
         {
-          attr = m_attributes[j];
+          attr = attribute;
           node = m_previousFrames[m_currentSelectionIndex]->getNode(0);
           if (attr->getSizeCurValues() > 0)
           {
@@ -1513,8 +1481,8 @@ template <Visualizer::Mode mode> void Simulator::drawFramesPrev()
             valsFrame.push_back(val);
           }
         }
-        attr = 0;
-        node = 0;
+        attr = nullptr;
+        node = nullptr;
 
         glPushMatrix();
         glTranslatef(
@@ -1558,7 +1526,7 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
       glPushMatrix();
       glTranslatef(x, y, 0.0);
 
-      if (m_currentSelection == ID_FRAME_NEXT &&  static_cast <std::size_t>(m_currentSelectionIndex) == i)
+      if (m_currentSelection == ID_FRAME_NEXT &&  std::cmp_equal(m_currentSelectionIndex, i))
       {
         glScalef(m_horizontalFrameScale, m_horizontalFrameScale, m_horizontalFrameScale);
       }
@@ -1570,7 +1538,7 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
       glPushName((GLuint) i);
       VisUtils::fillRect(-1.0, 1.0, 1.0, -1.0);
 
-      if (m_currentSelection == ID_FRAME_NEXT &&  static_cast <std::size_t>(m_currentSelectionIndex) == i)
+      if (m_currentSelection == ID_FRAME_NEXT &&  std::cmp_equal(m_currentSelectionIndex, i))
       {
         glPushName(ID_DIAGRAM_MORE);
         VisUtils::fillRect(-0.98, -0.8, -0.8, -0.98);
@@ -1586,11 +1554,11 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
   else
   {
     double pix = pixelSize();
-    std::vector< double > valsFrame;
+    std::vector<double> valsFrame;
 
     for (std::size_t i = 0; i < m_nextFramePositions.size(); ++i)
     {
-      if (m_currentSelection != ID_FRAME_NEXT || i !=  static_cast <std::size_t>(m_currentSelectionIndex))
+      if (m_currentSelection != ID_FRAME_NEXT || std::cmp_not_equal(i, m_currentSelectionIndex))
       {
         double x = m_nextFramePositions[i].x;
         double y = m_nextFramePositions[i].y;
@@ -1606,18 +1574,11 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
 
         if (2.0*m_verticalFrameScale > 30.0*pix)
         {
-          /*
-          for ( int j = 0; j < attributes.size(); ++j )
-              valsFrame.push_back(
-                  attributes[j]->mapToValue(
-                      framesNext[i]->getNode(0)->getTupleVal(
-                          attributes[j]->getIndex() ) )->getIndex() );
-          */
           Attribute* attr;
           Node* node;
-          for (std::size_t j = 0; j < m_attributes.size(); ++j)
+          for (auto & attribute : m_attributes)
           {
-            attr = m_attributes[j];
+            attr = attribute;
             node = m_nextFrames[i]->getNode(0);
             if (attr->getSizeCurValues() > 0)
             {
@@ -1629,8 +1590,8 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
               valsFrame.push_back(val);
             }
           }
-          attr = 0;
-          node = 0;
+          attr = nullptr;
+          node = nullptr;
 
           m_diagram->draw<mode>(pixelSize(), m_attributes, valsFrame);
         }
@@ -1652,18 +1613,11 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
     {
       if (0 <= m_currentSelectionIndex &&  static_cast <std::size_t>(m_currentSelectionIndex) < m_nextFramePositions.size())
       {
-        /*
-        for ( int j = 0; j < attributes.size(); ++j )
-            valsFrame.push_back(
-                attributes[j]->mapToValue(
-                    framesNext[focusFrameIdx]->getNode(0)->getTupleVal(
-                        attributes[j]->getIndex() ) )->getIndex() );
-        */
         Attribute* attr;
         Node* node;
-        for (std::size_t j = 0; j < m_attributes.size(); ++j)
+        for (auto & attribute : m_attributes)
         {
-          attr = m_attributes[j];
+          attr = attribute;
           node = m_nextFrames[m_currentSelectionIndex]->getNode(0);
           if (attr->getSizeCurValues() > 0)
           {
@@ -1675,8 +1629,8 @@ template <Visualizer::Mode mode> void Simulator::drawFramesNext()
             valsFrame.push_back(val);
           }
         }
-        attr = 0;
-        node = 0;
+        attr = nullptr;
+        node = nullptr;
 
         glPushMatrix();
         glTranslatef(
@@ -2428,7 +2382,7 @@ template <Visualizer::Mode mode> void Simulator::draw()
       drawFrameCurr<mode>();
       drawFramesPrev<mode>();
       drawFramesNext<mode>();
-      if (m_previousFrames.size() > 0 || m_currentFrame != 0 || m_nextFrames.size() > 0)
+      if (m_previousFrames.size() > 0 || m_currentFrame != nullptr || m_nextFrames.size() > 0)
       {
         drawControls<mode>();
       }
@@ -2454,7 +2408,7 @@ template <Visualizer::Mode mode> void Simulator::draw()
       drawFrameCurr<mode>();
       drawFramesPrev<mode>();
       drawFramesNext<mode>();
-      if (m_previousFrames.size() > 0 || m_currentFrame != 0 || m_nextFrames.size() > 0)
+      if (m_previousFrames.size() > 0 || m_currentFrame != nullptr || m_nextFrames.size() > 0)
       {
         drawControls<mode>();
       }
@@ -2471,27 +2425,18 @@ void Simulator::animate()
 {
   std::vector< double > valsFrame;
 
-  if (m_animationOldFrame != 0)
+  if (m_animationOldFrame != nullptr)
   {
     if (m_currentAnimationPhase == ANIM_POS)
     {
       // 'new' current frame
       double x = m_animationCurrentPosition.x;
       double y = m_animationCurrentPosition.y;
-      /*
-      {
-      for ( int j = 0; j < attributes.size(); ++j )
-          valsFrame.push_back(
-              attributes[j]->mapToValue(
-                  keyFrameFr->getNode(0)->getTupleVal(
-                      attributes[j]->getIndex() ) )->getIndex() );
-      }
-      */
       Attribute* attr;
       Node* node;
-      for (std::size_t j = 0; j < m_attributes.size(); ++j)
+      for (auto & attribute : m_attributes)
       {
-        attr = m_attributes[j];
+        attr = attribute;
         node = m_animationOldFrame->getNode(0);
         if (attr->getSizeCurValues() > 0)
         {
@@ -2503,8 +2448,8 @@ void Simulator::animate()
           valsFrame.push_back(val);
         }
       }
-      attr = 0;
-      node = 0;
+      attr = nullptr;
+      node = nullptr;
 
       glPushMatrix();
       glTranslatef(x, y, 0.0);
@@ -2519,18 +2464,9 @@ void Simulator::animate()
       y = m_animationEndPosition.y;
 
       valsFrame.clear();
-      /*
+      for (auto & attribute : m_attributes)
       {
-      for ( int j = 0; j < attributes.size(); ++j )
-          valsFrame.push_back(
-              attributes[j]->mapToValue(
-                  keyFrameTo->getNode(0)->getTupleVal(
-                      attributes[j]->getIndex() ) )->getIndex() );
-      }
-      */
-      for (std::size_t j = 0; j < m_attributes.size(); ++j)
-      {
-        attr = m_attributes[j];
+        attr = attribute;
         node = m_animationNewFrame->getNode(0);
         if (attr->getSizeCurValues() > 0)
         {
@@ -2542,8 +2478,8 @@ void Simulator::animate()
           valsFrame.push_back(val);
         }
       }
-      attr = 0;
-      node = 0;
+      attr = nullptr;
+      node = nullptr;
 
       glPushMatrix();
       glTranslatef(x, y, 0.0);
@@ -2558,20 +2494,11 @@ void Simulator::animate()
       // 'new' current frame
       double x = m_animationCurrentPosition.x;
       double y = m_animationCurrentPosition.y;
-      /*
-      {
-      for ( int j = 0; j < attributes.size(); ++j )
-          valsFrame.push_back(
-              attributes[j]->mapToValue(
-                  keyFrameFr->getNode(0)->getTupleVal(
-                      attributes[j]->getIndex() ) )->getIndex() );
-      }
-      */
       Attribute* attr;
       Node* node;
-      for (std::size_t j = 0; j < m_attributes.size(); ++j)
+      for (auto & attribute : m_attributes)
       {
-        attr = m_attributes[j];
+        attr = attribute;
         node = m_animationOldFrame->getNode(0);
         if (attr->getSizeCurValues() > 0)
         {
@@ -2583,8 +2510,8 @@ void Simulator::animate()
           valsFrame.push_back(val);
         }
       }
-      attr = 0;
-      node = 0;
+      attr = nullptr;
+      node = nullptr;
 
       glPushMatrix();
       glTranslatef(x, y, 0.0);
@@ -2599,18 +2526,9 @@ void Simulator::animate()
       y = m_animationEndPosition.y;
 
       valsFrame.clear();
-      /*
+      for (auto & attribute : m_attributes)
       {
-      for ( int j = 0; j < attributes.size(); ++j )
-          valsFrame.push_back(
-              attributes[j]->mapToValue(
-                  keyFrameTo->getNode(0)->getTupleVal(
-                      attributes[j]->getIndex() ) )->getIndex() );
-      }
-      */
-      for (std::size_t j = 0; j < m_attributes.size(); ++j)
-      {
-        attr = m_attributes[j];
+        attr = attribute;
         node = m_animationNewFrame->getNode(0);
         if (attr->getSizeCurValues() > 0)
         {
@@ -2622,8 +2540,8 @@ void Simulator::animate()
           valsFrame.push_back(val);
         }
       }
-      attr = 0;
-      node = 0;
+      attr = nullptr;
+      node = nullptr;
 
       glPushMatrix();
       glTranslatef(x, y, 0.0);
@@ -2670,9 +2588,9 @@ void Simulator::onTimer()
         // update new data
         m_currentFrame = m_animationOldFrame;
 
-        m_animationOldFrame = 0;
+        m_animationOldFrame = nullptr;
         delete m_animationNewFrame;
-        m_animationNewFrame = 0;
+        m_animationNewFrame = nullptr;
 
         initFramesPrevNext();
         initBundles();
@@ -2692,9 +2610,9 @@ void Simulator::onTimer()
       // update new data
       m_currentFrame = m_animationOldFrame;
 
-      m_animationOldFrame = 0;
+      m_animationOldFrame = nullptr;
       delete m_animationNewFrame;
-      m_animationNewFrame = 0;
+      m_animationNewFrame = nullptr;
 
       initFramesPrevNext();
       initBundles();

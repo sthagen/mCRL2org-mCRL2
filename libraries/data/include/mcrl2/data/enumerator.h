@@ -732,33 +732,35 @@ class enumerator_algorithm
                             };
 
       auto add_element_with_variables = [&](const data::variable_list& variables,
-                                            const data::variable_list& added_variables,
-                                            const typename EnumeratorListElement::expression_type& phi,
-                                            const data::variable& v,
-                                            const data::data_expression& e,
-                                            const bool print=false
-                                           ) -> bool
-                                           {
-                                             rewrite(P.scratch_expression, phi, sigma);
-                                             if (reject(P.scratch_expression))
-                                             {
-                                               return false;
-                                             }
-                                             bool added_variables_empty = added_variables.empty() || (P.scratch_expression == phi && m_accept_solutions_with_variables);
-                                             if ((accept(P.scratch_expression) && m_accept_solutions_with_variables) || (variables.empty() && added_variables_empty))
-                                             {
-                                               return report_solution(P.enumerator_element_cache(variables + added_variables, P.scratch_expression, p, v, e));
-                                             }
-                                             if (added_variables_empty)
-                                             {
-                                               P.emplace_back(variables, P.scratch_expression, p, v, e);
-                                             }
-                                             else
-                                             {
-                                               P.emplace_back(variables + added_variables, P.scratch_expression, p, v, e);
-                                             }
-                                             return false;
-                                           };
+                                          const data::variable_list& added_variables,
+                                          const typename EnumeratorListElement::expression_type& phi,
+                                          const data::variable& v,
+                                          const data::data_expression& e,
+                                          const bool /*print*/ = false) -> bool
+      {
+        rewrite(P.scratch_expression, phi, sigma);
+        if (reject(P.scratch_expression))
+        {
+          return false;
+        }
+        bool added_variables_empty
+          = added_variables.empty() || (P.scratch_expression == phi && m_accept_solutions_with_variables);
+        if ((accept(P.scratch_expression) && m_accept_solutions_with_variables)
+            || (variables.empty() && added_variables_empty))
+        {
+          return report_solution(
+            P.enumerator_element_cache(variables + added_variables, P.scratch_expression, p, v, e));
+        }
+        if (added_variables_empty)
+        {
+          P.emplace_back(variables, P.scratch_expression, p, v, e);
+        }
+        else
+        {
+          P.emplace_back(variables + added_variables, P.scratch_expression, p, v, e);
+        }
+        return false;
+      };
 
       const variable_list& v = p.variables();
       const typename EnumeratorListElement::expression_type& phi = p.expression();
@@ -815,7 +817,6 @@ class enumerator_algorithm
         if (dataspec.is_certainly_finite(element_sort))
         {
           const data_expression false_term = sort_set::false_function(element_sort);
-          // const data_expression lambda_term = abstraction(lambda_binder(), { variable(id_generator(), element_sort) }, sort_bool::false_());
           const variable fset_variable(id_generator(), sort_fset::fset(element_sort));
           data_expression e = sort_set::constructor(element_sort, false_term, fset_variable);
           sigma[v1] = e;
@@ -891,7 +892,6 @@ class enumerator_algorithm
             }
             else
             {
-              // const data_expression e1 = r(c);
               r(P.scratch_data_expression,c,sigma); // sigma is not used, but in this way no dummy sigma needs to be created. 
               sigma[v1] = P.scratch_data_expression;
               if (add_element(v_tail, phi, v1, P.scratch_data_expression))

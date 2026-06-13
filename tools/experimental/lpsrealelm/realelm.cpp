@@ -62,13 +62,6 @@ variable_list get_nonreal_variables(const variable_list& l)
   return r;
 }
 
-/* static data::function_symbol& negate_function_symbol(const sort_expression& s)
-{
-  static data::function_symbol f = data::function_symbol("negate",data::make_function_sort(s,s));
-  assert(data::make_function_sort(s,s)==f.sort()); // Protect against using f for other sorts than sort comp.
-  return f;
-}*/
-
 /// \brief Returns a list of all real assignments in l
 /// \param l a list of data assignments
 /// \return The list of all x := e in l such that x.sort() == e.sort() == real()
@@ -229,14 +222,14 @@ static void move_real_parameters_out_of_actions(stochastic_specification& s,
          tl->add_assignments(replaced_variables,sigma,r);
 
          process::action_vector new_replaced_actions;
-         for(process::action_vector::const_iterator j=new_actions.begin(); j!=new_actions.end(); ++j)
+         for(const auto & new_action : new_actions)
          {
            data_expression_vector new_replaced_args;
-           for (const data_expression& k : j->arguments())
+           for (const data_expression& k : new_action.arguments())
            {
              new_replaced_args.push_back(replace_free_variables(k, sigma));
            }
-           new_replaced_actions.emplace_back(j->label(),
+           new_replaced_actions.emplace_back(new_action.label(),
                data_expression_list(new_replaced_args.begin(), new_replaced_args.end()));
          }
          const process::action_list new_action_list(new_replaced_actions.begin(),new_replaced_actions.end());
@@ -325,23 +318,6 @@ static void normalize_specification(
 
         if (!((inequalities.size()>0) && (inequalities.front().is_false(r))))
         {
-          // Add for all real parameters x of the process an inequality 0<=x
-          // Also this is extremely confusing, and should not be done by lpsrealem.
-          // for (variable_list::const_iterator k=real_parameters.begin(); k!=real_parameters.end(); k++)
-          // {
-          //   data_expression e=(atermpp::aterm)*k;
-          //   inequalities.push_back(linear_inequality(real_zero(),e,linear_inequality::less_eq,r));
-          // }
-
-          // Add for all real sum variables x of this summand an inequality 0<=x. CODE BELOW ADDS 0<x.
-          // And it is not always reqruired, if this is not explicitly indicated. Certainly does not belong here.
-          // If somebody wants to add this as a constraint, he should do this explicitly in the input code.
-          /* for (variable_list::const_iterator k=real_sum_variables.begin(); k!=real_sum_variables.end(); k++)
-          {
-            const data_expression e=(atermpp::aterm)*k;
-            inequalities.push_back(linear_inequality(real_zero(),e,linear_inequality::less,r));
-          } */
-
           // First check whether a similar summand with the same action, sum variables, and assignment already
           // exists.
           // exists. If so, merge the two.
@@ -392,12 +368,12 @@ static void normalize_specification(
 
 
 
-  const lps::deadlock_summand_vector& deadlock_smds = s.process().deadlock_summands();
-  for (lps::deadlock_summand_vector::const_iterator i = deadlock_smds.begin(); i != deadlock_smds.end(); ++i)
+  const lps::deadlock_summand_vector& deadlock_summands = s.process().deadlock_summands();
+  for (const auto & deadlock_summand : deadlock_summands)
   {
     std::vector <data_expression_list> real_conditions;
     std::vector <data_expression> non_real_conditions;
-    detail::split_condition(i->condition(),real_conditions,non_real_conditions);
+    detail::split_condition(deadlock_summand.condition(),real_conditions,non_real_conditions);
 
     std::vector <data_expression>::const_iterator j_n=non_real_conditions.begin();
     for (std::vector <data_expression_list>::const_iterator
@@ -407,7 +383,7 @@ static void normalize_specification(
       const data_expression c=*j_n;
       if (!sort_bool::is_false_function_symbol(c))
       {
-        const summand_base t(i->summation_variables(),c);
+        const summand_base t(deadlock_summand.summation_variables(),c);
 
         std::vector < linear_inequality > inequalities;
         // Collect all real conditions from the condition from this summand and put them
@@ -421,7 +397,7 @@ static void normalize_specification(
         // this sum operator and the condition.
 
 
-        const variable_list eliminatable_real_sum_variables=get_real_variables(i->summation_variables());
+        const variable_list eliminatable_real_sum_variables=get_real_variables(deadlock_summand.summation_variables());
 
         std::vector < linear_inequality > new_inequalities;
         fourier_motzkin(inequalities,
@@ -434,22 +410,10 @@ static void normalize_specification(
 
         if (!((inequalities.size()>0) && (inequalities.front().is_false(r))))
         {
-          // Add for all real parameters x of the process an inequality 0<=x
-          // Also this is extremely confusing, and should not be done by lpsrealem.
-          // for (variable_list::const_iterator k=real_parameters.begin(); k!=real_parameters.end(); k++)
-          // {
-          //   data_expression e=(atermpp::aterm)*k;
-          //   inequalities.push_back(linear_inequality(real_zero(),e,linear_inequality::less_eq,r));
-          // }
 
           // Add for all real sum variables x of this summand an inequality 0<=x. CODE BELOW ADDS 0<x.
           // And it is not always reqruired, if this is not explicitly indicated. Certainly does not belong here.
           // If somebody wants to add this as a constraint, he should do this explicitly in the input code.
-          /* for (variable_list::const_iterator k=real_sum_variables.begin(); k!=real_sum_variables.end(); k++)
-          {
-            const data_expression e=(atermpp::aterm)*k;
-            inequalities.push_back(linear_inequality(real_zero(),e,linear_inequality::less,r));
-          } */
 
           // Construct replacements to contain the nextstate values for real variables in a map
 
@@ -458,7 +422,7 @@ static void normalize_specification(
                                       assignment_list(),
                                       lps::stochastic_distribution(),
                                       lps::multi_action(),
-                                      i->deadlock(),
+                                      deadlock_summand.deadlock(),
                                       variable_list(), // All sum variables over reals have been eliminated.
                                       get_nonreal_variables(t.summation_variables()),
                                       inequalities,
@@ -494,22 +458,20 @@ static void add_postponed_inequalities_to_context(
   // We add new next state arguments with increasing sizes of their lhs's.
   std::set <std::size_t> sorted_lhs_sizes(inequalities_to_add_lhs_size.begin(),inequalities_to_add_lhs_size.end());
 
-  for (std::set <std::size_t>::const_iterator current_size=sorted_lhs_sizes.begin();
-       current_size!=sorted_lhs_sizes.end(); ++current_size)
+  for (std::size_t lhs_size : sorted_lhs_sizes)
   {
     for (std::size_t i=0; i<inequalities_to_add_lhs.size(); ++i)
     {
-      if (inequalities_to_add_lhs_size[i]== *current_size)
+      if (inequalities_to_add_lhs_size[i]== lhs_size)
       {
         variable xi(variable_generator("xi"), sort_bool::bool_());
         context.emplace_back(xi,inequalities_to_add_lhs[i], inequalities_to_add_rhs[i], inequalities_to_add_comparison_operator[i]);
         mCRL2log(verbose) << "Introduced variable " <<  data::pp(xi) << " for <" << data::pp(inequalities_to_add_lhs[i]) <<
                     " "  << pp(inequalities_to_add_comparison_operator[i]) << " " <<  data::pp(inequalities_to_add_rhs[i]) << ">\n";
 
-        for (std::vector < summand_information >::iterator j = summand_info.begin();
-             j != summand_info.end(); ++j)
+        for (auto & j : summand_info)
         {
-          j->add_a_new_next_state_argument(context,r);
+          j.add_a_new_next_state_argument(context,r);
         }
       }
     }
@@ -752,20 +714,20 @@ assignment_list determine_process_initialization(
     replacements[real_assignment.lhs()] = real_assignment.rhs();
   }
 
-  for (context_type::const_iterator i = context.begin(); i != context.end(); ++i)
+  for (const auto & i : context)
   {
-    const data_expression left = replace_free_variables(i->get_lowerbound(), replacements);
-    const data_expression right = replace_free_variables(i->get_upperbound(), replacements);
-    const detail::comparison_t comparison=i->comparison_operator();
+    const data_expression left = replace_free_variables(i.get_lowerbound(), replacements);
+    const data_expression right = replace_free_variables(i.get_upperbound(), replacements);
+    const detail::comparison_t comparison=i.comparison_operator();
 
     assignment ass;
     if (compare(left,right,comparison,r))
     {
-      ass = assignment(i->get_variable(), sort_bool::true_());
+      ass = assignment(i.get_variable(), sort_bool::true_());
     }
     else
     {
-      ass = assignment(i->get_variable(), sort_bool::false_());
+      ass = assignment(i.get_variable(), sort_bool::false_());
     }
     init.push_front(ass);
   }
@@ -873,10 +835,10 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
   while ((iteration < max_iterations) && !new_inequalities_sizes.empty());
 
   mCRL2log(verbose) << "Generated the following variables in " <<  iteration << " iterations:" << std::endl;
-  for (context_type::iterator i = context.begin(); i != context.end(); ++i)
+  for (auto & i : context)
   {
-    mCRL2log(verbose) << "< " << data::pp(i->get_lowerbound()) << " " << pp(i->comparison_operator()) << " " << data::pp(i->get_upperbound())
-                      << " > " << data::pp(i->get_variable()) << std::endl;
+    mCRL2log(verbose) << "< " << data::pp(i.get_lowerbound()) << " " << pp(i.comparison_operator()) << " " << data::pp(i.get_upperbound())
+                      << " > " << data::pp(i.get_variable()) << std::endl;
   }
 
   if (!new_inequalities_sizes.empty())
@@ -893,35 +855,33 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
   lps::stochastic_action_summand_vector action_summands;
   lps::deadlock_summand_vector deadlock_summands;
   process::action_label_list new_act_declarations;
-  for (std::vector < summand_information >::iterator i = summand_info.begin();
-       i != summand_info.end(); ++i)
+  for (auto & i : summand_info)
   {
     // Construct the real time condition for summand in terms of xi variables.
 
     for (std::vector < std::vector < linear_inequality > >::iterator
-         nextstate_combination = i->nextstate_context_combinations_begin();
-         nextstate_combination != i->nextstate_context_combinations_end();
+         nextstate_combination = i.nextstate_context_combinations_begin();
+         nextstate_combination != i.nextstate_context_combinations_end();
          ++ nextstate_combination)
     {
-      data_expression new_condition=i->get_summand().condition();
+      data_expression new_condition=i.get_summand().condition();
       std::vector < linear_inequality > real_condition1;
 
       fourier_motzkin(*nextstate_combination,
-                      i->get_real_summation_variables().begin(),
-                      i->get_real_summation_variables().end(),
+                      i.get_real_summation_variables().begin(),
+                      i.get_real_summation_variables().end(),
                       real_condition1,
                       r);
       std::vector < linear_inequality > real_condition2;
       remove_redundant_inequalities(real_condition1,real_condition2,r);
 
       bool all_conditions_found=true;
-      for (std::vector <linear_inequality>::const_iterator j=real_condition2.begin();
-           j!=real_condition2.end(); ++j)
+      for (const auto & j : real_condition2)
       {
         data_expression t;
         data_expression u;
         detail::comparison_t comparison_operator;
-        bool negate=j->typical_pair(t,u,comparison_operator,r);
+        bool negate=j.typical_pair(t,u,comparison_operator,r);
         bool found=false;
         for (context_type::iterator k = context.begin(); (k != context.end()) && !found ; ++k)
         {
@@ -947,7 +907,7 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
       if (!all_conditions_found)
       {
         // add a may transition.
-        add_summand(*i,
+        add_summand(i,
                     new_condition,
                     *nextstate_combination,
                     context,
@@ -961,7 +921,7 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
       else
       {
         // add a must transition.
-        add_summand(*i,
+        add_summand(i,
                     new_condition,
                     *nextstate_combination,
                     context,
@@ -977,9 +937,9 @@ stochastic_specification realelm(stochastic_specification s, const std::size_t m
 
   // Process parameters
   variable_list process_parameters = reverse(nonreal_parameters);
-  for (context_type::const_iterator i = context.begin(); i != context.end(); ++i)
+  for (const auto & i : context)
   {
-    process_parameters.push_front(i->get_variable());
+    process_parameters.push_front(i.get_variable());
   }
   process_parameters = reverse(process_parameters);
 

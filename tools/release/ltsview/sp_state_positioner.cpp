@@ -21,7 +21,7 @@ class ClusterStatePositioner
     ClusterStatePositioner(Cluster* c);
 
     virtual ~ClusterStatePositioner()
-    { }
+    = default;
 
     virtual void positionStates()
     { }
@@ -42,18 +42,18 @@ class NodeClusterStatePositioner: public ClusterStatePositioner
 {
   public:
     NodeClusterStatePositioner(Cluster* c):
-      ClusterStatePositioner(c), slot_rtree(NULL)
+      ClusterStatePositioner(c) 
     { }
 
-    ~NodeClusterStatePositioner();
-    void positionStates();
+    ~NodeClusterStatePositioner() override;
+    void positionStates() override;
 
   private:
     void assignStateToNearestSlot(State* state, const QVector2D& position);
     void buildRTree();
     QVector2D sumSuccessorStateVectors(State* state);
 
-    RTree* slot_rtree;
+    RTree* slot_rtree = nullptr;
 };
 
 
@@ -64,10 +64,10 @@ class LeafClusterStatePositioner: public ClusterStatePositioner
       ClusterStatePositioner(c)
     { }
 
-    ~LeafClusterStatePositioner()
-    { }
+    ~LeafClusterStatePositioner() override
+    = default;
 
-    void positionStates();
+    void positionStates() override;
 
   private:
     void computeNumRingStates();
@@ -98,7 +98,7 @@ ClusterStatePositioner::ClusterStatePositioner(Cluster* c):
 
 NodeClusterStatePositioner::~NodeClusterStatePositioner()
 {
-  if (slot_rtree != NULL)
+  if (slot_rtree != nullptr)
   {
     delete slot_rtree;
   }
@@ -215,9 +215,9 @@ void LeafClusterStatePositioner::positionStates()
 void LeafClusterStatePositioner::computeNumRingStates()
 {
   int total_slots = 0;
-  for (std::size_t ring = 0; ring < num_ring_slots.size(); ++ring)
+  for (int slots_in_ring : num_ring_slots)
   {
-    total_slots += num_ring_slots[ring];
+    total_slots += slots_in_ring;
   }
   int todo_states = cluster->getNumStates();
   num_ring_states.assign(num_ring_slots.size(), 0);
@@ -246,8 +246,7 @@ SinglePassStatePositioner::SinglePassStatePositioner(LTS* l)
 }
 
 SinglePassStatePositioner::~SinglePassStatePositioner()
-{
-}
+= default;
 
 void SinglePassStatePositioner::positionStates()
 {

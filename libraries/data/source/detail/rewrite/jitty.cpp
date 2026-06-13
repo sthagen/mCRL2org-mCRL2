@@ -234,7 +234,7 @@ void RewriterJitty::subst_values(
   }
   if (is_function_symbol(t))
   {
-    // result=t;  The following is more efficient as it avoids a call to thread local variables. Should be removed in due time. 
+    // The following is more efficient than a plain assignment, as it avoids a call to thread local variables. Should be removed in due time.
     result.assign(t, *m_thread_aterm_pool);
     return;
   }
@@ -254,7 +254,6 @@ void RewriterJitty::subst_values(
         return;
       }
     }
-    // result=t;
     result.assign(t, *m_thread_aterm_pool);
     return;
   }
@@ -820,7 +819,6 @@ void RewriterJitty::rewrite_aux_const_function_symbol(
   const data_expression& cached_rhs = rhs_for_constants_cache[op_value];
   if (!cached_rhs.is_default_data_expression())
   {
-    // result=cached_rhs;
     /* result.assign(cached_rhs,
                   this->m_busy_flag,
                   this->m_forbidden_flag,

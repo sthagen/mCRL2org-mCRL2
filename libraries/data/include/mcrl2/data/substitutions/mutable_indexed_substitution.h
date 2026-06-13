@@ -66,11 +66,7 @@ public:
   using argument_type = variable_type;
   using result_type = expression_type;
 
-  /// \brief Default constructor
-  mutable_indexed_substitution()
-    : m_variables_in_rhs_set_is_defined(false)
-  {
-  }
+  mutable_indexed_substitution() = default;
 
   mutable_indexed_substitution(const substitution_type& substitution,
                                const bool variables_in_rhs_set_is_defined,
@@ -112,7 +108,7 @@ public:
     { }
 
     /// \brief Actual assignment
-    void operator=(const expression_type& e)
+    assignment& operator=(const expression_type& e)
     {
       assert(e.defined());
       const typename substitution_type::iterator i = m_super.m_substitution.find(m_variable);
@@ -122,7 +118,7 @@ public:
         assert(i->first==m_variable);
         if (e==i->second)  // No change in the substitution is required. 
         {
-          return;
+          return *this;
         }
         if (m_super.m_variables_in_rhs_set_is_defined)
         {
@@ -160,6 +156,7 @@ public:
         std::set<variable_type> s1=find_free_variables(e);
         m_super.m_variables_in_rhs.insert(s1.begin(),s1.end());
       }
+      return *this;
     }
   };
 

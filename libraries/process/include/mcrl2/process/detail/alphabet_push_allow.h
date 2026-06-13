@@ -184,24 +184,6 @@ struct push_allow_cache
     unfinished.insert(unfinished_value(A, x));
   }
 
-/*
-  // For each entry (A, P) -> (alpha, finished, P1) it is checked if
-  // intersection(alphabet(P), A) == alpha.
-  void check_equations(const std::vector<process_equation>& equations) const
-  {
-    for (auto i = alphabet_map.begin(); i != alphabet_map.end(); ++i)
-    {
-      multi_action_name_set alphabet_P = process::alphabet(i->first.P, equations);
-      multi_action_name_set a = i->first.A.intersect(alphabet_P);
-      std::cout << "check (" << i->first.A << ", " << i->first.P << ")";
-      if (a != i->second.alphabet)
-      {
-        std::cout << "Error: left = " << process::pp(a) << " right = " << process::pp(i->second.alphabet);
-      }
-      std::cout << std::endl;
-    }
-  }
-*/
 };
 
 inline
@@ -464,71 +446,54 @@ struct push_allow_traverser: public process_expression_traverser<Derived>
   void leave(const process::delta& x)
   {
     apply_pcrl_node(x);
-    // push(push_allow_node(process::alphabet(x, equations), x));
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::tau& x)
   {
     apply_pcrl_node(x);
-    // push(push_allow_node(process::alphabet(x, equations), x));
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::sum& x)
   {
     apply_pcrl_node(x);
-    // top().expression = process::sum(x.variables(), top().expression);
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::at& x)
   {
     apply_pcrl_node(x);
-    // top().expression = process::at(top().expression, x.time_stamp());
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::seq& x)
   {
     apply_pcrl_node(x);
-    // Node right = pop();
-    // Node left = pop();
-    // push(push_allow_node(alphabet_operations::set_union(left.alphabet, right.alphabet), process::seq(left.expression, right.expression)));
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::if_then& x)
   {
     apply_pcrl_node(x);
-    // top().expression = process::if_then(x.condition(), top().expression);
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::if_then_else& x)
   {
     apply_pcrl_node(x);
-    // Node right = pop();
-    // Node left = pop();
-    // push(push_allow_node(alphabet_operations::set_union(left.alphabet, right.alphabet), process::if_then_else(x.condition(), left.expression, right.expression)));
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::bounded_init& x)
   {
     apply_pcrl_node(x);
-    // Node right = pop();
-    // Node left = pop();
-    // push(push_allow_node(alphabet_operations::set_union(left.alphabet, right.alphabet), process::bounded_init(left.expression, right.expression)));
     mCRL2log(log::debug) << log(x);
   }
 
   void leave(const process::choice& x)
   {
     apply_pcrl_node(x);
-    // Node right = pop();
-    // Node left = pop();
-    // push(push_allow_node(alphabet_operations::set_union(left.alphabet, right.alphabet), process::choice(left.expression, right.expression)));
     mCRL2log(log::debug) << log(x);
   }
 
@@ -725,7 +690,6 @@ push_allow_node push_allow(const process_expression& x, const allow_set& A, std:
       }
     }
   }
-  // W.check_equations(equations);
 
   return result;
 }

@@ -63,7 +63,7 @@ class term_balanced_tree : public aterm
                           std::size_t new_size = (size + 1) >> 1; // size/2 rounded up.
                           if (new_size==1)
                           {
-                            transformer(reinterpret_cast<Term&>(target), *(p++));
+                            transformer(assign_cast<Term>(target), *(p++));
                           }
                           else
                           {
@@ -71,13 +71,13 @@ class term_balanced_tree : public aterm
                           }
                         },
                      [&size, &transformer, &p](aterm& target)
-                        { 
+                        {
                           assert(size>1);
-                          
+
                           std::size_t new_size = size >> 1; // size/2 rounded down.
                           if (new_size==1)
                           {
-                            transformer(reinterpret_cast<Term&>(target), *(p++));
+                            transformer(assign_cast<Term>(target), *(p++));
                           }
                           else
                           {
@@ -96,9 +96,9 @@ class term_balanced_tree : public aterm
       else if (size==1)
       {
         make_term_appl(result, tree_single_node_function(),
-          [&transformer,&p](aterm& target) 
+          [&transformer,&p](aterm& target)
             {
-              transformer(reinterpret_cast<Term&>(target), *(p++));
+              transformer(assign_cast<Term>(target), *(p++));
             });
       }
       else
@@ -234,12 +234,11 @@ class term_balanced_tree : public aterm
           }
           else
           {
-            return reinterpret_cast<const Term&>(left);
+            return vertical_cast<Term>(left);
           }
         }
-        else 
+        else
         {
-          // down_cast<term_balanced_tree<Term>>(right_branch()).element_at(position-left_size, size - left_size);
           const aterm& right(right_branch());
           if (right.function() == tree_node_function())
           {
@@ -247,7 +246,7 @@ class term_balanced_tree : public aterm
           }
           else
           {
-            return reinterpret_cast<const Term&>(right);
+            return vertical_cast<Term>(right);
           }
         }
       }
@@ -296,9 +295,9 @@ class term_balanced_tree : public aterm
     
         friend class boost::iterator_core_access;
     
-        static constexpr std::size_t maximal_size_of_stack = 20;      // We assume here that a tree never has more than 2^20 leaves, o
-                                                           // equivalently that states consist of not more than 2^20 data_expressions.
-        unprotected_aterm_core m_stack[maximal_size_of_stack];
+        static constexpr std::size_t maximal_size_of_stack = 20;  // We assume here that a tree never has more than 2^20 leaves, o
+                                                                  // equivalently that states consist of not more than 2^20 data_expressions.
+        std::array<unprotected_aterm_core, maximal_size_of_stack> m_stack;
         std::size_t m_top_of_stack;                             // First element in the stack that is empty.
     
         /// \brief Dereference operator

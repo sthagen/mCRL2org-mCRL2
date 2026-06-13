@@ -1478,7 +1478,6 @@ bisim_partitioner_gjkw_initialise_helper(LTS_TYPE& l, bool const branching,
     inert_out_per_block(1, 0),
     states_per_block(1, l.num_states())
 {
-    // log::logger::set_reporting_level(log::debug);
 
     mCRL2log(log::verbose) << "O(m log n) "
                     << (preserve_divergence ? "Divergence preserving b" : "B")
@@ -1819,7 +1818,7 @@ void bisim_partitioner_gjkw_initialise_helper<LTS_TYPE>::
                         ++succ_iter;
                         continue;
                     }
-                }                                                               assert((label_type) -1 != tau_label);
+                }                                                               assert(std::cmp_not_equal(-1, tau_label));
                 aut.add_transition(transition(s_eq, tau_label, t_eq));
             }
             else
@@ -1982,10 +1981,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
 
         // second pass through the predecessors to correct the pointers to the
         // constln_slices
-        for (bisim_gjkw::permutation_iter_t s_iter = SpB->begin();
-                                                SpB->end() != s_iter; ++s_iter)
+        for (auto s : *SpB)
         {
-            bisim_gjkw::state_info_ptr const s = *s_iter;
             for (bisim_gjkw::pred_iter_t pred_iter = s->noninert_pred_begin();
                               s->noninert_pred_end() != pred_iter; ++pred_iter)
             {
@@ -2003,10 +2000,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
                                                                                 #ifndef NDEBUG
                                                                                     // The following tests cannot be executed during the above loops
                                                                                     // because a state s_prime may have multiple transitions to SpB.
-                                                                                    for (bisim_gjkw::permutation_const_iter_t s_iter = SpB->begin();
-                                                                                                                                SpB->end() != s_iter; ++s_iter)
+                                                                                    for (auto s : *SpB)
                                                                                     {
-                                                                                        bisim_gjkw::state_info_ptr const s = *s_iter;
                                                                                         for (bisim_gjkw::pred_const_iter_t pred_iter=s->noninert_pred_begin();
                                                                                                               s->noninert_pred_end() != pred_iter; ++pred_iter)
                                                                                         {
@@ -2201,9 +2196,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
                                                                                             assert(BlueB->size() <= RedB->size());
                                                                                             unsigned const max_NewB = nullptr == BlueB ? 0
                                                                                               : check_complexity::log_n-check_complexity::ilog2(BlueB->size());
-                                                                                            for (permutation_iter_t i = BlueB->begin(); BlueB->end() != i; ++i)
+                                                                                            for (auto s : *BlueB)
                                                                                             {
-                                                                                                state_info_ptr s = *i;
                                                                                                 mCRL2complexity(s, finalise_work(check_complexity::
                                                                                                                   while_Test_is_not_empty_3_6l_s_is_blue_3_11l,
                                                                                                                   check_complexity::refine_bottom_state_3_6l,
@@ -2235,9 +2229,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
                                                                                         // done in the blue coroutine on states that turned out to be red.
                                                                                         unsigned const max_NewC = nullptr == NewC ? 0
                                                                                              : check_complexity::log_n - check_complexity::ilog2(NewC->size());
-                                                                                        for (permutation_iter_t i = RedB->begin(); RedB->end() != i; ++i)
+                                                                                        for (auto s : *RedB)
                                                                                         {
-                                                                                            state_info_ptr s = *i;
                                                                                             mCRL2complexity(s, cancel_work(check_complexity::
                                                                                                                  while_Red_contains_unvisited_states_3_15r), );
                                                                                             for (succ_iter_t succ=s->succ_begin(); s->succ_end()!=succ; ++succ)
@@ -2291,9 +2284,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
                                                                                         assert(nullptr != BlueB);
                                                                                         assert(nullptr != RedB);
                                                                                         assert(BlueB->size() >= RedB->size());
-                                                                                        for (permutation_iter_t i = BlueB->begin(); BlueB->end() != i; ++i)
+                                                                                        for (auto s : *BlueB)
                                                                                         {
-                                                                                            state_info_ptr s = *i;
                                                                                             mCRL2complexity(s, cancel_work(check_complexity::
                                                                                                               while_Test_is_not_empty_3_6l_s_is_blue_3_11l), );
                                                                                             mCRL2complexity(s, cancel_work(check_complexity::
@@ -2312,9 +2304,8 @@ void bisim_partitioner_gjkw<LTS_TYPE>::
                                                                                         }
                                                                                         unsigned const max_NewB = check_complexity::log_n -
                                                                                                                          check_complexity::ilog2(RedB->size());
-                                                                                        for (permutation_iter_t i = RedB->begin(); RedB->end() != i; ++i)
+                                                                                        for (auto s : *RedB)
                                                                                         {
-                                                                                            state_info_ptr s = *i;
                                                                                             mCRL2complexity(s, finalise_work(check_complexity::
                                                                                                      while_Red_contains_unvisited_states_3_15r,
                                                                                                      check_complexity::refine_visited_state_3_15, max_NewB), );

@@ -35,7 +35,7 @@ inline std::vector< char > string_to_vector_number(const std::string& s)
   {
     assert('0' <= i && i <= '9');
 
-    result.push_back(i - '0');
+    result.push_back(static_cast<char>(i - '0'));
   }
 
   return result;
@@ -52,7 +52,7 @@ inline std::string vector_number_to_string(const std::vector< char >& v)
 
   for (char i: v)
   {
-    result.push_back(i + '0');
+    result.push_back(static_cast<char>(i + '0'));
   }
 
   return result;
@@ -70,7 +70,7 @@ inline void decimal_number_multiply_by_two(std::vector< char >& number)
 
   if (5 <= number[0])
   {
-    *(j++) = number[0] / 5;
+    *(j++) = static_cast<char>(number[0] / 5);
   }
 
   for (std::vector< char >::const_iterator i = number.begin(); i < number.end(); ++i, ++j)
@@ -78,11 +78,11 @@ inline void decimal_number_multiply_by_two(std::vector< char >& number)
     // result[a] = 2*(number[b] mod 5) + number[b+1] div 5   where result[a] = *j and number[b] = *(i)
     if (i == number.end() - 1)
     {
-      *j = 2 * (*i % 5);
+      *j = static_cast<char>(2 * (*i % 5));
     }
     else
     {
-      *j = 2 * (*i % 5) + *(i+1) / 5;
+      *j = static_cast<char>(2 * (*i % 5) + *(i + 1) / 5);
     }
   }
 
@@ -127,7 +127,7 @@ inline std::string as_decimal_string(T t)
 
     while (0 < t)
     {
-      result.append(1, '0' + static_cast< char >(t % 10));
+      result.append(1, static_cast<char>('0' + static_cast<char>(t % 10)));
 
       t /= 10;
     }
@@ -150,13 +150,13 @@ inline void decimal_number_divide_by_two(std::vector< char >& number)
 
   if (2 <= number[0])
   {
-    *(j++) = number[0] / 2;
+    *(j++) = static_cast<char>(number[0] / 2);
   }
 
   for (std::vector< char >::const_iterator i = number.begin() + 1; i != number.end(); ++i, ++j)
   {
     // result[a] = 5*(number[b - 1] mod 2) + number[b] div 2   where result[a] = *j, number[b - 1] = *(i - 1)
-    *j = 5 * (*(i - 1) % 2) + *i / 2;
+    *j = static_cast<char>(5 * (*(i - 1) % 2) + *i / 2);
   }
 
   result.resize(j - result.begin());
@@ -787,8 +787,8 @@ inline data_expression real_(const std::string& n)
 /// \brief Yields the real value of a data expression.
 /// \param r A data expression of sort real in normal form.
 template <class NUMERIC_TYPE>
-inline NUMERIC_TYPE value(const data_expression& r,
-    std::enable_if_t<std::is_floating_point_v<NUMERIC_TYPE>>* = nullptr)
+  requires(std::is_floating_point_v<NUMERIC_TYPE>)
+inline NUMERIC_TYPE value(const data_expression& r)
 {
   if (is_creal_application(r))
   {

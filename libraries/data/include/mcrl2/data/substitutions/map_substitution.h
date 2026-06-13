@@ -34,7 +34,7 @@ struct map_substitution
     : m_map(m)
   { }
 
-  const expression_type operator()(const variable_type& v) const
+  expression_type operator()(const variable_type& v) const
   {
     typename AssociativeContainer::const_iterator i = m_map.find(v);
     if (i == m_map.end())
@@ -45,8 +45,6 @@ struct map_substitution
     {
       return i->second;
     }
-    // N.B. This does not work!
-    // return i == m_map.end() ? v : i->second;
   }
 
   static constexpr bool is_identity_substitution=false;

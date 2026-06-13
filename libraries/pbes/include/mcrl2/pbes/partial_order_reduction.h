@@ -295,7 +295,7 @@ class partial_order_reduction_algorithm
     std::chrono::high_resolution_clock::duration m_static_analysis_duration{};
     std::chrono::high_resolution_clock::duration m_exploration_duration{};
 
-    smt::smt_solver* m_solver;
+    std::unique_ptr<smt::smt_solver> m_solver;
 
     pbespor_options m_options;
 
@@ -820,7 +820,6 @@ class partial_order_reduction_algorithm
           const data::forall& f = atermpp::down_cast<data::forall>(expr);
           expr = data::make_exists_(f.variables(), data::sort_bool::not_(f.body()));
         }
-        // data::data_expression result = data::one_point_rule_rewrite(m_rewr(expr));
         switch(m_solver->solve(data::variable_list(), expr, m_options.smt_timeout))
         {
           case smt::answer::SAT: return negate ^ true;
@@ -1218,8 +1217,6 @@ class partial_order_reduction_algorithm
       }
       data::data_expression condition = make_forall_(parameters + qvars1_k + qvars2_k, data::sort_bool::implies(antecedent, consequent));
 
-      // mCRL2log(log::verbose) << "Determinism condition for " << k << ": " << m_rewr(condition) << " original " << condition << std::endl;
-
       return is_true(condition);
     }
 
@@ -1374,7 +1371,7 @@ class partial_order_reduction_algorithm
        m_pbes(pbes2srf(p)),
        m_equation_index(m_pbes),
        m_dependency_nes(m_pbes.equations().size()),
-       m_solver(options.use_smt_solver ? new smt::smt_solver(p.data()) : nullptr),
+       m_solver(options.use_smt_solver ? std::make_unique<smt::smt_solver>(p.data()) : nullptr),
        m_options(options)
     {
       unify_parameters(m_pbes, false, true);
@@ -1400,11 +1397,6 @@ class partial_order_reduction_algorithm
       }
 
       print_pbes();
-    }
-
-    ~partial_order_reduction_algorithm()
-    {
-      delete m_solver;
     }
 
     const propositional_variable_instantiation& initial_state() const
