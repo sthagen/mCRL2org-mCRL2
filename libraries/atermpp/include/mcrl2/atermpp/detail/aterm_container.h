@@ -34,6 +34,9 @@ inline void mark_term(const aterm_core& t, term_mark_stack& todo)
 namespace detail
 {
 
+class thread_aterm_pool;
+thread_aterm_pool& g_thread_term_pool();
+
 /// \brief Provides safe storage of unprotected_aterm_core instances in a container by marking
 ///        them during garbage collection.
 /// 
@@ -232,13 +235,25 @@ public:
    : unprotected_aterm_core(detail::address(other))
   { }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved) unprotected_aterm_core is a non-owning handle; there is nothing to move.
   reference_aterm(unprotected_aterm_core&& other) noexcept
    : unprotected_aterm_core(detail::address(other))
   {
   }
 
-  reference_aterm& operator=(const unprotected_aterm_core& other) noexcept;
-  reference_aterm& operator=(unprotected_aterm_core&& other) noexcept;
+  reference_aterm& operator=(const unprotected_aterm_core& other) noexcept
+  {
+    mcrl2::utilities::shared_guard guard = detail::g_thread_term_pool().lock_shared();
+    m_term = detail::address(other);
+    return *this;
+  }
+
+  reference_aterm& operator=(unprotected_aterm_core&& other) noexcept
+  {
+    mcrl2::utilities::shared_guard guard = detail::g_thread_term_pool().lock_shared();
+    m_term = detail::address(std::move(other));
+    return *this;
+  }
 
   /// Converts implicitly to a protected term of type T.
   operator T&()
@@ -333,10 +348,11 @@ public:
     : super(reference_aterm_pair_constructor_helper(other))
   {}
 
+  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved) both members of other are moved individually below.
   reference_aterm(std_pair&& other)
    : super(reference_aterm<typename T::first_type >(std::move(other.first)),
            reference_aterm<typename T::second_type>(std::move(other.second)))
-  {} 
+  {}
 
   reference_aterm& operator=(const reference_aterm& other)
   {
@@ -359,6 +375,7 @@ public:
     return *this;
   }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved) both members of other are moved individually below.
   reference_aterm& operator=(std_pair&& other)
   {
     super::first = std::move(other.first);
@@ -474,10 +491,7 @@ public:
     return *this;
   };
 
-  generic_aterm_container& operator=(generic_aterm_container&&) 
-  {
-    return *this;
-  }
+  generic_aterm_container& operator=(generic_aterm_container&&) noexcept { return *this; }
 
 protected:
   aterm_container m_container;

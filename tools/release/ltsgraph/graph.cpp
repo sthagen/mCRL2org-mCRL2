@@ -43,6 +43,7 @@ transitionLabelToQString(const mcrl2::lts::action_label_string& label)
 }
 
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage) -- thin lock wrappers; macros required to capture call-site context
 #ifndef DEBUG_GRAPH_LOCKS
 #define GRAPH_LOCK(type, where, x) x
 #else
@@ -72,6 +73,7 @@ void debug_lock(const char *type, const char *func)
 #define lockForWrite(lock, where)                                              \
   GRAPH_LOCK("W lock", where, (lock).lockForWrite())
 #define unlockForWrite(lock, where) GRAPH_LOCK("W unlock", where, (lock).unlock())
+// NOLINTEND(cppcoreguidelines-macro-usage)
 
 Graph::Graph()
     : m_exploration(nullptr), m_type(mcrl2::lts::lts_lts), m_empty(""),
@@ -714,10 +716,10 @@ DataView::DataView(std::list<double>& input_list){
   for (double d : input_list){
     min = std::min(d, min);
     min = std::max(d, max);
-    average += d/n;
+    average += d/static_cast<double>(n);
   }
   for (double d : input_list){
-    std += (d-average)*(d-average)/n;
+    std += (d-average)*(d-average)/static_cast<double>(n);
   }
 }
 
@@ -807,7 +809,7 @@ void DebugView::draw(QPainter& painter, QBrush& brush, QPen& pen){
   std::vector<QPointF> pointsStd;
 
   double t0 = static_cast<double>(m_values.front().first);
-  auto getX = [&](std::size_t t) { return (t - t0) / m_log_duration; };
+  auto getX = [&](std::size_t t) { return (static_cast<double>(t) - t0) / static_cast<double>(m_log_duration); };
   auto getY = [&](double val) { return 1 - val / m_max_value; };
   auto createPoint = [&](std::size_t t, double val)
   {
@@ -873,8 +875,8 @@ void GraphView::draw(QPainter& painter)
     {
       auto& vec = m_plots[j];
       if (vec.size() < 1) continue;
-      int row = j / m_cols;
-      int col = j % m_cols;
+      int row = static_cast<int>(j / m_cols);
+      int col = static_cast<int>(j % m_cols);
       std::string graph_title;
       for (std::size_t i = 0; i < vec.size(); i++) {
         graph_title += vec[i].var;
@@ -904,7 +906,7 @@ void GraphView::draw(QPainter& painter)
       }
       for (auto& entry : vec) {
         m_vars[entry.var].setMax(max);
-        m_vars[entry.var].setDrawingArea(w, h, offsetX, offsetY);
+        m_vars[entry.var].setDrawingArea(static_cast<int>(w), static_cast<int>(h), static_cast<int>(offsetX), static_cast<int>(offsetY));
         m_vars[entry.var].draw(painter, entry.brush, entry.pen);
       }
     }

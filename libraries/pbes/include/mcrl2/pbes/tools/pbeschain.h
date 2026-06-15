@@ -512,7 +512,7 @@ inline pbes fill_pvi(pbes& p, data::rewriter data_rewriter)
 
     pbes_expression new_formula;
     substituter.apply(new_formula, eq.formula());
-    pbes_equation new_eq(eq);
+    pbes_equation new_eq(static_cast<const pbes_equation&>(eq));
     new_eq.formula() = new_formula;
     eqn.push_back(new_eq);
   }
@@ -522,7 +522,7 @@ inline pbes fill_pvi(pbes& p, data::rewriter data_rewriter)
   return res;
 }
 
-pbes tosrf(pbes_system::pbes pbesspec)
+inline pbes tosrf(pbes_system::pbes pbesspec)
 {
   pbes_system::detail::instantiate_global_variables(pbesspec);
   auto result = pbes2pre_srf(pbesspec, true);

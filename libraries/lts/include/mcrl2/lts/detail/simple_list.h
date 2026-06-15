@@ -83,7 +83,7 @@ namespace mcrl2::lts::detail
 
 
 #ifdef USE_POOL_ALLOCATOR
-    #define ONLY_IF_POOL_ALLOCATOR(...) __VA_ARGS__
+    #define ONLY_IF_POOL_ALLOCATOR(...) __VA_ARGS__ // NOLINT(cppcoreguidelines-macro-usage)
     #ifndef USE_SIMPLE_LIST
         #error "Using the pool allocator also requires using the simple list"
     #endif
@@ -112,7 +112,7 @@ namespace mcrl2::lts::detail
       class pool_block_t
       {
       public:
-        char data[NR_ELEMENTS * sizeof(T)]{};
+        char data[NR_ELEMENTS * sizeof(T)]{}; // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays) raw storage for the pool allocator
         pool_block_t* next_block;
 
         pool_block_t(pool_block_t* const new_next_block)
@@ -265,7 +265,7 @@ namespace mcrl2::lts::detail
             static_assert(std::is_trivially_destructible_v<U>);
 #ifndef NDEBUG
                                                                                     // ensure that old_el points to an element in some block
-                                                                                    static std::less<const void*> const total_order;
+                                                                                    static std::less<const void*> const total_order; // NOLINT(modernize-use-transparent-functors) explicit type required to compare differing pointer types
                                                                                     for (const pool_block_t* block(first_block);
                                                                                                 assert(nullptr != block),
                                                                                                 total_order(old_el, block->data) ||
@@ -481,9 +481,10 @@ namespace mcrl2::lts::detail
 
             bool is_null() const  {  return nullptr == const_iterator::ptr;  }
 
-            void operator=(std::nullptr_t)
+            iterator_or_null& operator=(std::nullptr_t)
             {
                 const_iterator::ptr = nullptr;
+                return *this;
             }
         };
 
