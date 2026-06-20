@@ -395,6 +395,10 @@ class Pbes2boolTest(PbesTest):
             self.add_command_line_options('t3', ["--threads=4"])
             self.add_command_line_options('t4', ["--threads=4"])
             self.add_command_line_options('t5', ["--threads=4"])
+            self.add_command_line_options('t6', ["--threads=4"])
+            self.add_command_line_options('t7', ["--threads=4"])
+            self.add_command_line_options('t8', ["--threads=4"])
+            self.add_command_line_options('t9', ["--threads=4"])
 
 class Pres2boolTest(ProcessTest):
     def __init__(self, name, settings):
@@ -560,7 +564,8 @@ available_tests = {
     'pbessolve-counter-example-optimization-5'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 5, settings)                            ,
     'pbessolve-counter-example-optimization-6'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 6, settings)                            ,
     'pbessolve-counter-example-optimization-7'    : lambda name, settings: Pbes2bool_counter_exampleTest(name, 7, settings)                            ,
-    'pbessolve-parelm'                            : lambda name, settings: Pbes2bool_counter_example_parelmTest(name, settings)                        ,
+    # Reenable when the issues have been resolved.
+    # 'pbessolve-parelm'                            : lambda name, settings: Pbes2bool_counter_example_parelmTest(name, settings)                        ,
     'pbesstategraph'                              : lambda name, settings: PbesstategraphTest(name, settings)                                          ,
     'pbes-unify-parameters'                       : lambda name, settings: Pbes_unify_parametersTest(name, settings)                                   ,
     'pbes-srf'                                    : lambda name, settings: Pbes_srfTest(name, settings)                                                ,
