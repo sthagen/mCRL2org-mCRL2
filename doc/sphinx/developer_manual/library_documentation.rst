@@ -8,11 +8,7 @@ ATermpp
    :maxdepth: 1
 
    libraries/atermpp/aterm_library
-
-
-*PDF documentation*
-
- * :mcrl2_pdflatex:`mCRL2 Term Library <libraries/atermpp/latex/term_library.tex>`
+   libraries/atermpp/aterm_implementation_notes
 
 Core
 ======
@@ -22,29 +18,17 @@ Core
 
    libraries/core/core_library
    libraries/core/common_functionality
-
-
-*PDF documentation*
-
- * :mcrl2_pdflatex:`mCRL2 syntax definition <libraries/core/latex/mcrl2_syntax_definition.tex>`
+   libraries/core/mcrl2_syntax_definition
 
 Data
 ======
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    libraries/data/data_library
 
 
-*PDF documentation*
-
-* :mcrl2_pdflatex:`Some basic notions concerning the mCRL2 data library <libraries/data/latex/data.tex>`
-* :mcrl2_pdflatex:`Data types for mCRL2 <libraries/data/latex/mcrl2data.tex>`
-* :mcrl2_pdflatex:`Enumerator <libraries/data/latex/enumerator.tex>`
-* :mcrl2_pdflatex:`An algorithm to find a representant for sorts in the context of sort aliases and recursive sorts <libraries/data/latex/algorithm-for-sort-equivalence.tex>`
-* :mcrl2_pdflatex:`substitutions.tex <libraries/data/latex/substitutions.tex>`
-* :mcrl2_pdflatex:`Rewriter Implementation Notes <libraries/data/latex/rewriter.tex>`
 
 GUI
 =====
@@ -55,10 +39,6 @@ GUI
    libraries/gui/gui_library
 
 
-*PDF documentation*
-
-* :mcrl2_pdflatex:`Architecture of mcrl2ide <libraries/gui/latex/architecture_mcrl2ide.tex>`
-
 LPS
 ======
 
@@ -66,19 +46,11 @@ LPS
    :maxdepth: 1
 
    libraries/lps/lps_library
+   libraries/lps/lps_implementation_notes
+   libraries/lps/confluence_detection
+   libraries/lps/state_space_exploration
+   libraries/lps/communication_open_terms
 
-
-*PDF documentation*
-
-* :mcrl2_pdflatex:`A rewriting-strategies-based tool for transforming process-algebraic equations <libraries/lps/latex/lin_impl.tex>`
-* :mcrl2_pdflatex:`Next-state computation templates in state space exploration <libraries/lps/latex/next-state-templates-in-state-space-exploration.tex>`
-* :mcrl2_pdflatex:`lpsconstelm <libraries/lps/latex/lpsconstelm.tex>`
-* :mcrl2_pdflatex:`lps-implementation-notes.tex <libraries/lps/latex/lps-implementation-notes.tex>`
-* :mcrl2_pdflatex:`mcrl2lps.tex <libraries/lps/latex/mcrl2lps.tex>`
-* :mcrl2_pdflatex:`lpsparelm <libraries/lps/latex/lpsparelm.tex>`
-* :mcrl2_pdflatex:`State Space Exploration <libraries/lps/latex/state-space-exploration.tex>`
-* :mcrl2_pdflatex:`lps-implementation-communication-operator.tex <libraries/lps/latex/lps-implementation-communication-operator.tex>`
-* :mcrl2_pdflatex:`Confluence Detection <libraries/lps/latex/confluence-detection.tex>`
 
 LTS
 =====
@@ -89,10 +61,6 @@ LTS
    libraries/lts/lts_library
 
 
-*PDF documentation*
-
-* :mcrl2_pdflatex:`Implementation of LTSGraph3D <libraries/lts/latex/ltsgraph3d_report.tex>`
-* :mcrl2_pdflatex:`Notes on the bisimulation partitioner <libraries/lts/latex/bisimulation-partitioner-notes.tex>`
 
 
 Modal formula
@@ -110,17 +78,13 @@ PBES
    :maxdepth: 1
 
    libraries/pbes/pbes_library
+   libraries/pbes/pbesinst
    libraries/pbes/pbes-inst-solving
-
-*PDF documentation*
-
-* :mcrl2_pdflatex:`PBES Abstraction <libraries/pbes/latex/pbes-abstraction.tex>`
-* :mcrl2_pdflatex:`PBES Generation <libraries/pbes/latex/pbes-generation.tex>`
-* :mcrl2_pdflatex:`PBES Implementation Notes <libraries/pbes/latex/pbes-implementation-notes.tex>`
-* :mcrl2_pdflatex:`PBES rewriters <libraries/pbes/latex/pbes-rewriters.tex>`
-* :mcrl2_pdflatex:`PBES Instantiation <libraries/pbes/latex/pbes-instantiation.tex>`
-* :mcrl2_pdflatex:`kant-pbes-greybox-notes.tex <libraries/pbes/latex/kant-pbes-greybox-notes.tex>`
-* :mcrl2_pdflatex:`Some notes on a BES library <libraries/pbes/latex/bes-library.tex>`
+   libraries/pbes/pbes_rewriters
+   libraries/pbes/pbesabsinthe
+   libraries/pbes/pbes_generation
+   libraries/pbes/pbes_greybox_notes
+   libraries/pbes/pbes_implementation_notes
 
 Process
 =========
@@ -129,12 +93,8 @@ Process
    :maxdepth: 1
 
    libraries/process/process_library
-
-
-*PDF documentation*
-
-* :mcrl2_pdflatex:`On free variables in process specifications, LPSs and PBESs <libraries/process/latex/global-variables.tex>`
-* :mcrl2_pdflatex:`Process Library Implementation Notes <libraries/process/latex/process-implementation-notes.tex>`
+   libraries/process/global_variables
+   libraries/process/process_implementation_notes
 
 SMT
 ======

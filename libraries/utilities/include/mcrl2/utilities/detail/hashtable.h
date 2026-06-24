@@ -70,7 +70,9 @@ inline hashtable<Key,Hash,Equals,Allocator>::hashtable(std::size_t initial_size,
 template <class Key, typename Hash, typename Equals, typename Allocator>
 inline void hashtable<Key,Hash,Equals,Allocator>::clear()
 {
-  m_hashtable.clear();
+  // Reset every slot to the empty value.
+  m_hashtable.assign(m_hashtable.size(), nullptr);
+  m_number_of_elements = 0;
 }
 
 template <class Key, typename Hash, typename Equals, typename Allocator>
@@ -157,7 +159,7 @@ inline typename hashtable<Key,Hash,Equals,Allocator>::iterator hashtable<Key,Has
 {
   for (auto it = begin(); it != end(); ++it)
   {
-    if (*it == key)
+    if (*it != nullptr && m_equals(*it, key))
     {
       return it;
     }
@@ -179,4 +181,4 @@ inline std::size_t hashtable<Key,Hash,Equals,Allocator>::get_index(const Key& ke
 
 
 
-#endif // MCRL2_UTILITIES_DETAIL_INDEXED_SET_H
+#endif // MCRL2_UTILITIES_DETAIL_HASHTABLE_H

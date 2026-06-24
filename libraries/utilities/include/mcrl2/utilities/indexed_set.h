@@ -34,7 +34,6 @@ private:
   KeyTable m_keys;
 
   /// \brief Mutex for the m_hashtable and m_keys data structures.
-  mutable std::shared_ptr<std::mutex> m_mutex;
   mutable std::vector<shared_mutex> m_shared_mutexes;
 
   /// m_next_index indicates the next index that 
@@ -203,7 +202,7 @@ public:
   const_reverse_iterator crend(std::size_t thread_index = 0) const 
   { 
     shared_guard guard = m_shared_mutexes[thread_index].lock_shared();
-    reverse_iterator i = m_keys.crend();
+    const_reverse_iterator i = m_keys.crend();
     return i;
   }
 

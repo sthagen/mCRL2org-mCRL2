@@ -7,12 +7,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 //
 /// \file mcrl2/lps/explorer_options.h
-/// \brief add your file description here.
+/// \brief Options used by the state space explorer.
 
 #ifndef MCRL2_LPS_EXPLORER_OPTIONS_H
 #define MCRL2_LPS_EXPLORER_OPTIONS_H
 
-#include <iomanip>
 #include "mcrl2/core/detail/print_utility.h"
 #include "mcrl2/data/rewrite_strategy.h"
 #include "mcrl2/lps/multi_action.h"
@@ -31,6 +30,10 @@ struct explorer_options
   bool cached = false;
   bool global_cache = false;
   bool confluence = false;
+  bool use_projections = false;
+#ifdef MCRL2_USE_CONTROL_FLOW
+  bool use_control_flow = false;
+#endif
   bool detect_deadlock = false;
   bool detect_nondeterminism = false;
   bool detect_divergence = false;
@@ -76,7 +79,11 @@ std::ostream& operator<<(std::ostream& out, const explorer_options& options)
   out << "cached = " << std::boolalpha << options.cached << std::endl;
   out << "global-cache = " << std::boolalpha << options.global_cache << std::endl;
   out << "confluence = " << std::boolalpha << options.confluence << std::endl;
-  out << "confluence-action = " << options.confluence << std::endl;
+  out << "confluence-action = " << options.confluence_action << std::endl;
+  out << "use-projections = " << std::boolalpha << options.use_projections << std::endl;
+#ifdef MCRL2_USE_CONTROL_FLOW
+  out << "use-control-flow = " << std::boolalpha << options.use_control_flow << std::endl;
+#endif
   out << "one-point-rule-rewrite = " << std::boolalpha << options.one_point_rule_rewrite << std::endl;
   out << "replace-constants-by-variables = " << std::boolalpha << options.replace_constants_by_variables << std::endl;
   out << "remove-unused-rewrite-rules = " << std::boolalpha << options.remove_unused_rewrite_rules << std::endl;
