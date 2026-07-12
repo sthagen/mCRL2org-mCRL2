@@ -147,7 +147,7 @@ private:
   /// \param allow_collect Actually perform the garbage collection instead of only updating the counters.
   /// \param mutex The shared mutex that should be used for locking if necessary.
   /// \details threadsafe
-  inline void created_term(bool allow_collect, mcrl2::utilities::shared_mutex& mutex);
+  inline void created_term(mcrl2::utilities::shared_mutex& mutex, long& count_until_check);
 
   /// \brief Collect garbage on all storages.
   /// \details threadsafe
@@ -221,7 +221,6 @@ private:
 
   /// Track the number of terms destroyed and reduce the freelist.
   std::atomic<long> m_count_until_collection = 0;
-  std::atomic<long> m_count_until_resize = 0; 
 
   std::atomic<bool> m_enable_garbage_collection = EnableGarbageCollection; /// Garbage collection is enabled.
 

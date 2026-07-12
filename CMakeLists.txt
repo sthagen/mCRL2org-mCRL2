@@ -140,9 +140,34 @@ if(MCRL2_ENABLE_CODE_COVERAGE)
   include(CodeCoverage)
 endif()
 
+# Third-party libraries are vendored and not maintained by us, so silence all of
+# their compiler warnings to keep the build output clean. The -w/-W0 flag is
+# appended last, overriding any earlier warning flags inherited from the project.
+# Their public headers are additionally marked as SYSTEM includes so that
+# consumers (e.g. the mCRL2 libraries) do not emit warnings from these headers.
+function(mcrl2_silence_third_party_warnings)
+  foreach(_target ${ARGN})
+    if(TARGET ${_target})
+      if(MSVC)
+        target_compile_options(${_target} PRIVATE /w)
+      else()
+        target_compile_options(${_target} PRIVATE -w)
+      endif()
+
+      get_target_property(_interface_includes ${_target} INTERFACE_INCLUDE_DIRECTORIES)
+      if(_interface_includes)
+        set_target_properties(${_target} PROPERTIES
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_interface_includes}")
+      endif()
+    endif()
+  endforeach()
+endfunction()
+
 add_subdirectory(3rd-party/dparser)
+mcrl2_silence_third_party_warnings(dparser mkdparse make_dparser)
 if(MCRL2_ENABLE_GUI_TOOLS)
   add_subdirectory(3rd-party/tr)
+  mcrl2_silence_third_party_warnings(tr)
 endif()
 if (MCRL2_ENABLE_SYLVAN)
   # This is necessary since we only want to link Sylvan and lace statically.
@@ -154,6 +179,8 @@ if (MCRL2_ENABLE_SYLVAN)
 
   set(BUILD_SHARED_LIBS ${_BUILD_SHARED_LIBS})
   unset(_BUILD_SHARED_LIBS)
+
+  mcrl2_silence_third_party_warnings(lace lace14 sylvan)
 
   # Enable position independent code for Sylvan to avoid linker errors.
   set_target_properties(sylvan PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
@@ -173,6 +200,10 @@ endif()
 
 if (MCRL2_ENABLE_TESTS)
   add_subdirectory(tests)
+
+  # Build (and run) the C++ example snippets embedded in the developer manual as
+  # a "doctest" suite, independent of whether the documentation is generated.
+  add_subdirectory(doc/sphinx/developer_manual/libraries/core/examples doctest)
 endif()
 
 # Install the example directory.

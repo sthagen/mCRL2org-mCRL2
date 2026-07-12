@@ -68,23 +68,17 @@ public:
       // Without the transfer those objects become invisible to the garbage
       // collector the moment this pool is unregistered, so the next GC cycle
       // would reclaim their underlying _aterm nodes.
+      //
+      // Take our own exclusive lock (not the main pool's) so this thread
+      // becomes the "stop the world" leader before absorb() touches the
+      // main pool's hashtables directly. A plain register_variable()/
+      // register_container() call here would only take a shared lock,
+      // which does not exclude the main thread's own concurrent use of
+      // its pool.
       if (g_main_thread_pool != nullptr)
       {
-        for (const aterm_core* v : *m_variables)
-        {
-          if (v != nullptr)
-          {
-            g_main_thread_pool->register_variable(const_cast<aterm_core*>(v));
-          }
-        }
-        for (const aterm_container* c : *m_containers)
-        {
-          if (c != nullptr)
-          {
-            g_main_thread_pool->register_container(
-                const_cast<aterm_container*>(c));
-          }
-        }
+        mcrl2::utilities::lock_guard guard(m_shared_mutex);
+        g_main_thread_pool->absorb(*m_variables, *m_containers);
       }
       // We need to prematurely unregister this thread pool since we are going
       // to delete the reference-variable hashtables.
@@ -143,16 +137,23 @@ public:
   /// \brief Removes the given container from the active variables.
   inline void deregister_container(aterm_container* variable);
 
+  /// \brief Transfers the surviving variables and containers of a pool that is
+  ///        being destroyed into this pool.
+  /// \details Takes no lock itself; the caller must already hold its own
+  ///          exclusive lock (see ~thread_aterm_pool()).
+  inline void absorb(mcrl2::utilities::hashtable<aterm_core*>& variables,
+      mcrl2::utilities::hashtable<aterm_container*>& containers);
+
   // Implementation of thread_aterm_pool_interface
   inline void mark();
   inline void print_local_performance_statistics() const;
   inline std::size_t protection_set_size() const;
 
   /// Acquire a shared lock on this thread aterm pool.
-  inline mcrl2::utilities::shared_guard lock_shared() { return m_shared_mutex.lock_shared(); }
+  [[nodiscard]] inline mcrl2::utilities::shared_guard lock_shared() { return mcrl2::utilities::shared_guard(m_shared_mutex); }
 
   /// Acquire an exclusive lock
-  inline mcrl2::utilities::lock_guard lock() { return m_shared_mutex.lock(); }
+  [[nodiscard]] inline mcrl2::utilities::lock_guard lock() { return mcrl2::utilities::lock_guard(m_shared_mutex); }
 
   /// Returns true iff we are in a shared section.
   inline bool is_shared_locked() { return m_shared_mutex.is_shared_locked(); }
@@ -177,6 +178,9 @@ private:
   std::size_t m_variable_insertions = 0;
   std::size_t m_container_insertions = 0;
   std::stack<std::reference_wrapper<_aterm>> m_todo; ///< A reusable todo stack.
+
+  long m_count_until_check; // Counter used to check whether the data structures need a resize or recollect
+                            // to avoid checking too often, and incrementing global counters too frequently.
 
   bool m_is_main_thread = false;
 

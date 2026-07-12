@@ -33,7 +33,6 @@ aterm_pool::aterm_pool() :
   m_appl_dynamic_storage(*this)
 {
   m_count_until_collection = static_cast<long>(capacity());
-  m_count_until_resize = static_cast<long>(m_int_storage.capacity());
 
   if constexpr (EnableAggressiveGarbageCollection) 
   {
@@ -96,13 +95,13 @@ void aterm_pool::collect(mcrl2::utilities::shared_mutex& mutex)
 
 void aterm_pool::register_thread_aterm_pool(thread_aterm_pool_interface& pool)
 {
-  mcrl2::utilities::lock_guard guard = m_shared_mutex.lock();
+  mcrl2::utilities::lock_guard guard(m_shared_mutex);
   m_thread_pools.insert(m_thread_pools.end(), &pool);
 }
 
 void aterm_pool::remove_thread_aterm_pool(thread_aterm_pool_interface& pool)
 {
-  mcrl2::utilities::lock_guard guard = m_shared_mutex.lock();
+  mcrl2::utilities::lock_guard guard(m_shared_mutex);
   
   auto it = std::find(m_thread_pools.begin(), m_thread_pools.end(), &pool);
   if (it != m_thread_pools.end())
@@ -165,27 +164,29 @@ std::size_t aterm_pool::size() const
 
 // private
 
-void aterm_pool::created_term(bool allow_collect, mcrl2::utilities::shared_mutex& shared_mutex)
+void aterm_pool::created_term(mcrl2::utilities::shared_mutex& shared_mutex, long& count_until_check)
 {
-  // Defer garbage collection when it happens too often.
-  if (m_count_until_collection.fetch_sub(1, std::memory_order_relaxed)<=0)
+  if (m_enable_garbage_collection || m_enable_resize) 
   {
-    if (allow_collect)
-    {
-      collect_impl(shared_mutex);
-    }
-  }
+    count_until_check++;
 
-  if (m_count_until_resize.load(std::memory_order_relaxed) <= 0)
-  {
-    if (allow_collect && m_enable_resize)
+    if (!shared_mutex.is_shared_locked()) // If shared_locked no garbage collection can take place, leading to a deadlock. 
     {
-      resize_if_needed(shared_mutex);
+      if (count_until_check>=10000)
+      {
+        // Regularly perform garbage collection in accordance with the growing size of the data structures
+        if (m_count_until_collection.fetch_sub(count_until_check, std::memory_order_relaxed)<=0)
+        {
+          collect_impl(shared_mutex);
+        }
+
+        if (m_enable_resize && resize_is_needed(shared_mutex))
+        {
+          resize_if_needed(shared_mutex);
+        }
+        count_until_check=0;
+      }
     }
-  }
-  else
-  {
-    m_count_until_resize.fetch_sub(1, std::memory_order_relaxed);
   }
 }
 
@@ -199,13 +200,12 @@ void aterm_pool::collect_impl(mcrl2::utilities::shared_mutex& shared_mutex)
       return;
     }
 
-    mcrl2::utilities::lock_guard guard = shared_mutex.try_lock();
+    mcrl2::utilities::lock_guard guard(shared_mutex, std::try_to_lock);
     if (!guard.owns_lock())
     { 
-      // Another process owns the exclusive lock and is resizing. Wait until resizing is done.
-      // The next line generates a shared_guard that automatically is destroyed. No need for an explicit shared_mutex.unlock_shared()
-      shared_mutex.lock_shared();
-      // mutex.unlock_shared();
+      // Another process owns the exclusive lock and is resizing. Block until resizing is
+      // done by acquiring (and immediately releasing) a shared lock.
+      mcrl2::utilities::shared_guard shared(shared_mutex);
       return;
     } 
 
@@ -380,7 +380,7 @@ bool aterm_pool::create_appl_dynamic(aterm& term,
 
 bool aterm_pool::resize_is_needed(mcrl2::utilities::shared_mutex& mutex) const
 {
-  mcrl2::utilities::shared_guard guard = mutex.lock_shared();
+  mcrl2::utilities::shared_guard guard(mutex);
   return m_function_symbol_pool.resize_is_needed() ||
          m_int_storage.resize_is_needed() ||
          std::get<0>(m_appl_storage).resize_is_needed() ||
@@ -396,28 +396,16 @@ bool aterm_pool::resize_is_needed(mcrl2::utilities::shared_mutex& mutex) const
 
 void aterm_pool::resize_if_needed(mcrl2::utilities::shared_mutex& mutex)
 {
-  if (m_count_until_resize.load(std::memory_order_relaxed) > 0 || !resize_is_needed(mutex))
-  {
-    return;
-  }
-
-  mcrl2::utilities::lock_guard guard = mutex.try_lock();
+  mcrl2::utilities::lock_guard guard(mutex, std::try_to_lock);
   if (!guard.owns_lock())
   {
-    // Another process owns the exclusive lock and is resizing. Wait until resizing is done.
-    // The next line generates a shared_guard that automatically is destroyed. No need for an explicit mutex.unlock_shared()
-    mutex.lock_shared();
-    // mutex.unlock_shared();
+    // Another process owns the exclusive lock and is resizing. Block until resizing is
+    // done by acquiring (and immediately releasing) a shared lock.
+    mcrl2::utilities::shared_guard shared(mutex);
     return;
   } 
 
-  if (m_count_until_resize > 0)
-  {
-    // Another thread has resized the tables, so we can ignore it.
-    return;
-  }
-
-  auto timestamp = std::chrono::system_clock::now();
+  const std::chrono::time_point<std::chrono::system_clock> timestamp = std::chrono::system_clock::now();
   std::size_t old_capacity = capacity();
   std::size_t old_symbols_capacity = m_function_symbol_pool.capacity();
 
@@ -436,7 +424,7 @@ void aterm_pool::resize_if_needed(mcrl2::utilities::shared_mutex& mutex)
   m_appl_dynamic_storage.resize_if_needed();
 
   // Attempt to resize ever so often.
-  m_count_until_resize = 10000;
+  // m_count_until_check_resize = 10000;
 
   if (EnableGarbageCollectionMetrics && (old_capacity != capacity() || old_symbols_capacity != m_function_symbol_pool.capacity()))
   {
