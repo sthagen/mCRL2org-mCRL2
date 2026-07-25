@@ -39,7 +39,7 @@ struct term_traits_optimized<pres_system::pres_expression>: public core::term_tr
   } 
 
   static inline
-  void make_not_(term_type& result, const term_type& x)
+  void make_not(term_type& result, const term_type& x)
   {
     data::optimized_not(result, x);
   }
@@ -53,7 +53,7 @@ struct term_traits_optimized<pres_system::pres_expression>: public core::term_tr
   }
 
   static inline
-  void make_and_(term_type& result, const term_type& x, const term_type& y)
+  void make_and(term_type& result, const term_type& x, const term_type& y)
   {
     data::optimized_and(result, x, y);
   }
@@ -67,7 +67,7 @@ struct term_traits_optimized<pres_system::pres_expression>: public core::term_tr
   } 
 
   static inline
-  void make_or_(term_type& result, const term_type& x, const term_type& y)
+  void make_or(term_type& result, const term_type& x, const term_type& y)
   {
     data::optimized_or(result, x, y);
   }
@@ -89,19 +89,19 @@ struct term_traits_optimized<pres_system::pres_expression>: public core::term_tr
   static inline
   void make_infimum(term_type& result, const variable_sequence_type& d, const term_type& x)
   {
-    optimized_infimum_no_empty_domain(result, d, x);
+    optimized_infimum(result, d, x);
   }
 
   static inline
   void make_supremum(term_type& result, const variable_sequence_type& d, const term_type& x)
   {
-    optimized_supremum_no_empty_domain(result, d, x);
+    optimized_supremum(result, d, x);
   }
 
   static inline
   void make_sum(term_type& result, const variable_sequence_type& d, const term_type& x)
   {
-    optimized_sum_no_empty_domain(result, d, x);
+    optimized_sum(result, d, x);
   }
 
   template <typename FwdIt>

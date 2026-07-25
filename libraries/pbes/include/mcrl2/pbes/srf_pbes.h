@@ -62,7 +62,7 @@ pbes_expression make_conjunction(Iterator first, Iterator last)
 
   while (it != last)
   {
-    make_and_(result, result, *it);
+    make_and(result, result, *it);
     ++it;
   }
 
@@ -83,7 +83,7 @@ pbes_expression make_disjunction(Iterator first, Iterator last)
 
   while (it != last)
   {
-    make_or_(result, result, *it);
+    make_or(result, result, *it);
     ++it;
   }
 
@@ -152,7 +152,7 @@ public:
   {
     if constexpr (allow_ce)
     {
-      m_condition = pbes_system::and_(f, m_condition);
+      m_condition=pbes_system::optimized_and(f, m_condition);
     }
     else
     {
@@ -168,11 +168,11 @@ public:
       // with guards of the form !X, where X is a variable that encodes counterexample
       // information. As other algorithms expect expressions in positive form, we need
       // to push the negation inside.
-      return make_forall_(m_parameters, or_(distribute_not_over_and(atermpp::down_cast<pbes_expression>(m_condition)), m_X));
+      return pbes_system::optimized_forall(m_parameters, or_(distribute_not_over_and(atermpp::down_cast<pbes_expression>(m_condition)), m_X));
     }
     else
     {
-      return make_exists_(m_parameters, and_(atermpp::down_cast<pbes_expression>(m_condition), m_X));
+      return pbes_system::optimized_exists(m_parameters, and_(atermpp::down_cast<pbes_expression>(m_condition), m_X));
     }
   }
 };
@@ -308,6 +308,19 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
   // The summands of the generated equation
   std::vector<pre_srf_summand<allow_ce>> summands;
 
+  /// is_simple_expression is called often. Therefore, we add a cached variant.
+  std::map<pbes_expression, bool> m_is_simple_expression_cache_true;
+  std::map<pbes_expression, bool> m_is_simple_expression_cache_false;
+
+  bool is_simple_expression_cached(const pbes_expression& p, const bool b)
+  {
+    return is_simple_expression_with_cache(
+                  p,
+                  b,
+                  m_is_simple_expression_cache_true,
+                  m_is_simple_expression_cache_false);
+  }
+
   /// If true do not introduce a new PBES equation for simple expressions, and instead add them to every summand
   /// separately.
   bool m_merge_simple_expressions = false;
@@ -332,7 +345,7 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
 
   void apply(const and_& x)
   {
-    if (m_merge_simple_expressions && is_simple_expression(x.left(), allow_ce))
+    if (m_merge_simple_expressions && is_simple_expression_cached(x.left(), allow_ce))
     {
       std::size_t size = summands.size();
       apply(x.right());
@@ -341,7 +354,7 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
         i->add_condition(x.left());
       }
     }
-    else if (m_merge_simple_expressions && is_simple_expression(x.right(), allow_ce))
+    else if (m_merge_simple_expressions && is_simple_expression_cached(x.right(), allow_ce))
     {
       std::size_t size = summands.size();
       apply(x.left());
@@ -376,9 +389,9 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
     std::set<pbes_expression> clauses = split_or(x, false);
 
     std::vector<pbes_expression> simple_clauses;
-    for (const auto& clause : clauses)
+    for (const pbes_expression& clause: clauses)
     {
-      if (m_merge_simple_expressions && is_simple_expression(clause, false))
+      if (m_merge_simple_expressions && is_simple_expression_cached(clause, false))
       {
         simple_clauses.emplace_back(clause);
         apply(clause);
@@ -387,17 +400,21 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
 
     if (simple_clauses.empty())
     {
-      // No simple clauses, so we can just apply the or_ operator.
-      super::apply(x);
+      // No simple clauses, so we have a disjunction of non-simple ors.
+      for (const pbes_expression& clause : clauses)
+      {
+        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        apply(clause);
+      }
       return;
     }
 
     pbes_expression condition = make_disjunction(simple_clauses.begin(), simple_clauses.end());
     mCRL2log(log::trace) << "Simple condition " << condition << "\n";
 
-    for (const auto& clause : clauses)
+    for (const pbes_expression& clause: clauses)
     {
-      if (!m_merge_simple_expressions || !is_simple_expression(clause, false))
+      if (!m_merge_simple_expressions || !is_simple_expression_cached(clause, false))
       {
         mCRL2log(log::trace) << "Clause " << clause << "\n";
         std::size_t size = summands.size();
@@ -431,7 +448,7 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
 
   void apply(const forall& x)
   {
-    if (is_simple_expression(x.body(), allow_ce))
+    if (is_simple_expression_cached(x.body(), allow_ce))
     {
       const pbes_expression& f = x.body();
       const propositional_variable_instantiation& X = propositional_variable_instantiation(X_true, {});
@@ -457,7 +474,7 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
 
   void apply(const pbes_expression& x)
   {
-    if (is_simple_expression(x, allow_ce))
+    if (is_simple_expression_cached(x, allow_ce))
     {
       const propositional_variable_instantiation& X = propositional_variable_instantiation(X_true, {});
       const pbes_expression& f = x;
@@ -534,6 +551,19 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
   // The summands of the generated equation
   std::vector<pre_srf_summand<allow_ce>> summands;
 
+  /// is_simple_expression is called often. Therefore, we add a cached variant.
+  std::map<pbes_expression, bool> m_is_simple_expression_cache_true;
+  std::map<pbes_expression, bool> m_is_simple_expression_cache_false;
+
+  bool is_simple_expression_cached(const pbes_expression& p, const bool b)
+  {
+    return is_simple_expression_with_cache(
+                  p,
+                  b,
+                  m_is_simple_expression_cache_true,
+                  m_is_simple_expression_cache_false);
+  }
+
   /// If true do not introduce a new PBES equation for simple expressions, and instead add them to every summand
   /// separately.
   bool m_merge_simple_expressions = false;
@@ -558,7 +588,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
 
   void apply(const or_& x)
   {
-    if (m_merge_simple_expressions && is_simple_expression(x.left(), allow_ce))
+    if (m_merge_simple_expressions && is_simple_expression_cached(x.left(), allow_ce))
     {
       std::size_t size = summands.size();
       apply(x.right());
@@ -567,7 +597,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
         i->add_condition(detail::make_not(x.left()));
       }
     }
-    else if (m_merge_simple_expressions && is_simple_expression(x.right(), allow_ce))
+    else if (m_merge_simple_expressions && is_simple_expression_cached(x.right(), allow_ce))
     {
       std::size_t size = summands.size();
       apply(x.left());
@@ -605,9 +635,9 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
     // Collect simple expressions to strengthen conjuncts of result of
     // recursive calls. We do not include counterexample information to
     // ensure that the PBES remains in positive form.
-    for (const auto& clause : clauses)
+    for (const pbes_expression& clause : clauses)
     {
-      if (m_merge_simple_expressions && is_simple_expression(clause, false))
+      if (m_merge_simple_expressions && is_simple_expression_cached(clause, false))
       {
         simple_clauses.emplace_back(clause);
         apply(clause);
@@ -616,8 +646,12 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
 
     if (simple_clauses.empty())
     {
-      // No simple clauses, so we can just apply the or_ operator.
-      super::apply(x);
+      // No simple clauses, so we have a conjunction of non-simple ands.
+      for (const pbes_expression& clause : clauses)
+      {
+        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        apply(clause);
+      }
       return;
     }
 
@@ -626,9 +660,9 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
     mCRL2log(log::trace) << "Simple condition " << condition << "\n";
 
     // Recursively apply (pre)SRF transformation.
-    for (const auto& clause : clauses)
+    for (const pbes_expression& clause : clauses)
     {
-      if (!m_merge_simple_expressions || !is_simple_expression(clause, false))
+      if (!m_merge_simple_expressions || !is_simple_expression_cached(clause, false))
       {
         mCRL2log(log::trace) << "Clause " << clause << "\n";
         std::size_t size = summands.size();
@@ -661,7 +695,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
 
   void apply(const exists& x)
   {
-    if (is_simple_expression(x.body(), allow_ce))
+    if (is_simple_expression_cached(x.body(), allow_ce))
     {
       const pbes_expression& f = x.body();
       const propositional_variable_instantiation& X = propositional_variable_instantiation(X_true, {});
@@ -687,7 +721,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
 
   void apply(const pbes_expression& x)
   {
-    if (is_simple_expression(x, allow_ce))
+    if (is_simple_expression_cached(x, allow_ce))
     {
       const propositional_variable_instantiation& X = propositional_variable_instantiation(X_false, {});
       const pbes_expression& f = x;
@@ -736,13 +770,13 @@ inline bool is_conjunctive(const pbes_expression& phi, bool allow_ce)
   }
   else if (is_or(phi))
   {
-    const auto& phi_ = atermpp::down_cast<or_>(phi);
+    const or_& phi_ = atermpp::down_cast<or_>(phi);
     return (is_simple_expression(phi_.left(), allow_ce) && is_propositional_variable_instantiation(phi_.right()))
            || (is_simple_expression(phi_.right(), allow_ce) && is_propositional_variable_instantiation(phi_.left()));
   }
   else if (is_and(phi))
   {
-    const auto& phi_ = atermpp::down_cast<and_>(phi);
+    const and_& phi_ = atermpp::down_cast<and_>(phi);
     bool result = !((is_simple_expression(phi_.left(), allow_ce) && is_propositional_variable_instantiation(phi_.right()))
              || (is_simple_expression(phi_.right(), allow_ce) && is_propositional_variable_instantiation(phi_.left())));
     return result;
@@ -844,7 +878,7 @@ inline detail::pre_srf_pbes<allow_ce> pbes2pre_srf(const pbes& p, bool merge_sim
       propositional_variable(X_true, {}),
       propositional_variable_instantiation(X_true, {}));
 
-  const auto& p_equations = p.equations();
+  const std::vector<pbes_equation>& p_equations = p.equations();
   std::deque<pbes_equation> equations(p_equations.begin(), p_equations.end());
   equations.emplace_back(eqn_false);
   equations.emplace_back(eqn_true);

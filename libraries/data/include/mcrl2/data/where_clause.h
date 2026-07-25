@@ -69,8 +69,8 @@ class where_clause: public data_expression
 //--- end user section where_clause ---//
 };
 
-/// \\brief Make_where_clause constructs a new term into a given address.
-/// \\ \param t The reference into which the new where_clause is constructed. 
+/// \\brief The function make_where_clause constructs a new term into a given address.
+/// \\ \param t The reference into which the new where_clause is constructed.
 template <class... ARGUMENTS>
 inline void make_where_clause(atermpp::aterm& t, const ARGUMENTS&... args)
 {

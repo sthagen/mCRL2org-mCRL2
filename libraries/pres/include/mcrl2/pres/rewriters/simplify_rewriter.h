@@ -146,7 +146,7 @@ public:
         return;
       }
     }
-    make_and_(result,result, right);
+    make_and(result,result, right);
   }
 
   template <class T>
@@ -187,7 +187,7 @@ public:
         return;
       }
     }
-    make_or_(result,result, right);
+    make_or(result,result, right);
   }
 
   template <class T>
@@ -292,14 +292,14 @@ public:
   void apply(T& result, const infimum& x)
   {
     apply(result, x.body());
-    optimized_infimum(result, x.variables(), result);
+    make_optimized_infimum(result, x.variables(), result, true);
   }
 
   template <class T>
   void apply(T& result, const supremum& x)
   {
     apply(result, x.body());
-    optimized_supremum(result, x.variables(), result);
+    make_optimized_supremum(result, x.variables(), result, true);
   }
 
   template <class T>
@@ -400,7 +400,7 @@ public:
        apply(t2, t1);
        make_eqinf(t1, resulta.right());
        apply(result, t1);
-       optimized_and(t1, t2, result);
+       make_optimized_and(t1, t2, result);
        result = t1;
        return;
     }
@@ -413,7 +413,7 @@ public:
        apply(t2, t1);
        make_eqinf(t1, resulta.right());
        apply(result, t1);
-       optimized_or(t1, t2, result);
+       make_optimized_or(t1, t2, result);
        result = t1;
        return;
     }
@@ -426,7 +426,7 @@ public:
        apply(t2, t1);
        make_eqinf(t1, resulta.right());
        apply(result, t1);
-       optimized_plus(t1, t2, result);
+       make_optimized_plus(t1, t2, result);
        result = t1;
        return;
     }
@@ -485,7 +485,7 @@ public:
        apply(t2, t1);
        make_eqninf(t1, resulta.right());
        apply(result, t1);
-       optimized_and(t1, t2, result);
+       make_optimized_and(t1, t2, result);
        result = t1;
        return;
     }
@@ -498,7 +498,7 @@ public:
        apply(t2, t1);
        make_eqninf(t1, resulta.right());
        apply(result, t1);
-       optimized_or(t1, t2, result);
+       make_optimized_or(t1, t2, result);
        result = t1;
        return;
     }
@@ -518,9 +518,9 @@ public:
        apply(t3, t);
        make_eqninf(t, resulta.right());
        apply(t4, t);
-       optimized_or(t, t1, t2);
-       optimized_or(t1, t3, t4);
-       optimized_and(result, t, t1);
+       make_optimized_or(t, t1, t2);
+       make_optimized_or(t1, t3, t4);
+       make_optimized_and(result, t, t1);
        return;
     }
     if (is_const_multiply(result))
@@ -662,7 +662,7 @@ public:
   { 
     const data::variable_list vl = substitution_administration.push(x.variables());
     apply(result, x.body());
-    optimized_infimum(result, vl, result);
+    make_optimized_infimum(result, vl, result, true);
     substitution_administration.pop(vl);
   }
 
@@ -671,7 +671,7 @@ public:
   {
     const data::variable_list vl = substitution_administration.push(x.variables());
     apply(result, x.body());
-    optimized_supremum(result, vl, result);
+    make_optimized_supremum(result, vl, result, true);
     substitution_administration.pop(vl);
   }   
 
@@ -681,7 +681,7 @@ public:
     const data::variable_list vl = substitution_administration.push(x.variables());
     pres_expression body;
     apply(body, x.body());
-    optimized_sum(result, vl, body, m_data_spec, super::R);
+    make_optimized_sum(result, vl, body, m_data_spec, super::R);
     substitution_administration.pop(vl);
   }
 

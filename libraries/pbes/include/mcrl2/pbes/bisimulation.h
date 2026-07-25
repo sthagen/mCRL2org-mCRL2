@@ -368,8 +368,8 @@ class branching_bisimulation_algorithm : public bisimulation_algorithm
         data::variable_list e  = i->summation_variables();
         const data::variable_list& d1 = q.process_parameters();
         pbes_expression expr;
-        optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), var(Y(p, q, i), d + d1 + e));
-        expr = make_forall_(e, expr);
+        make_optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), var(Y(p, q, i), d + d1 + e));
+        pbes_system::make_optimized_forall(expr, e, expr);
         result.push_back(expr);
       }
       return optimized_join_and(result.begin(), result.end());
@@ -397,11 +397,11 @@ class branching_bisimulation_algorithm : public bisimulation_algorithm
           data::data_expression cj = j->condition();
           data::variable_list e1 = j->summation_variables();
           data::data_expression_list gj = j->next_state(q.process_parameters());
-          optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(X(p, q), gi + gj));
-          expr = make_exists_(e1, expr);
+          make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(X(p, q), gi + gj));
+          pbes_system::make_optimized_exists(expr, e1, expr);
           v.push_back(expr);
         }
-        optimized_or(expr, optimized_join_or(v.begin(), v.end()), var(X(p, q), gi + d1));
+        make_optimized_or(expr, optimized_join_or(v.begin(), v.end()), var(X(p, q), gi + d1));
         return expr;
       }
       else
@@ -415,9 +415,9 @@ class branching_bisimulation_algorithm : public bisimulation_algorithm
           lps::multi_action ai = i->multi_action();
           lps::multi_action aj = j->multi_action();
           pbes_expression expr; 
-          optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj));
-          optimized_and(expr, expr, var(X(p, q), gi + gj));
-          expr = make_exists_(e1, expr);
+          make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj));
+          make_optimized_and(expr, expr, var(X(p, q), gi + gj));
+          pbes_system::make_optimized_exists(expr, e1, expr);
           v.push_back(expr);
         }
         return optimized_join_or(v.begin(), v.end());
@@ -445,16 +445,16 @@ class branching_bisimulation_algorithm : public bisimulation_algorithm
         data::data_expression cj = j->condition();
         data::variable_list e1 = j->summation_variables();
         data::data_expression_list  gj = j->next_state(q.process_parameters());
-        optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(Y(p, q, i), 
+        make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(Y(p, q, i), 
                             variable_list_to_data_expression_list(d) + 
                                 gj + 
                             data::variable_list_to_data_expression_list(e)));
-        expr = make_exists_(e1, expr);
+        pbes_system::make_optimized_exists(expr, e1, expr);
         v.push_back(expr);
       }
      
-      optimized_and(expr, var(X(p, q), d + d1), step(p, q, i));
-      optimized_or(expr, optimized_join_or(v.begin(), v.end()), expr);
+      make_optimized_and(expr, var(X(p, q), d + d1), step(p, q, i));
+      make_optimized_or(expr, optimized_join_or(v.begin(), v.end()), expr);
       return expr;
     }
 
@@ -487,7 +487,7 @@ class branching_bisimulation_algorithm : public bisimulation_algorithm
 
       // E1
       pbes_expression expr;
-      optimized_and(expr, match(m, s), match(s, m));
+      make_optimized_and(expr, match(m, s), match(s, m));
       equations.emplace_back(nu(), propositional_variable(X(m, s), d + d1), expr);
       equations.emplace_back(nu(), propositional_variable(X(s, m), d1 + d), var(X(m, s), d + d1));
 
@@ -539,8 +539,8 @@ class strong_bisimulation_algorithm : public bisimulation_algorithm
         data::data_expression ci = i->condition();
         data::variable_list e = i->summation_variables();
         pbes_expression  expr;
-        optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), step(p, q, i));
-        expr = make_forall_(e, expr);
+        make_optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), step(p, q, i));
+        pbes_system::make_optimized_forall(expr,e, expr);
         result.push_back(expr);
       }
       return optimized_join_and(result.begin(), result.end());
@@ -564,9 +564,9 @@ class strong_bisimulation_algorithm : public bisimulation_algorithm
         lps::multi_action ai = i->multi_action();
         lps::multi_action aj = j->multi_action();
         pbes_expression expr;
-        optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj));
-        optimized_and(expr, expr, var(X(p, q), gi + gj));
-        expr = make_exists_(e1, expr);
+        make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj));
+        make_optimized_and(expr, expr, var(X(p, q), gi + gj));
+        pbes_system::make_optimized_exists(expr, e1, expr);
         result.push_back(expr);
       }
       return optimized_join_or(result.begin(), result.end());
@@ -591,7 +591,7 @@ class strong_bisimulation_algorithm : public bisimulation_algorithm
 
       // E
       pbes_expression expr;
-      optimized_and(expr, match(m, s), match(s, m));
+      make_optimized_and(expr, match(m, s), match(s, m));
       equations.emplace_back(nu(), propositional_variable(X(m, s), d + d1), expr);
       equations.emplace_back(nu(), propositional_variable(X(s, m), d1 + d), var(X(m, s), d + d1));
 
@@ -634,8 +634,8 @@ class weak_bisimulation_algorithm : public bisimulation_algorithm
         data::variable_list e  = i->summation_variables();
         const data::variable_list& d1 = q.process_parameters();
         pbes_expression expr;
-        optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), var(Y1(p, q, i), d + d1 + e));
-        expr = make_forall_(e, expr);
+        make_optimized_imp(expr, atermpp::down_cast<pbes_expression>(ci), var(Y1(p, q, i), d + d1 + e));
+        pbes_system::make_optimized_forall(expr, e, expr);
         result.push_back(expr);
       }
       return optimized_join_and(result.begin(), result.end());
@@ -665,9 +665,9 @@ class weak_bisimulation_algorithm : public bisimulation_algorithm
           data::data_expression_list gj = j->next_state(q.process_parameters());
           lps::multi_action aj(j->multi_action().actions());
           pbes_expression expr;
-          optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj)), close2(p, q, i, gi, gj);
-          optimized_and(expr, expr, close2(p, q, i, gi, gj));
-          expr = make_exists_(e1, expr);
+          make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), equals(ai, aj)), close2(p, q, i, gi, gj);
+          make_optimized_and(expr, expr, close2(p, q, i, gi, gj));
+          pbes_system::make_optimized_exists(expr, e1, expr);
           v.push_back(expr);
         }
         return optimized_join_or(v.begin(), v.end());
@@ -695,14 +695,14 @@ class weak_bisimulation_algorithm : public bisimulation_algorithm
         data::data_expression cj = j->condition();
         data::variable_list e1 = j->summation_variables();
         data::data_expression_list gj = j->next_state(d1);
-        optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(Y1(p, q, i), 
+        make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj), var(Y1(p, q, i), 
                                     data::variable_list_to_data_expression_list(d) + 
                                     gj + 
                                     data::variable_list_to_data_expression_list(e)));
-        expr = make_exists_(e1, expr);
+        pbes_system::make_optimized_exists(expr, e1, expr);
         v.push_back(expr);
       }
-      optimized_or(expr, optimized_join_or(v.begin(), v.end()), step(p, q, i));
+      make_optimized_or(expr, optimized_join_or(v.begin(), v.end()), step(p, q, i));
       return expr;
     }
 
@@ -763,11 +763,11 @@ class weak_bisimulation_algorithm : public bisimulation_algorithm
         data::data_expression cj_new = data::replace_variables_capture_avoiding(cj, sigma1, id_generator);
         data::data_expression_list gj_new = data::replace_variables_capture_avoiding(gj, sigma1, id_generator);
 
-        optimized_and(expr, atermpp::down_cast<pbes_expression>(cj_new), var(Y2(p, q, i), d + gj_new));
-        expr = make_exists_(e11, expr);
+        make_optimized_and(expr, atermpp::down_cast<pbes_expression>(cj_new), var(Y2(p, q, i), d + gj_new));
+        pbes_system::make_optimized_exists(expr, e11, expr);
         v.push_back(expr);
       }
-      optimized_or(expr, var(X(p, q), d + d1), optimized_join_or(v.begin(), v.end()));
+      make_optimized_or(expr, var(X(p, q), d + d1), optimized_join_or(v.begin(), v.end()));
       return expr;
     }
 
@@ -795,7 +795,7 @@ class weak_bisimulation_algorithm : public bisimulation_algorithm
 
       // E1
       pbes_expression expr;
-      optimized_and(expr, match(m, s), match(s, m));
+      make_optimized_and(expr, match(m, s), match(s, m));
       equations.emplace_back(nu(), propositional_variable(X(m, s), d + d1), expr);
       equations.emplace_back(nu(), propositional_variable(X(s, m), d1 + d), var(X(m, s), d + d1));
 
@@ -858,7 +858,7 @@ class branching_simulation_equivalence_algorithm : public branching_bisimulation
 
       // E1
       pbes_expression expr;
-      optimized_and(expr, match(m, s), match(s, m));
+      make_optimized_and(expr, match(m, s), match(s, m));
       equations.emplace_back(nu(), propositional_variable(X(m, s), d + d1), expr);
       equations.emplace_back(nu(), propositional_variable(X(s, m), d1 + d), var(X(m, s), d + d1));
 

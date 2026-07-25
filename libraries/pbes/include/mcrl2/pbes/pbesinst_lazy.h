@@ -147,6 +147,8 @@ class pbesinst_lazy_algorithm
     pbesinst_lazy_todo todo;
 
     /// \brief The propositional variable instantiations that have been discovered (not necessarily handled).
+    /// \detail It appears that the index is not used. The indexed set can probably be replaced with an
+    ///         atermpp::unordered_set.
     atermpp::indexed_set<propositional_variable_instantiation, true> discovered;
 
     /// \brief The initial value (after rewriting).
@@ -190,7 +192,11 @@ class pbesinst_lazy_algorithm
       pbes_system::simplify_quantifiers_data_rewriter<mcrl2::data::rewriter> simplify_rewriter(datar);
       for (pbes_equation& eqn: p.equations())
       {
-        eqn.formula() = order_quantified_variables(one_point_rule_rewriter(simplify_rewriter(eqn.formula())), p.data());
+        // eqn.formula() = order_quantified_variables(one_point_rule_rewriter(simplify_rewriter(eqn.formula())), p.data());
+        pbes_expression aux = simplify_rewriter(eqn.formula());
+        pbes_expression aux1 = one_point_rule_rewriter(aux);
+        pbes_expression aux2 = order_quantified_variables(aux1,p.data());
+        eqn.formula() = aux2;
       }
       return p;
     }
@@ -255,7 +261,7 @@ class pbesinst_lazy_algorithm
        m_equation_index(p),
        discovered(m_options.number_of_threads),
        m_global_R(datar, p.data())
-    { }
+    {}
 
     virtual ~pbesinst_lazy_algorithm() = default;
 
@@ -391,7 +397,7 @@ class pbesinst_lazy_algorithm
             todo.insert(occ.begin(), occ.end(), discovered, thread_index);
             for (const propositional_variable_instantiation& i : occ)
             {
-              discovered.insert(i, thread_index);
+              std::ignore = discovered.insert(i, thread_index);
             }
             on_discovered_elements(occ);
 
@@ -439,7 +445,7 @@ class pbesinst_lazy_algorithm
 
       init = atermpp::down_cast<propositional_variable_instantiation>(m_global_R(m_pbes.initial_state(), sigma));
       todo.insert(init);
-      discovered.insert(init, initialisation_thread_index);
+      std::ignore = discovered.insert(init, initialisation_thread_index);
 
       if (number_of_threads>1)
       {

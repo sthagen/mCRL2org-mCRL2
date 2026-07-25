@@ -12,8 +12,8 @@
 #ifndef MCRL2_PBES_PBES_EXPRESSION_H
 #define MCRL2_PBES_PBES_EXPRESSION_H
 
-#include "mcrl2/data/expression_traits.h"
-#include "mcrl2/data/optimized_boolean_operators.h"
+#include "mcrl2/core/optimized_boolean_operators.h"
+#include "mcrl2/data/detail/data_sequence_algorithm.h"
 #include "mcrl2/pbes/propositional_variable.h"
 
 namespace mcrl2::pbes_system
@@ -168,8 +168,8 @@ class propositional_variable_instantiation: public pbes_expression
 //--- end user section propositional_variable_instantiation ---//
 };
 
-/// \\brief Make_propositional_variable_instantiation constructs a new term into a given address.
-/// \\ \param t The reference into which the new propositional_variable_instantiation is constructed. 
+/// \\brief The function make_propositional_variable_instantiation constructs a new term into a given address.
+/// \\ \param t The reference into which the new propositional_variable_instantiation is constructed.
 template <class... ARGUMENTS>
 inline void make_propositional_variable_instantiation(atermpp::aterm& t, const ARGUMENTS&... args)
 {
@@ -245,10 +245,10 @@ class not_: public pbes_expression
     }
 };
 
-/// \\brief Make_not_ constructs a new term into a given address.
-/// \\ \param t The reference into which the new not_ is constructed. 
+/// \\brief The function make_not constructs a new term into a given address.
+/// \\ \param t The reference into which the new not is constructed.
 template <class... ARGUMENTS>
-inline void make_not_(atermpp::aterm& t, const ARGUMENTS&... args)
+inline void make_not(atermpp::aterm& t, const ARGUMENTS&... args)
 {
   atermpp::make_term_appl(t, core::detail::function_symbol_PBESNot(), args...);
 }
@@ -321,10 +321,10 @@ class and_: public pbes_expression
     }
 };
 
-/// \\brief Make_and_ constructs a new term into a given address.
-/// \\ \param t The reference into which the new and_ is constructed. 
+/// \\brief The function make_and constructs a new term into a given address.
+/// \\ \param t The reference into which the new and is constructed.
 template <class... ARGUMENTS>
-inline void make_and_(atermpp::aterm& t, const ARGUMENTS&... args)
+inline void make_and(atermpp::aterm& t, const ARGUMENTS&... args)
 {
   atermpp::make_term_appl(t, core::detail::function_symbol_PBESAnd(), args...);
 }
@@ -397,10 +397,10 @@ class or_: public pbes_expression
     }
 };
 
-/// \\brief Make_or_ constructs a new term into a given address.
-/// \\ \param t The reference into which the new or_ is constructed. 
+/// \\brief The function make_or constructs a new term into a given address.
+/// \\ \param t The reference into which the new or is constructed.
 template <class... ARGUMENTS>
-inline void make_or_(atermpp::aterm& t, const ARGUMENTS&... args)
+inline void make_or(atermpp::aterm& t, const ARGUMENTS&... args)
 {
   atermpp::make_term_appl(t, core::detail::function_symbol_PBESOr(), args...);
 }
@@ -473,8 +473,8 @@ class imp: public pbes_expression
     }
 };
 
-/// \\brief Make_imp constructs a new term into a given address.
-/// \\ \param t The reference into which the new imp is constructed. 
+/// \\brief The function make_imp constructs a new term into a given address.
+/// \\ \param t The reference into which the new imp is constructed.
 template <class... ARGUMENTS>
 inline void make_imp(atermpp::aterm& t, const ARGUMENTS&... args)
 {
@@ -549,8 +549,8 @@ class forall: public pbes_expression
     }
 };
 
-/// \\brief Make_forall constructs a new term into a given address.
-/// \\ \param t The reference into which the new forall is constructed. 
+/// \\brief The function make_forall constructs a new term into a given address.
+/// \\ \param t The reference into which the new forall is constructed.
 template <class... ARGUMENTS>
 inline void make_forall(atermpp::aterm& t, const ARGUMENTS&... args)
 {
@@ -625,8 +625,8 @@ class exists: public pbes_expression
     }
 };
 
-/// \\brief Make_exists constructs a new term into a given address.
-/// \\ \param t The reference into which the new exists is constructed. 
+/// \\brief The function make_exists constructs a new term into a given address.
+/// \\ \param t The reference into which the new exists is constructed.
 template <class... ARGUMENTS>
 inline void make_exists(atermpp::aterm& t, const ARGUMENTS&... args)
 {
@@ -909,43 +909,33 @@ const data::data_expression_list& param(const pbes_expression& t)
 }
 } // namespace accessors
 
-/// \brief Make a universal quantification. It checks for an empty variable list,
-/// which is not allowed.
-/// \param l A sequence of data variables
+///
+/// \brief Make a negation
+/// \param result Placeholder for the resulting PBES expression <tt>!p</tt>. This is more efficient than delivering it as the result of a function. 
 /// \param p A PBES expression
-/// \return The value <tt>forall l.p</tt>
 inline
-pbes_expression make_forall_(const data::variable_list& l, const pbes_expression& p)
+void make_optimized_not(pbes_expression& result, const pbes_expression& p)
 {
-  if (l.empty())
-  {
-    return p;
-  }
-  return pbes_expression(atermpp::aterm(core::detail::function_symbol_PBESForall(), l, p));
-}
-
-/// \brief Make an existential quantification. It checks for an empty variable list,
-/// which is not allowed.
-/// \param l A sequence of data variables
-/// \param p A PBES expression
-/// \return The value <tt>exists l.p</tt>
-inline
-pbes_expression make_exists_(const data::variable_list& l, const pbes_expression& p)
-{
-  if (l.empty())
-  {
-    return p;
-  }
-  return pbes_expression(atermpp::aterm(core::detail::function_symbol_PBESExists(), l, p));
+  core::make_optimized_not(result, p);
 }
 
 /// \brief Make a negation
 /// \param p A PBES expression
 /// \return The value <tt>!p</tt>
 inline
-void optimized_not(pbes_expression& result, const pbes_expression& p)
+pbes_expression optimized_not(const pbes_expression& p)
 {
-  data::optimized_not(result, p);
+  return core::optimized_not(p);
+}
+
+/// \brief Make a conjunction
+/// \param result Placeholder for the resulting PBES expression <tt>p && q</tt>. This is more efficient than delivering it as the result of a function. 
+/// \param p A PBES expression
+/// \param q A PBES expression
+inline
+void make_optimized_and(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+{
+  core::make_optimized_and(result, p, q);
 }
 
 /// \brief Make a conjunction
@@ -953,9 +943,19 @@ void optimized_not(pbes_expression& result, const pbes_expression& p)
 /// \param q A PBES expression
 /// \return The value <tt>p && q</tt>
 inline
-void optimized_and(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+pbes_expression optimized_and(const pbes_expression& p, const pbes_expression& q)
 {
-  data::optimized_and(result, p, q);
+  return core::optimized_and(p, q);
+}
+
+/// \brief Make a disjunction
+/// \param result Placeholder for the resulting PBES expression <tt>p || q</tt>. This is more efficient than delivering it as the result of a function. 
+/// \param p A PBES expression
+/// \param q A PBES expression
+inline
+void make_optimized_or(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+{
+  core::make_optimized_or(result, p, q);
 }
 
 /// \brief Make a disjunction
@@ -963,9 +963,19 @@ void optimized_and(pbes_expression& result, const pbes_expression& p, const pbes
 /// \param q A PBES expression
 /// \return The value <tt>p || q</tt>
 inline
-void optimized_or(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+pbes_expression optimized_or(const pbes_expression& p, const pbes_expression& q)
 {
-  data::optimized_or(result, p, q);
+  return core::optimized_or(p, q);
+}
+
+/// \brief Make an implication
+/// \param result Placeholder for the resulting PBES expression <tt>p => q</tt>. This is more efficient than delivering it as the result of a function. 
+/// \param p A PBES expression
+/// \param q A PBES expression
+inline
+void make_optimized_imp(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+{
+  core::make_optimized_imp(result, p, q);
 }
 
 /// \brief Make an implication
@@ -973,65 +983,57 @@ void optimized_or(pbes_expression& result, const pbes_expression& p, const pbes_
 /// \param q A PBES expression
 /// \return The value <tt>p => q</tt>
 inline
-void optimized_imp(pbes_expression& result, const pbes_expression& p, const pbes_expression& q)
+pbes_expression optimized_imp(const pbes_expression& p, const pbes_expression& q)
 {
-  data::optimized_imp(result, p, q);
+  return core::optimized_imp(p, q);
+}
+
+/// \brief Make a universal quantification
+/// If l is empty, p is returned.
+/// \param result The placeholder to which the optimised existential quantification is assigned. 
+/// \param l A sequence of data variables
+/// \param p A PBES expression
+/// \param remove_variables If true variables not occurring in p will be removed. This requires complexity in the size of p. 
+/// \return The value <tt>forall l.p</tt>
+inline
+void make_optimized_forall(pbes_expression& result, const data::variable_list& l, const pbes_expression& p, bool remove_variables = false)
+{
+  core::make_optimized_forall(result, l, p, remove_variables);
 }
 
 /// \brief Make a universal quantification
 /// If l is empty, p is returned.
 /// \param l A sequence of data variables
 /// \param p A PBES expression
+/// \param remove_variables If true variables not occurring in p will be removed. This requires complexity in the size of p. 
 /// \return The value <tt>forall l.p</tt>
 inline
-void optimized_forall(pbes_expression& result, const data::variable_list& l, const pbes_expression& p)
+pbes_expression optimized_forall(const data::variable_list& l, const pbes_expression& p, bool remove_variables = false)
 {
-  if (l.empty())
-  {
-    result = p;
-    return;
-  }
-  if (is_false(p))
-  {
-    // N.B. Here we use the fact that mCRL2 data types are never empty.
-    result = atermpp::down_cast<pbes_expression>(data::sort_bool::false_());
-    return;
-  }
-  if (is_true(p))
-  {
-    result = true_();
-    return;
-  }
-  pbes_system::make_forall(result, l, p);
-  return;
+  return core::optimized_forall(l, p, remove_variables);
+}
+
+/// \brief Make an optimized existential quantification. If l is empty, p is returned.
+/// \param result The placeholder to which the optimised existential quantification is assigned. 
+/// \param l A sequence of data variables
+/// \param p A PBES expression
+/// \param remove_variables If true variables not occurring in p will be removed. This requires complexity in the size of p. 
+inline
+void make_optimized_exists(pbes_expression& result, const data::variable_list& l, const pbes_expression& p, bool remove_variables = false)
+{
+  core::make_optimized_exists(result, l, p, remove_variables);
 }
 
 /// \brief Make an existential quantification
 /// If l is empty, p is returned.
 /// \param l A sequence of data variables
 /// \param p A PBES expression
+/// \param remove_variables If true variables not occurring in p will be removed. This requires complexity in the size of p. 
 /// \return The value <tt>exists l.p</tt>
 inline
-void optimized_exists(pbes_expression& result, const data::variable_list& l, const pbes_expression& p)
+pbes_expression optimized_exists(const data::variable_list& l, const pbes_expression& p, bool remove_variables = false)
 {
-  if (l.empty())
-  {
-    result = p;
-    return;
-  }
-  if (is_false(p))
-  {
-    result = atermpp::down_cast<pbes_expression>(data::sort_bool::false_());
-    return;
-  }
-  if (is_true(p))
-  {
-    // N.B. Here we use the fact that mCRL2 data types are never empty.
-    result = atermpp::down_cast<pbes_expression>(data::sort_bool::true_());
-    return;
-  }
-  pbes_system::make_exists(result, l, p);
-  return;
+  return core::optimized_exists(l, p, remove_variables);
 }
 
 inline
@@ -1123,9 +1125,9 @@ struct term_traits<pbes_system::pbes_expression>
   /// \param result The value <tt>!p</tt>
   /// \param p A term
   static inline
-  void make_not_(term_type& result, const term_type& p)
+  void make_not(term_type& result, const term_type& p)
   {
-    pbes_system::make_not_(result, p);
+    pbes_system::make_not(result, p);
   }
 
   /// \brief Make a conjunction
@@ -1143,9 +1145,9 @@ struct term_traits<pbes_system::pbes_expression>
   /// \param p A term
   /// \param q A term
   static inline
-  void make_and_(term_type& result, const term_type& p, const term_type& q)
+  void make_and(term_type& result, const term_type& p, const term_type& q)
   {
-    pbes_system::make_and_(result, p, q);
+    pbes_system::make_and(result, p, q);
   }
 
   /// \brief Make a disjunction
@@ -1163,9 +1165,9 @@ struct term_traits<pbes_system::pbes_expression>
   /// \param p A term
   /// \param q A term
   static inline
-  void make_or_(term_type& result, const term_type& p, const term_type& q)
+  void make_or(term_type& result, const term_type& p, const term_type& q)
   {
-    pbes_system::make_or_(result, p,q);
+    pbes_system::make_or(result, p,q);
   }
 
   template <typename FwdIt>
@@ -1437,6 +1439,26 @@ struct term_traits<pbes_system::pbes_expression>
   {
     return pbes_system::pp(t);
   }
+
+  // \brief A function that calculates the intersection of two variable lists.
+  // \param x A list.
+  // \param y Another list.
+  // \return The intersection of the two lists.
+  static inline
+  data::variable_list set_intersection(const data::variable_list& x, const std::set<data::variable>& y)
+  {
+    return data::detail::set_intersection(x, y);
+  }
+
+  // \brief Find the free variables in a term.
+  // \param x The input term.
+  // \return The set of free variables in a term.
+  static inline
+  std::set<data::variable> find_free_variables(const term_type& x)
+  {
+    return pbes_system::find_free_variables(x);
+  }
+
 };
 
 } // namespace mcrl2::core
