@@ -95,7 +95,7 @@ public:
   Property(QString name,
     QString text,
     bool mucalculus = true,
-    mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_eq_none,
+    mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_equivalence::lts_eq_none,
     QString text2 = "");
 
   /**
@@ -194,7 +194,7 @@ public:
    * @param evidence Whether this is an evidence lts
    * @return The file path of the lts
    */
-  QString ltsFilePath(mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_eq_none,
+  QString ltsFilePath(mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_equivalence::lts_eq_none,
     SpecType specType = SpecType::Main,
     const QString& propertyName = "",
     bool evidence = false);
@@ -521,18 +521,18 @@ private:
   std::map<IntermediateFileType, bool> saveIntermediateFilesOptions;
 
   QString projectName;
-  bool projectOpen;
+  bool projectOpen = false;
   QDomDocument projectOptions;
   std::list<Property> properties;
   std::map<QString, bool> propertyModified;
-  bool specificationOnlyMode;
+  bool specificationOnlyMode = false;
   QDateTime lastKnownSpecificationModificationTime;
   QDateTime lastKnownProjectFileModificationTime;
   std::map<QString, QDateTime> lastKnownPropertyModificationTime;
 
   // Settings stored in the project file
   bool m_enableJittyc = false;
-  mcrl2::lps::t_lin_method m_linearisationMethod = mcrl2::lps::lmRegular;
+  mcrl2::lps::t_lin_method m_linearisationMethod = mcrl2::lps::t_lin_method::lmRegular;
   int m_enumerationLimit = 0;
 
   /**

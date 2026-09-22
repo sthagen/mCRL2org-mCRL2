@@ -17,8 +17,7 @@ AddEditPropertyDialog::AddEditPropertyDialog(
     FindAndReplaceDialog* findAndReplaceDialog, QWidget* parent)
     : QDialog(parent), ui(new Ui::AddEditPropertyDialog),
       processSystem(processSystem), fileSystem(fileSystem),
-      findAndReplaceDialog(findAndReplaceDialog), oldProperty(Property()),
-      propertyParsingProcessid(-1), lastParsingPropertyIsMucalculus(true)
+      findAndReplaceDialog(findAndReplaceDialog), oldProperty(Property()) 
 {
   ui->setupUi(this);
 
@@ -150,7 +149,7 @@ bool AddEditPropertyDialog::checkInput()
   }
   else if (ui->tabWidget->currentIndex() == 1 &&
            ui->equivalenceComboBox->getSelectedEquivalence() ==
-               mcrl2::lts::lts_eq_none)
+               mcrl2::lts::lts_equivalence::lts_eq_none)
   {
     executeInformationBox(this, windowTitle,
                           "No equivalence has been selected");

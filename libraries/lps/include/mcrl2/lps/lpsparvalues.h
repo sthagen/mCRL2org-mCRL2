@@ -45,13 +45,14 @@ public:
 
     // First instantiate the finite sorts in the sum operator.
     std::set<data::sort_expression> sorts = lps::finite_sorts(m_spec.data());
-    mCRL2log(log::verbose) << "expanding summation variables of sorts: " << data::pp(sorts) << std::endl;
+    mCRL2log(log::log_level_t::verbose) << "expanding summation variables of sorts: " << data::pp(sorts) << std::endl;
     lps::suminst_algorithm<DataRewriter, Specification>(m_spec, m_rewriter, sorts).run();
 
     //TODO: consider stochastic action summands as well
     for (const action_summand& a: m_spec.process().action_summands())
     {
-      m_graph.add_edge(a.summation_variables(),
+      m_graph.add_edge(core::identifier_string(""),
+                       a.summation_variables(),
                        a.condition(),
                        a.assignments() | std::views::transform([](const data::assignment& as){
                         return std::make_pair(data::detail::parameter(as.lhs()), as.rhs());

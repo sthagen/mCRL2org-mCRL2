@@ -28,7 +28,7 @@ class Simulation : public QObject
   Q_OBJECT
 
   public:
-    typedef QStringList State;
+    using State = QStringList;
     struct Transition
     {
       QString action_or_probability;
@@ -43,12 +43,12 @@ class Simulation : public QObject
       QList<Transition> transitions;
       unsigned long long transitionNumber;
     };
-    typedef QList<TracePosition> Trace;
+    using Trace = QList<TracePosition>;
 
   public:
     Simulation(mcrl2::data::rewrite_strategy strategy)
-        : m_strategy(strategy), m_initialized(false), m_simulation(NULL) {}
-    ~Simulation() 
+        : m_strategy(strategy)  {}
+    ~Simulation() override 
     { 
       delete m_simulation; 
     }
@@ -80,7 +80,7 @@ class Simulation : public QObject
 
   private:
     mcrl2::data::rewrite_strategy m_strategy;
-    bool m_initialized;
+    bool m_initialized = false;
 
     // Constructed in init(), which runs on this object's own (worker) thread
     // after moveToThread(): a value member here would instead be
@@ -89,7 +89,7 @@ class Simulation : public QObject
     // assumption that a term is destroyed on the thread that created it.
     std::unique_ptr<mcrl2::lps::stochastic_specification> m_stochastic_spec;
 
-    mcrl2::lps::simulation *m_simulation;
+    mcrl2::lps::simulation *m_simulation = nullptr;
     QStringList m_parameters;
     Trace m_trace;
     QMutex m_traceMutex;

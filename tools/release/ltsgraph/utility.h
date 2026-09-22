@@ -18,6 +18,7 @@
 #include <QStaticText>
 
 #include <cmath>
+#include <numbers>
 #include <random>
 
 /// \file This file contains various utility commands, instead of defining them inline in source files, such that they can be reused and/or
@@ -56,13 +57,13 @@ inline void glCheckError()
 
   if (result != GL_NO_ERROR)
   {
-    mCRL2log(mcrl2::log::error) << "OpenGL error: " << glErrorString(result) << "\n";
+    mCRL2log(mcrl2::log::log_level_t::error) << "OpenGL error: " << glErrorString(result) << "\n";
     std::abort();
   }
 }
 
 /// \brief Constants for pi and pi/2.
-constexpr float PI = 3.14159265358979323846f;
+constexpr float PI = std::numbers::pi_v<float>;
 constexpr float PI_2 = PI * 0.5f;
 
 inline

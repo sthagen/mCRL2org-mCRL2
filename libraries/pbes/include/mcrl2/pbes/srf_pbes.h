@@ -385,7 +385,7 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
       return super::apply(x);
     }
 
-    mCRL2log(log::trace) << "Or expression " << x << "\n";
+    mCRL2log(log::log_level_t::trace) << "Or expression " << x << "\n";
 
     // Special case for pre-SRF with simple expressions.
     std::set<pbes_expression> clauses = split_or(x, false);
@@ -405,20 +405,20 @@ struct srf_or_traverser : public pbes_expression_traverser<srf_or_traverser<allo
       // No simple clauses, so we have a disjunction of non-simple ors.
       for (const pbes_expression& clause : clauses)
       {
-        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        mCRL2log(log::log_level_t::trace) << "Clause " << clause << "\n";
         apply(clause);
       }
       return;
     }
 
     pbes_expression condition = make_disjunction(simple_clauses.begin(), simple_clauses.end());
-    mCRL2log(log::trace) << "Simple condition " << condition << "\n";
+    mCRL2log(log::log_level_t::trace) << "Simple condition " << condition << "\n";
 
     for (const pbes_expression& clause: clauses)
     {
       if (!m_merge_simple_expressions || !is_simple_expression_cached(clause, false))
       {
-        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        mCRL2log(log::log_level_t::trace) << "Clause " << clause << "\n";
         std::size_t size = summands.size();
         apply(clause);
         for (auto i = summands.begin() + size; i != summands.end(); ++i)
@@ -622,7 +622,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
       return;
     }
 
-    mCRL2log(log::trace) << "Expression " << x << "\n";
+    mCRL2log(log::log_level_t::trace) << "Expression " << x << "\n";
 
     // Special case for pre-SRF with simple expressions.
     std::set<pbes_expression> clauses = split_and(x, false);
@@ -645,7 +645,7 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
       // No simple clauses, so we have a conjunction of non-simple ands.
       for (const pbes_expression& clause : clauses)
       {
-        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        mCRL2log(log::log_level_t::trace) << "Clause " << clause << "\n";
         apply(clause);
       }
       return;
@@ -653,14 +653,14 @@ struct srf_and_traverser : public pbes_expression_traverser<srf_and_traverser<al
 
     // condition used for strengthening guards of dependencies.
     pbes_expression condition = make_conjunction(simple_clauses.begin(), simple_clauses.end());
-    mCRL2log(log::trace) << "Simple condition " << condition << "\n";
+    mCRL2log(log::log_level_t::trace) << "Simple condition " << condition << "\n";
 
     // Recursively apply (pre)SRF transformation.
     for (const pbes_expression& clause : clauses)
     {
       if (!m_merge_simple_expressions || !is_simple_expression_cached(clause, false))
       {
-        mCRL2log(log::trace) << "Clause " << clause << "\n";
+        mCRL2log(log::log_level_t::trace) << "Clause " << clause << "\n";
         std::size_t size = summands.size();
         apply(clause);
         for (auto i = summands.begin() + size; i != summands.end(); ++i)
@@ -793,6 +793,7 @@ class pre_srf_pbes
 {
 protected:
   data::data_specification m_dataspec;
+  std::set<data::variable> m_global_variables;
   std::vector<pre_srf_equation<allow_ce>> m_equations;
   propositional_variable_instantiation m_initial_state;
 
@@ -800,9 +801,11 @@ public:
   pre_srf_pbes() = default;
 
   pre_srf_pbes(const data::data_specification& dataspec,
+      std::set<data::variable> global_variables,
       std::vector<pre_srf_equation<allow_ce>> equations,
       propositional_variable_instantiation initial_state)
       : m_dataspec(dataspec),
+        m_global_variables(std::move(global_variables)),
         m_equations(std::move(equations)),
         m_initial_state(std::move(initial_state))
   {}
@@ -819,6 +822,10 @@ public:
 
   data::data_specification& data() { return m_dataspec; }
 
+  const std::set<data::variable>& global_variables() const { return m_global_variables; }
+
+  std::set<data::variable>& global_variables() { return m_global_variables; }
+
   pbes to_pbes() const
   {
     std::vector<pbes_equation> v;
@@ -826,7 +833,7 @@ public:
     {
       v.push_back(eqn.to_pbes());
     }
-    return pbes(m_dataspec, std::set<data::variable>(), v, m_initial_state);
+    return pbes(m_dataspec, m_global_variables, v, m_initial_state);
   }
 
   // Adds extra clauses to the equations to enforce that the PBES is in total SRF format
@@ -901,6 +908,7 @@ inline detail::pre_srf_pbes<allow_ce> pbes2pre_srf(const pbes& p, bool merge_sim
   }
 
   auto result = detail::pre_srf_pbes<allow_ce>(p.data(),
+      p.global_variables(),
       std::vector<detail::pre_srf_equation<allow_ce>>(srf_equations.begin(), srf_equations.end()),
       p.initial_state());
   return result;
@@ -1010,7 +1018,7 @@ inline srf_pbes simplify_srf_pbes(const srf_pbes& p)
     equations.emplace_back(equation.symbol(), equation.variable(), summands, conjunctive);
   }
 
-  return srf_pbes(p.data(), equations, p.initial_state());
+  return srf_pbes(p.data(), p.global_variables(), equations, p.initial_state());
 }
 
 /// \brief Converts a pre-SRF PBES into standard recursive form. Note that the
@@ -1047,7 +1055,7 @@ inline srf_pbes pre_srf2srfpbes(const srf_pbes_with_ce& p)
     equations.emplace_back(equation.symbol(), equation.variable(), summands, equation.is_conjunctive());
   }
 
-  return simplify_srf_pbes(srf_pbes(p.data(), equations, p.initial_state()));
+  return simplify_srf_pbes(srf_pbes(p.data(), p.global_variables(), equations, p.initial_state()));
 }
 
 

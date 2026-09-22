@@ -44,7 +44,7 @@ namespace mcrl2::lps
     )
     {
       thread_rewr.thread_initialise();
-      mCRL2log(log::debug) << "Start thread " << thread_index << ".\n";
+      mCRL2log(log::log_level_t::debug) << "Start thread " << thread_index << ".\n";
       data::enumerator_identifier_generator thread_id_generator("t_");;
       data::data_specification thread_data_specification = m_global_lpsspec.data(); /// XXXX Nodig??
       data::enumerator_algorithm<> thread_enumerator(thread_rewr, thread_data_specification, thread_rewr, thread_id_generator, false);
@@ -188,7 +188,7 @@ namespace mcrl2::lps
                 {
                   m_exclusive_state_access.unlock();
                 }
-                std::lock_guard<std::mutex> lock(m_global_todo_buffer_mutex);
+                std::scoped_lock lock(m_global_todo_buffer_mutex);
                 m_signal_global_todo_buffer_filled.notify_all();
               }
 
@@ -230,7 +230,7 @@ namespace mcrl2::lps
           m_exclusive_state_access.lock();
         }
       } 
-      mCRL2log(log::debug) << "Stop thread " << thread_index << ".\n";
+      mCRL2log(log::log_level_t::debug) << "Stop thread " << thread_index << ".\n";
       if (mcrl2::utilities::detail::GlobalThreadSafe && m_options.number_of_threads > 1)
       {
         m_exclusive_state_access.unlock();

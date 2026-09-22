@@ -30,7 +30,7 @@ class MainWindow : public QMainWindow
 
   public:
     MainWindow(QThread *atermThread);
-    ~MainWindow();
+    ~MainWindow() override;
 
   public slots:
     void open(QString filename);
@@ -53,12 +53,12 @@ class MainWindow : public QMainWindow
     void hideProgressDialog() { setProgress(6, ""); }
     void setProgress(int phase, QString message);
     void selectionChanged();
-    void zoomChanged() { m_ui.zoomOut->setEnabled(m_ltsManager->lts()->getPreviousLevel() != 0); }
+    void zoomChanged() { m_ui.zoomOut->setEnabled(m_ltsManager->lts()->getPreviousLevel() != nullptr); }
     void startStructuring() { setEnabled(false); m_ltsCanvas->setUpdatesEnabled(false); }
     void stopStructuring() { m_ltsCanvas->setUpdatesEnabled(true); setEnabled(true); }
     void logMessage(QString level, QDateTime /* timestamp */, QString message)
     {
-      if (mcrl2::log::log_level_from_string(level.toStdString()) == mcrl2::log::error)
+      if (mcrl2::log::log_level_from_string(level.toStdString()) == mcrl2::log::log_level_t::error)
       {
         QMessageBox::critical(this, QString("LTSView - An error occured (%1)"), message);
       }
@@ -72,7 +72,7 @@ class MainWindow : public QMainWindow
     /**
      * @brief Saves window information
      */
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
   private:
     Ui::MainWindow m_ui;

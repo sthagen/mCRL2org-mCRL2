@@ -22,6 +22,7 @@
 #include "mcrl2/data/join.h"
 #include "mcrl2/pbes/detail/instantiate_global_variables.h"
 #include "mcrl2/pbes/detail/pbes_io.h"
+#include "mcrl2/pbes/detail/srf_transformations.h"
 #include "mcrl2/pbes/normalize.h"
 #include "mcrl2/pbes/pbes_summand_group.h"
 #include "mcrl2/pbes/pbes.h"
@@ -77,119 +78,10 @@ std::ostream& operator<<(std::ostream& out, const symbolic_reachability_options&
   return out;
 }
 
-inline
-pbes_system::srf_pbes split_conditions(const pbes_system::srf_pbes& pbes, std::size_t granularity)
-{
-  mCRL2log(log::debug) << "splitting conditions" << std::endl;
-
-  // Find existing identifiers.
-  data::set_identifier_generator id_generator;
-  for (const srf_equation& equation : pbes.equations())
-  {
-    id_generator.add_identifier(equation.variable().name());
-  }
-
-  // Determine the Xtrue equation.
-  pbes_system::propositional_variable Xtrue = pbes.equations()[pbes.equations().size()-2].variable();
-  pbes_system::propositional_variable Xfalse = pbes.equations()[pbes.equations().size()-1].variable();
-
-  pbes_system::srf_pbes result = pbes;
-  std::vector<srf_equation> added_equations; // These equations are added at the end of the pbes.
-  for (srf_equation& equation : result.equations())
-  {
-    std::vector<srf_summand> split_summands; // The updated summands.
-    for (const srf_summand& summand : equation.summands())
-    {
-      mCRL2log(log::debug) << "splitting summand " << summand << std::endl;
-
-      // Heuristics to determine when to split conjunctive conditions.
-      bool should_split = summand.parameters().empty() && granularity > 1; // && find_free_variables(summand.condition()).size() >= 4;
-
-      if (data::sort_bool::is_or_application(summand.condition()))
-      {
-        // For disjunctive conditions we can introduce one summand per clause.
-        for (const data::data_expression& clause : data::split_or(summand.condition()))
-        {
-          split_summands.emplace_back(summand.parameters(), atermpp::down_cast<pbes_expression>(clause), summand.variable());
-          mCRL2log(log::debug) << "Added summand " << split_summands.back() << std::endl;
-        }
-      }
-      else if (should_split && data::sort_bool::is_and_application(summand.condition()))
-      {
-        // The summand is simple if there is only a dependency on true or false.
-        bool simple = granularity == 3 || summand.variable().name() == Xtrue.name() || summand.variable().name() == Xfalse.name();
-
-        std::vector<srf_summand> split_summands_inner; // The summands for the added equation.
-        for (const data::data_expression& clause : data::split_and(summand.condition()))
-        {
-          if (simple)
-          {
-            // For conjunctive equations add !condition => Xfalse, and !condition && Xtrue otherwise.
-            split_summands_inner.emplace_back(data::variable_list(),
-                                              atermpp::down_cast<pbes_expression>(data::lazy::not_(clause)),
-                                              !equation.is_conjunctive()
-                                              ? propositional_variable_instantiation(Xtrue.name(), {}) :
-                                                propositional_variable_instantiation(Xfalse.name(), {})
-                                              );
-          }
-          else
-          {
-            // Add a new equation per clause.
-            const propositional_variable& Y = equation.variable();
-            propositional_variable Y1(id_generator(Y.name()), Y.parameters());
-
-            split_summands_inner.emplace_back(data::variable_list(), true_(), propositional_variable_instantiation(Y1.name(), data::make_data_expression_list(Y1.parameters())));
-            std::vector<srf_summand> summands;
-            summands.emplace_back(data::variable_list(), atermpp::down_cast<pbes_expression>(clause), summand.variable());
-            added_equations.emplace_back(equation.symbol(), Y1, summands, !equation.is_conjunctive());
-            mCRL2log(log::debug) << "Added equation " << added_equations.back() << std::endl;
-          }
-          mCRL2log(log::debug) << "Added summand " << split_summands_inner.back() << std::endl;
-        }
-
-        if (simple)
-        {
-          split_summands_inner.emplace_back(data::variable_list(), true_(), summand.variable());
-        }
-
-        if (equation.summands().size() == 1)
-        {
-          // Change the current equation.
-          split_summands = split_summands_inner;
-          equation.is_conjunctive() = !equation.is_conjunctive();
-          mCRL2log(log::debug) << "Changed equation type (conjunctive or disjunctive)" << std::endl;
-        }
-        else
-        {
-          // Add a new equation.
-          const propositional_variable& Y = equation.variable();
-          propositional_variable Y1(id_generator(Y.name()), Y.parameters());
-
-          split_summands.emplace_back(data::variable_list(), true_(), propositional_variable_instantiation(Y1.name(), data::make_data_expression_list(Y1.parameters())));
-          added_equations.emplace_back(equation.symbol(), Y1, split_summands_inner, !equation.is_conjunctive());
-          mCRL2log(log::debug) << "Added equation " << added_equations.back() << std::endl;
-        }
-      }
-      else
-      {
-        // Do nothing.
-        split_summands.emplace_back(summand);
-      }
-    }
-
-    equation.summands() = split_summands;
-  }
-
-  // The last two equations must be Xfalse and Xtrue.
-  result.equations().insert(result.equations().end()-2, added_equations.begin(), added_equations.end());
-
-  return result;
-}
-
-
 /// Applies necessary preprocessing steps to allow the PBES to be solved symbolically.
+template <bool use_pre_srf>
 inline
-pbes_system::srf_pbes_with_ce preprocess(pbes_system::pbes pbesspec, const symbolic_reachability_options& options)
+detail::pre_srf_pbes<use_pre_srf> preprocess(pbes_system::pbes pbesspec, const symbolic_reachability_options& options)
 {
   pbes_system::detail::instantiate_global_variables(pbesspec);
   normalize(pbesspec);
@@ -207,7 +99,12 @@ pbes_system::srf_pbes_with_ce preprocess(pbes_system::pbes pbesspec, const symbo
     pbes_system::replace_constants_by_variables(pbesspec, rewr, sigma);
   }
 
-  auto result = pbes2pre_srf(pbesspec, true);
+  detail::pre_srf_pbes<use_pre_srf> result;
+  if constexpr (use_pre_srf) {
+      result = pbes2pre_srf(pbesspec, true);
+  } else {
+      result = pbes2srf(pbesspec, true);
+  }
 
   // Unify the parameters of the original PBES (which has potential counter example information)
   unify_parameters(result, true, options.reset_parameters);
@@ -257,7 +154,7 @@ class pbesreach_algorithm
     /// \brief Updates R.L := R.L U {(x,y) in R | x in X}
     void learn_successors(std::size_t i, pbes_summand_group& R, const ldd& X)
     {
-      mCRL2log(log::trace) << "learn successors of summand group " << i << " for X = " << print_states(m_data_index, X, R.read) << std::endl;
+      mCRL2log(log::log_level_t::trace) << "learn successors of summand group " << i << " for X = " << print_states(m_data_index, X, R.read) << std::endl;
 
       using namespace sylvan::ldds;
       std::pair<pbesreach_algorithm&, pbes_summand_group&> context{*this, R};
@@ -286,7 +183,7 @@ class pbesreach_algorithm
       data::data_specification propvar_dataspec = construct_propositional_variable_data_specification(srf_pbes, "PropositionalVariable");
       srf_pbes.data() = data::merge_data_specifications(srf_pbes.data(), propvar_dataspec);
 
-      mCRL2log(log::trace) << "--- srf pbes ---\n" << srf_pbes.to_pbes() << std::endl;
+      mCRL2log(log::log_level_t::trace) << "--- srf pbes ---\n" << srf_pbes.to_pbes() << std::endl;
       return srf_pbes;
     }
 
@@ -327,24 +224,24 @@ class pbesreach_algorithm
       m_initial_state = data::data_expression_list(initial_values.begin(), initial_values.end());
 
       m_summand_patterns = compute_read_write_patterns(m_pbes, m_process_parameters);
-      mCRL2log(log::debug) << "Original read/write matrix:" << std::endl;
-      mCRL2log(log::debug) << symbolic::print_read_write_patterns(m_summand_patterns);
+      mCRL2log(log::log_level_t::debug) << "Original read/write matrix:" << std::endl;
+      mCRL2log(log::log_level_t::debug) << symbolic::print_read_write_patterns(m_summand_patterns);
 
       symbolic::adjust_read_write_patterns(m_summand_patterns, m_options);
 
       m_variable_order = symbolic::compute_variable_order(m_options.variable_order, m_process_parameters.size(), m_summand_patterns, true);
       assert(m_variable_order[0] == 0); // It is required that the propositional variable name stays up front
-      mCRL2log(log::debug) << "variable order = " << core::detail::print_list(m_variable_order) << std::endl;
+      mCRL2log(log::log_level_t::debug) << "variable order = " << core::detail::print_list(m_variable_order) << std::endl;
       m_summand_patterns = symbolic::reorder_read_write_patterns(m_summand_patterns, m_variable_order);
 
       m_process_parameters = symbolic::permute_copy(m_process_parameters, m_variable_order);
       m_initial_state = symbolic::permute_copy(m_initial_state, m_variable_order);
-      mCRL2log(log::debug) << "process parameters = " << core::detail::print_list(m_process_parameters) << std::endl;
+      mCRL2log(log::log_level_t::debug) << "process parameters = " << core::detail::print_list(m_process_parameters) << std::endl;
 
       std::vector<std::set<std::size_t>> groups = symbolic::compute_summand_groups(m_options.summand_groups, m_summand_patterns);
       for (const auto& group: groups)
       {
-        mCRL2log(log::debug) << "group " << core::detail::print_set(group) << std::endl;
+        mCRL2log(log::log_level_t::debug) << "group " << core::detail::print_set(group) << std::endl;
       }
       m_group_patterns = symbolic::compute_summand_group_patterns(m_summand_patterns, groups);
       for (std::size_t j = 0; j < m_group_patterns.size(); j++)
@@ -354,7 +251,7 @@ class pbesreach_algorithm
 
       for (std::size_t i = 0; i < m_summand_groups.size(); i++)
       {
-        mCRL2log(log::debug) << "=== summand group " << i << " ===\n" << m_summand_groups[i] << std::endl;
+        mCRL2log(log::log_level_t::debug) << "=== summand group " << i << " ===\n" << m_summand_groups[i] << std::endl;
       }
 
       for (const data::variable& param: m_process_parameters)
@@ -362,8 +259,8 @@ class pbesreach_algorithm
         m_data_index.emplace_back(param.sort());
       }
 
-      mCRL2log(log::debug) << "Final read/write matrix:" << std::endl;
-      mCRL2log(log::debug) << symbolic::print_read_write_patterns(m_summand_patterns);
+      mCRL2log(log::log_level_t::debug) << "Final read/write matrix:" << std::endl;
+      mCRL2log(log::log_level_t::debug) << symbolic::print_read_write_patterns(m_summand_patterns);
     }
 
     virtual ~pbesreach_algorithm() = default;
@@ -385,13 +282,13 @@ class pbesreach_algorithm
       if (m_options.no_relprod)
       {
         ldd z = symbolic::alternative_relprod(U, group);
-        mCRL2log(log::trace) << "relprod(" << i << ", todo) = " << print_states(m_data_index, z) << std::endl;
+        mCRL2log(log::log_level_t::trace) << "relprod(" << i << ", todo) = " << print_states(m_data_index, z) << std::endl;
         return z;
       }
       else
       {
         ldd z = relprod(U, group.L, group.Ir);
-        mCRL2log(log::trace) << "relprod(" << i << ", todo) = " << print_states(m_data_index, z) << std::endl;
+        mCRL2log(log::log_level_t::trace) << "relprod(" << i << ", todo) = " << print_states(m_data_index, z) << std::endl;
         return z;
       }
     }
@@ -418,7 +315,7 @@ class pbesreach_algorithm
             ldd proj = project(m_options.chaining ? todo1 : todo, R[i].Ip);
             learn_successors(i, R[i], m_options.cached ? minus(proj, R[i].Ldomain) : proj);
 
-            mCRL2log(log::trace) << "L =\n" << print_relation(m_data_index, R[i].L, R[i].read, R[i].write) << std::endl;
+            mCRL2log(log::log_level_t::trace) << "L =\n" << print_relation(m_data_index, R[i].L, R[i].read, R[i].write) << std::endl;
           }
 
           todo1 = union_(todo1, relprod_impl(m_options.chaining ? todo1 : todo, R[i], i));
@@ -442,7 +339,7 @@ class pbesreach_algorithm
             ldd proj = project(todo1, R[i].Ip);
             learn_successors(i, R[i], m_options.cached ? minus(proj, R[i].Ldomain) : proj);
 
-            mCRL2log(log::trace) << "L =\n" << print_relation(m_data_index, R[i].L, R[i].read, R[i].write) << std::endl;
+            mCRL2log(log::log_level_t::trace) << "L =\n" << print_relation(m_data_index, R[i].L, R[i].read, R[i].write) << std::endl;
           }
 
           // Apply one transition relation repeatedly.
@@ -485,7 +382,7 @@ class pbesreach_algorithm
       auto& R = m_summand_groups;
       std::size_t iteration_count = 0;
 
-      mCRL2log(log::trace) << "initial state = " << core::detail::print_list(m_initial_state) << std::endl;
+      mCRL2log(log::log_level_t::trace) << "initial state = " << core::detail::print_list(m_initial_state) << std::endl;
 
       stopwatch timer;
       m_initial_vertex = initial_state();
@@ -497,8 +394,8 @@ class pbesreach_algorithm
       {
         stopwatch loop_start;
         iteration_count++;
-        mCRL2log(log::trace) << "--- iteration " << iteration_count << " ---" << std::endl;
-        mCRL2log(log::trace) << "todo = " << print_states(m_data_index, m_todo) << std::endl;
+        mCRL2log(log::log_level_t::trace) << "--- iteration " << iteration_count << " ---" << std::endl;
+        mCRL2log(log::log_level_t::trace) << "todo = " << print_states(m_data_index, m_todo) << std::endl;
         ldd deadlocks = empty_set();
 
         std::tie(m_visited, m_todo, deadlocks) = step(m_visited, m_todo, true, m_options.detect_deadlocks);
@@ -508,13 +405,13 @@ class pbesreach_algorithm
           m_deadlocks = union_(m_deadlocks, deadlocks);
         }
 
-        mCRL2log(log::verbose) << "generated " << std::setw(12) << print_size(union_(m_visited, m_todo)) << " BES equations after "
+        mCRL2log(log::log_level_t::verbose) << "generated " << std::setw(12) << print_size(union_(m_visited, m_todo)) << " BES equations after "
                                << std::setw(3) << iteration_count << " iterations (time = " << std::setprecision(2)
                                << std::fixed << loop_start.seconds() << "s)" << std::endl;
 
         if (m_options.detect_deadlocks)
         {
-          mCRL2log(log::verbose) << "found " << std::setw(12) << print_size(m_deadlocks) << " deadlocks" << std::endl;
+          mCRL2log(log::log_level_t::verbose) << "found " << std::setw(12) << print_size(m_deadlocks) << " deadlocks" << std::endl;
         }
 
         on_end_while_loop();
@@ -527,32 +424,32 @@ class pbesreach_algorithm
       }
       else
       {
-        mCRL2log(log::verbose) << "number of BES equations = " << print_size(m_visited) << " (time = " << std::setprecision(2) << std::fixed << timer.seconds() << "s)" << std::endl;
+        mCRL2log(log::log_level_t::verbose) << "number of BES equations = " << print_size(m_visited) << " (time = " << std::setprecision(2) << std::fixed << timer.seconds() << "s)" << std::endl;
       }
 
-      mCRL2log(log::verbose) << "used variable order = " << core::detail::print_list(m_variable_order) << std::endl;
+      mCRL2log(log::log_level_t::verbose) << "used variable order = " << core::detail::print_list(m_variable_order) << std::endl;
 
       double total_time = 0.0;
       for (std::size_t i = 0; i < R.size(); i++)
       {
-        mCRL2log(log::verbose) << "group " << std::setw(4) << i << " contains " << std::setw(7) << print_size(R[i].L) << " transitions (learn time = "
+        mCRL2log(log::log_level_t::verbose) << "group " << std::setw(4) << i << " contains " << std::setw(7) << print_size(R[i].L) << " transitions (learn time = "
                                << std::setw(5) << std::setprecision(2) << std::fixed << R[i].learn_time << "s with " << std::setw(9) << R[i].learn_calls
                                << " calls, cached " << print_size(R[i].Ldomain) << " values"
                                << std::endl;
 
         total_time += R[i].learn_time;
       }
-      mCRL2log(log::verbose) << "learning transitions took " << total_time << "s" << std::endl;
+      mCRL2log(log::log_level_t::verbose) << "learning transitions took " << total_time << "s" << std::endl;
 
       std::size_t i = 0;
       for (const auto& param : m_process_parameters)
       {
         auto& table = m_data_index[i];
 
-        mCRL2log(log::verbose) << "Parameter " << i << " (" << param << ")" << " has " << table.size() << " values"<< std::endl;
+        mCRL2log(log::log_level_t::verbose) << "Parameter " << i << " (" << param << ")" << " has " << table.size() << " values"<< std::endl;
         for (const auto& data : table)
         {
-          mCRL2log(log::debug) << table.index(data) << ": " << data << std::endl;
+          mCRL2log(log::log_level_t::debug) << table.index(data) << ": " << data << std::endl;
         }
 
         ++i;

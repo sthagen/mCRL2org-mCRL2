@@ -339,13 +339,13 @@ private:
 
   std::vector<state_t> get_state(std::size_t state_index)
   {
-    std::lock_guard<std::mutex> state_lock(context.states_mutex);
+    std::scoped_lock state_lock(context.states_mutex);
     return context.states[state_index];
   }
 
   std::pair<std::size_t, bool> insert_state(const std::vector<state_t>& state)
   {
-    std::lock_guard<std::mutex> state_lock(context.states_mutex);
+    std::scoped_lock state_lock(context.states_mutex);
     return context.states.insert(state);
   }
 
@@ -361,19 +361,19 @@ private:
 
   std::size_t states_size()
   {
-    std::lock_guard<std::mutex> states_lock(context.states_mutex);
+    std::scoped_lock states_lock(context.states_mutex);
     return context.states.size();
   }
 
   std::size_t queue_size()
   {
-    std::lock_guard<std::mutex> queue_lock(context.queue_mutex);
+    std::scoped_lock queue_lock(context.queue_mutex);
     return context.queue.size();
   }
 
   void examine_transition()
   {
-    std::lock_guard<std::mutex> progress_lock(context.progress_mutex);
+    std::scoped_lock progress_lock(context.progress_mutex);
     context.progress_monitor.examine_transition();
   }
 
@@ -384,14 +384,14 @@ private:
     const std::size_t states_size = this->states_size();
     const std::size_t queue_size = this->queue_size();
 
-    std::lock_guard<std::mutex> progress_lock(context.progress_mutex);
+    std::scoped_lock progress_lock(context.progress_mutex);
     context.progress_monitor.finish_state(states_size, queue_size, input.nr_of_threads);
   }
 
   template <typename ActionLabel>
   void add_transition(std::size_t from_state, const ActionLabel& label, std::size_t to_state)
   {
-    std::lock_guard<std::mutex> builder_lock(context.lts_builder_mutex);
+    std::scoped_lock builder_lock(context.lts_builder_mutex);
     context.lts_builder->add_transition(from_state, label, to_state, context.number_of_threads);
   }
 
@@ -509,7 +509,7 @@ private:
       // candidate_label is a multi_action, so its actions are already sorted.
       lps::multi_action label = candidate_label;
 
-      mCRL2log(log::debug) << lps::pp(label) << std::endl;
+      mCRL2log(log::log_level_t::debug) << lps::pp(label) << std::endl;
 
       // Apply communication rules
       label = apply_communication(label);
@@ -517,7 +517,7 @@ private:
       // Check if new transition is blocked or not allowed
       if (!lps::encap(input.block_set, label.actions()) && lps::allow_(input.allow_cache, label.actions(), termination_action))
       {
-        mCRL2log(log::trace) << "Multi-action is not blocked and allowed:" << lps::pp(label) << std::endl;
+        mCRL2log(log::log_level_t::trace) << "Multi-action is not blocked and allowed:" << lps::pp(label) << std::endl;
 
         // Hide returns a new label; assign it back.
         label = lps::hide_(input.hide_set, label);
@@ -527,7 +527,7 @@ private:
       }
       else
       {
-        mCRL2log(log::trace) << "Multi-action is blocked or not allowed: " << lps::pp(label) << std::endl;
+        mCRL2log(log::log_level_t::trace) << "Multi-action is blocked or not allowed: " << lps::pp(label) << std::endl;
       }
     };
 
@@ -539,7 +539,7 @@ private:
 
 void mcrl2::combine_lts(const combine_lts_static_context& input)
 {
-  mCRL2log(log::verbose) << "Combining " << input.ltss.size() << " LTSs with " << input.nr_of_threads << " threads." << std::endl;
+  mCRL2log(log::log_level_t::verbose) << "Combining " << input.ltss.size() << " LTSs with " << input.nr_of_threads << " threads." << std::endl;
   // Calculate which states can be reached in a single outgoing step for both LTSs.
   std::vector<lts::outgoing_transitions_per_state_t> outgoing_transitions;
   for (const lts::lts_lts_t& lts_input: input.ltss)

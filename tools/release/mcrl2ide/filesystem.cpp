@@ -25,7 +25,7 @@ Property::Property()
   : name(""),
     text(""),
     mucalculus(true),
-    equivalence(mcrl2::lts::lts_eq_none),
+    equivalence(mcrl2::lts::lts_equivalence::lts_eq_none),
     text2("")
 {}
 
@@ -47,9 +47,9 @@ FileSystem::FileSystem(mcrl2::gui::qt::CodeEditor* specificationEditor, QSetting
   : parent(parent),
     specificationEditor(specificationEditor),
     settings(settings),
-    projectOpen(false),
-    properties({}),
-    specificationOnlyMode(false)
+    
+    properties({})
+    
 {
   for (std::pair<IntermediateFileType, QString> item: INTERMEDIATEFILETYPENAMES)
   {
@@ -773,7 +773,7 @@ Property FileSystem::readPropertyFromFile(const QString& propertyFilePath, const
       if (propertyParts.size() == 3)
       {
         mcrl2::lts::lts_equivalence equivalence = getEquivalenceFromName(propertyParts.at(1));
-        if (equivalence != mcrl2::lts::lts_eq_none)
+        if (equivalence != mcrl2::lts::lts_equivalence::lts_eq_none)
         {
           return Property(propertyName, propertyParts.at(0), false, equivalence, propertyParts.at(2));
         }
@@ -806,7 +806,7 @@ void FileSystem::newProperty(const Property& property)
 
   /* make sure that no duplicates can be added to the project file */
   QDomNodeList propertyNodes = propertiesNode.childNodes();
-  for (int i = 0; i < propertyNodes.size(); i++)
+  for (int i = 0; i < propertyNodes.length(); i++)
   {
     if (propertyNodes.at(i).toElement().text() == property.name)
     {

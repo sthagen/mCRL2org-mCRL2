@@ -114,8 +114,8 @@ public:
   private:
   QQueue<int>* processQueue;
   ProcessType processType;
-  bool running;
-  int currentProcessid;
+  bool running = false;
+  int currentProcessid = -1;
 };
 
 /**
@@ -266,7 +266,7 @@ public:
   private:
   FileSystem* fileSystem;
   ConsoleDock* consoleDock;
-  int pid;
+  int pid = 0;
   std::map<int, std::vector<QProcess*>> processes;
   std::map<int, ProcessType> processTypes;
   std::map<int, QString> results;
@@ -338,7 +338,7 @@ public:
     const Property& property = Property(), 
     const QString& expression = QString(), 
     bool evidence = false,
-    mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_eq_none,
+    mcrl2::lts::lts_equivalence equivalence = mcrl2::lts::lts_equivalence::lts_eq_none,
     SpecType specType = SpecType::Main);
 
   private slots:

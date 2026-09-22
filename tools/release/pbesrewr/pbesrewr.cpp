@@ -12,6 +12,7 @@
 #include "mcrl2/pbes/detail/instantiate_global_variables.h"
 #include "mcrl2/pbes/detail/ppg_rewriter.h"
 #include "mcrl2/pbes/detail/ppg_traverser.h"
+#include "mcrl2/pbes/detail/srf_transformations.h"
 #include "mcrl2/pbes/normalize.h"
 #include "mcrl2/pbes/pbes_input_tool.h"
 #include "mcrl2/pbes/pbes_output_tool.h"
@@ -43,6 +44,8 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
 {
   protected:
     using super = pbes_input_tool<pbes_output_tool<pbes_rewriter_tool<rewriter_tool<input_output_tool>>>>;
+    bool m_split_conditions = false;
+    bool m_make_total = false;
 
     /// \brief Returns the types of rewriters that are available for this tool.
     std::set<pbes_system::pbes_rewriter_type> available_rewriters() const override
@@ -50,6 +53,26 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
       std::set<pbes_system::pbes_rewriter_type> result = super::available_rewriters();
       result.insert(pbes_system::pbes_rewriter_type::quantifier_one_point);
       return result;
+    }
+
+    void add_options(utilities::interface_description& desc) override
+    {
+      super::add_options(desc);
+      desc.add_option("srf-split-conditions", "split disjunctive SRF conditions");
+      desc.add_option("srf-total", "make the SRF PBES total");
+    }
+
+    void parse_options(const utilities::command_line_parser& parser) override
+    {
+      super::parse_options(parser);
+      m_split_conditions = parser.has_option("srf-split-conditions");
+      m_make_total = parser.has_option("srf-total");
+      if ((m_split_conditions || m_make_total)
+          && rewriter_type() != pbes_system::pbes_rewriter_type::srf
+          && rewriter_type() != pbes_system::pbes_rewriter_type::pre_srf)
+      {
+        throw mcrl2::runtime_error("The SRF preprocessing options can only be used with the srf or pre-srf rewriter.");
+      }
     }
 
   public:
@@ -68,10 +91,10 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
       using namespace pbes_system;
       using namespace utilities;
 
-      mCRL2log(verbose) << "pbesrewr parameters:" << std::endl;
-      mCRL2log(verbose) << "  input file:         " << m_input_filename << std::endl;
-      mCRL2log(verbose) << "  output file:        " << m_output_filename << std::endl;
-      mCRL2log(verbose) << "  pbes rewriter:      " << m_pbes_rewriter_type << std::endl;
+      mCRL2log(log_level_t::verbose) << "pbesrewr parameters:" << std::endl;
+      mCRL2log(log_level_t::verbose) << "  input file:         " << m_input_filename << std::endl;
+      mCRL2log(log_level_t::verbose) << "  output file:        " << m_output_filename << std::endl;
+      mCRL2log(log_level_t::verbose) << "  pbes rewriter:      " << m_pbes_rewriter_type << std::endl;
 
       // load the pbes
       pbes p;
@@ -91,13 +114,13 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
         }
         case pbes_rewriter_type::quantifier_all:
         {
-          enumerate_quantifiers_rewriter pbesr(datar, p.data(), expand_infinite_sorts);
+          enumerate_quantifiers_rewriter pbesr(datar, p.data(), enumerate_quantifiers_mode::expand_infinite_sorts);
           pbes_rewrite(p, pbesr);
           break;
         }
         case pbes_rewriter_type::quantifier_finite:
         {
-          enumerate_quantifiers_rewriter pbesr(datar, p.data(), expand_finite_sorts);
+          enumerate_quantifiers_rewriter pbesr(datar, p.data(), enumerate_quantifiers_mode::expand_finite_sorts);
           pbes_rewrite(p, pbesr);
           break;
         }
@@ -131,13 +154,13 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
           bool ppg = pbes_system::detail::is_ppg(p);
           if (ppg)
           {
-            mCRL2log(log::verbose) << "PBES is already a PPG." << std::endl;
+            mCRL2log(log::log_level_t::verbose) << "PBES is already a PPG." << std::endl;
           }
           else
           {
-            mCRL2log(log::verbose) << "Rewriting..." << std::endl;
+            mCRL2log(log::log_level_t::verbose) << "Rewriting..." << std::endl;
             pbes q = pbes_system::detail::to_ppg(p);
-            mCRL2log(log::verbose) << "Rewriting done." << std::endl;
+            mCRL2log(log::log_level_t::verbose) << "Rewriting done." << std::endl;
             ppg = pbes_system::detail::is_ppg(q);
             if (!ppg)
             {
@@ -149,18 +172,30 @@ class pbes_rewriter : public pbes_input_tool<pbes_output_tool<pbes_rewriter_tool
         }
         case pbes_rewriter_type::srf:
         {
-          pbes_system::detail::instantiate_global_variables(p);
-          pbes_system::algorithms::normalize(p);
           auto result = pbes2srf(p,true);
+          if (m_split_conditions)
+          {
+            result = split_conditions(result, 1);
+          }
+          if (m_make_total)
+          {
+            result.make_total();
+          }
           save_pbes(result.to_pbes(), output_filename(), m_pbes_output_format);  
           return true;
           break;
         }
         case pbes_rewriter_type::pre_srf:
         {
-          pbes_system::detail::instantiate_global_variables(p);
-          pbes_system::algorithms::normalize(p);
           auto result = pbes2pre_srf(p);
+          if (m_split_conditions)
+          {
+            result = split_conditions(result, 1);
+          }
+          if (m_make_total)
+          {
+            result.make_total();
+          }
           save_pbes(result.to_pbes(), output_filename(), m_pbes_output_format);  
           return true;
           break;    
